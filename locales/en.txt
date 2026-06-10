@@ -2,16 +2,36 @@
 Ukuvota
 ---
 [home_title]
-Ukuvota
+Dashboard
 ---
 [home_subtitle]
-Systemic Consensus
+Active Processes
 ---
 [home_summary]
 Ukuvota helps groups make collective decisions with score voting. Participants can support or oppose every option, so the result favors choices people can accept and still act on.
 ---
 [start_process_button]
 Start Process
+---
+[dashboard_empty]
+No active processes yet. Press the plus button to start a new decision process.
+---
+[dashboard_recent_label]
+Active Processes
+---
+[manual_title]
+Manual
+---
+[manual_body]
+Ukuvota is a cooperative process for collective decisions. It uses score voting so every participant can express support, acceptance, or opposition for every proposal.
+
+The goal is not only to find the most popular proposal. A good decision should have enough support to happen and little enough opposition that people can accept it.
+
+Start by creating a process with a clear topic question. During the proposal phase, participants add possible options. Ukuvota includes two default proposals: keeping the status quo and repeating the process to find other options.
+
+During voting, each participant scores each proposal. Negative scores are weighted so resistance is not hidden by unrelated support. This makes acceptance visible and helps groups choose options with less conflict.
+
+Use the dashboard to return to active processes. The local address shown in a process is stored on this device for now.
 ---
 [create_title]
 Decision Setup
