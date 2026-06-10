@@ -85,6 +85,33 @@ Create Process
 [setup_ready]
 Process draft ready.
 ---
+[collect_title]
+Collect Proposals
+---
+[collect_intro]
+The process was saved locally. Share this address with participants on this device while local-only storage is in use.
+---
+[local_address_label]
+Local address
+---
+[default_proposals_label]
+Default proposals
+---
+[status_quo_title]
+Status quo
+---
+[status_quo_description]
+Keep things the way they are.
+---
+[repeat_process_title]
+Repeat process
+---
+[repeat_process_description]
+Repeat the process and look for other options.
+---
+[db_error]
+Could not save the process locally.
+---
 [back_button]
 Back
 ---

@@ -25,7 +25,7 @@ TARGET := $(LINUX_BUILD_DIR)/uku-$(PLATFORM)-$(ARCH)
 PACKAGE_ID := xyz.waozi.uku
 
 SRC := src/main.c
-FLINT_DIR := ../flint
+FLINT_DIR := vendor/flint
 FLINT_SRCS := $(wildcard $(FLINT_DIR)/src/*.c)
 RAYLIB_DIR := ../inbe/vendor/raylib/src
 RAYLIB_BUILD_DIR := ../inbe/vendor/raylib/build/sdl
@@ -97,7 +97,7 @@ $(TARGET): $(SRC) $(FLINT_SRCS) $(FONT_OUTPUTS) $(RAYLIB_A) | $(LINUX_BUILD_DIR)
 		$(FLINT_SRCS) \
 		$(RAYLIB_A) \
 		$(RAY_LDLIBS) \
-		-lm -lpthread -ldl -lrt \
+		-lsqlite3 -lm -lpthread -ldl -lrt \
 		$(LDFLAGS)
 
 run: $(TARGET)

@@ -2,6 +2,7 @@ build/
 assets/fonts/
 result
 result-*
+uku.sqlite3
 *.o
 *.a
 *.so

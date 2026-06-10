@@ -36,6 +36,7 @@
               libglvnd.dev
               mesa
               pkg-config
+              sqlite
               zlib
             ];
 

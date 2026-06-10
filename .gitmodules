@@ -1,0 +1,3 @@
+[submodule "vendor/flint"]
+	path = vendor/flint
+	url = https://github.com/waozixyz/flint

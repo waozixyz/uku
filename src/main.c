@@ -1,18 +1,21 @@
 #include "raylib.h"
 #include "flint.h"
+#include "sqlite3.h"
 
 #include <math.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define UKU_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define UKU_MAX(a, b) ((a) > (b) ? (a) : (b))
 
 typedef enum UkuScreen {
     UKU_SCREEN_HOME,
-    UKU_SCREEN_CREATE
+    UKU_SCREEN_CREATE,
+    UKU_SCREEN_COLLECT
 } UkuScreen;
 
 typedef enum UkuField {
@@ -22,6 +25,8 @@ typedef enum UkuField {
 } UkuField;
 
 typedef struct UkuDecision {
+    char id[40];
+    char local_address[96];
     char topic[180];
     char description[420];
     int proposal_days;
@@ -33,6 +38,7 @@ typedef struct UkuDecision {
     int negative_weight;
     int submitted;
     int topic_error;
+    int db_error;
 } UkuDecision;
 
 typedef struct UkuApp {
@@ -40,13 +46,16 @@ typedef struct UkuApp {
     UkuField active_field;
     int cursor_clickable;
     int create_scroll;
+    int create_max_scroll;
     int create_scroll_dragging;
     int create_scroll_drag_offset;
+    int create_scrollbar_visible;
     int negative_dropdown_open;
     float logo_spin;
     Font font;
     Texture2D font_shapes_texture;
     int locale_font_ready;
+    sqlite3 *db;
     UkuDecision decision;
 } UkuApp;
 
@@ -71,9 +80,40 @@ typedef struct UkuText {
     char minutes_label[32];
     char create_process_button[96];
     char setup_ready[96];
+    char collect_title[96];
+    char collect_intro[256];
+    char local_address_label[96];
+    char default_proposals_label[96];
+    char status_quo_title[96];
+    char status_quo_description[128];
+    char repeat_process_title[96];
+    char repeat_process_description[128];
+    char db_error[128];
     char back_button[64];
     char brand_short[64];
 } UkuText;
+
+typedef enum UkuFocusId {
+    UKU_FOCUS_HOME_START = 1,
+    UKU_FOCUS_CREATE_BACK,
+    UKU_FOCUS_TOPIC,
+    UKU_FOCUS_DESCRIPTION,
+    UKU_FOCUS_NEGATIVE_WEIGHT,
+    UKU_FOCUS_PROPOSAL_DAYS_MINUS,
+    UKU_FOCUS_PROPOSAL_DAYS_PLUS,
+    UKU_FOCUS_PROPOSAL_HOURS_MINUS,
+    UKU_FOCUS_PROPOSAL_HOURS_PLUS,
+    UKU_FOCUS_PROPOSAL_MINUTES_MINUS,
+    UKU_FOCUS_PROPOSAL_MINUTES_PLUS,
+    UKU_FOCUS_VOTING_DAYS_MINUS,
+    UKU_FOCUS_VOTING_DAYS_PLUS,
+    UKU_FOCUS_VOTING_HOURS_MINUS,
+    UKU_FOCUS_VOTING_HOURS_PLUS,
+    UKU_FOCUS_VOTING_MINUTES_MINUS,
+    UKU_FOCUS_VOTING_MINUTES_PLUS,
+    UKU_FOCUS_CREATE_SUBMIT,
+    UKU_FOCUS_COLLECT_BACK
+} UkuFocusId;
 
 typedef struct ChoppedGlyph {
     int32_t value;
@@ -172,6 +212,24 @@ assign_text(UkuText *text, const char *key, const char *value, size_t len)
         copy_text(text->create_process_button, sizeof(text->create_process_button), value, len);
     else if(strcmp(key, "setup_ready") == 0)
         copy_text(text->setup_ready, sizeof(text->setup_ready), value, len);
+    else if(strcmp(key, "collect_title") == 0)
+        copy_text(text->collect_title, sizeof(text->collect_title), value, len);
+    else if(strcmp(key, "collect_intro") == 0)
+        copy_text(text->collect_intro, sizeof(text->collect_intro), value, len);
+    else if(strcmp(key, "local_address_label") == 0)
+        copy_text(text->local_address_label, sizeof(text->local_address_label), value, len);
+    else if(strcmp(key, "default_proposals_label") == 0)
+        copy_text(text->default_proposals_label, sizeof(text->default_proposals_label), value, len);
+    else if(strcmp(key, "status_quo_title") == 0)
+        copy_text(text->status_quo_title, sizeof(text->status_quo_title), value, len);
+    else if(strcmp(key, "status_quo_description") == 0)
+        copy_text(text->status_quo_description, sizeof(text->status_quo_description), value, len);
+    else if(strcmp(key, "repeat_process_title") == 0)
+        copy_text(text->repeat_process_title, sizeof(text->repeat_process_title), value, len);
+    else if(strcmp(key, "repeat_process_description") == 0)
+        copy_text(text->repeat_process_description, sizeof(text->repeat_process_description), value, len);
+    else if(strcmp(key, "db_error") == 0)
+        copy_text(text->db_error, sizeof(text->db_error), value, len);
     else if(strcmp(key, "back_button") == 0)
         copy_text(text->back_button, sizeof(text->back_button), value, len);
     else if(strcmp(key, "brand_short") == 0)
@@ -437,6 +495,131 @@ has_non_space(const char *text)
     return 0;
 }
 
+static int
+exec_sql(sqlite3 *db, const char *sql)
+{
+    char *error = NULL;
+    int rc = sqlite3_exec(db, sql, NULL, NULL, &error);
+
+    if(error != NULL)
+        sqlite3_free(error);
+    return rc == SQLITE_OK;
+}
+
+static int
+db_init(UkuApp *app)
+{
+    if(sqlite3_open("uku.sqlite3", &app->db) != SQLITE_OK)
+        return 0;
+
+    return exec_sql(app->db,
+                    "create table if not exists processes ("
+                    "id text primary key,"
+                    "topic text not null,"
+                    "description text not null,"
+                    "proposal_minutes integer not null,"
+                    "voting_minutes integer not null,"
+                    "negative_weight integer not null,"
+                    "local_address text not null,"
+                    "created_at integer not null"
+                    ");"
+                    "create table if not exists proposals ("
+                    "id integer primary key autoincrement,"
+                    "process_id text not null,"
+                    "title text not null,"
+                    "description text not null,"
+                    "created_at integer not null,"
+                    "foreign key(process_id) references processes(id)"
+                    ");");
+}
+
+static int
+duration_minutes(int days, int hours, int minutes)
+{
+    return days * 24 * 60 + hours * 60 + minutes;
+}
+
+static void
+generate_process_id(char *dst, size_t size)
+{
+    unsigned int a = (unsigned int)time(NULL);
+    unsigned int b = (unsigned int)GetRandomValue(0, 0x7fffffff);
+
+    snprintf(dst, size, "%08x-%08x", a, b);
+}
+
+static int
+db_insert_proposal(sqlite3 *db, const char *process_id, const char *title, const char *description, sqlite3_int64 created_at)
+{
+    sqlite3_stmt *stmt = NULL;
+    int ok;
+
+    if(sqlite3_prepare_v2(db,
+                          "insert into proposals(process_id, title, description, created_at) values(?, ?, ?, ?)",
+                          -1, &stmt, NULL) != SQLITE_OK)
+        return 0;
+
+    sqlite3_bind_text(stmt, 1, process_id, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, title, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, description, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(stmt, 4, created_at);
+    ok = sqlite3_step(stmt) == SQLITE_DONE;
+    sqlite3_finalize(stmt);
+    return ok;
+}
+
+static int
+db_save_process(UkuApp *app, const UkuText *text)
+{
+    UkuDecision *d = &app->decision;
+    sqlite3_stmt *stmt = NULL;
+    sqlite3_int64 now = (sqlite3_int64)time(NULL);
+    int ok = 0;
+
+    if(app->db == NULL)
+        return 0;
+
+    generate_process_id(d->id, sizeof(d->id));
+    snprintf(d->local_address, sizeof(d->local_address), "/app/%s/collect", d->id);
+
+    if(sqlite3_exec(app->db, "begin immediate", NULL, NULL, NULL) != SQLITE_OK)
+        return 0;
+
+    if(sqlite3_prepare_v2(app->db,
+                          "insert into processes(id, topic, description, proposal_minutes, voting_minutes, negative_weight, local_address, created_at)"
+                          " values(?, ?, ?, ?, ?, ?, ?, ?)",
+                          -1, &stmt, NULL) != SQLITE_OK)
+        goto cleanup;
+
+    sqlite3_bind_text(stmt, 1, d->id, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, d->topic, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, d->description, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt, 4, duration_minutes(d->proposal_days, d->proposal_hours, d->proposal_minutes));
+    sqlite3_bind_int(stmt, 5, duration_minutes(d->voting_days, d->voting_hours, d->voting_minutes));
+    sqlite3_bind_int(stmt, 6, d->negative_weight);
+    sqlite3_bind_text(stmt, 7, d->local_address, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(stmt, 8, now);
+
+    if(sqlite3_step(stmt) != SQLITE_DONE)
+        goto cleanup;
+    sqlite3_finalize(stmt);
+    stmt = NULL;
+
+    if(!db_insert_proposal(app->db, d->id, text->status_quo_title, text->status_quo_description, now))
+        goto cleanup;
+    if(!db_insert_proposal(app->db, d->id, text->repeat_process_title, text->repeat_process_description, now))
+        goto cleanup;
+
+    ok = sqlite3_exec(app->db, "commit", NULL, NULL, NULL) == SQLITE_OK;
+
+cleanup:
+    if(stmt != NULL)
+        sqlite3_finalize(stmt);
+    if(!ok)
+        sqlite3_exec(app->db, "rollback", NULL, NULL, NULL);
+    return ok;
+}
+
 static void
 append_char(char *buffer, size_t cap, int codepoint)
 {
@@ -491,30 +674,34 @@ draw_logo(int cx, int cy, int size, float spin)
 }
 
 static void
-draw_button(UkuApp *app, Font font, int x, int y, int w, int h, const char *label, int primary, int *clicked)
+draw_button(UkuApp *app, Font font, int x, int y, int w, int h, const char *label, int primary, int focus_id, int *clicked)
 {
     Vector2 mouse = GetMousePosition();
     Rectangle bounds = {(float)x, (float)y, (float)w, (float)h};
     int hover = CheckCollisionPointRec(mouse, bounds);
+    int focused = ui_focus_register(focus_id, bounds);
     Color fill = primary ? C_BLUE : (Color){255, 255, 255, 255};
     Color text = primary ? WHITE : C_TEXT;
     int font_size = flint_clamp_px(16, 16, 20);
 
-    if(hover) {
+    if(hover || focused) {
         fill = primary ? flint_lighten(C_BLUE, 18) : (Color){242, 245, 247, 255};
-        app->cursor_clickable = 1;
+        if(hover)
+            app->cursor_clickable = 1;
     }
 
     DrawRectangleRounded(bounds, 0.12f, 12, fill);
     DrawRectangleRoundedLinesEx(bounds, 0.12f, 12, flint_px(1), primary ? flint_darken(C_BLUE, 20) : C_LINE);
+    if(focused)
+        ui_focus_draw(bounds);
     draw_centered_text(font, label, x + w / 2, y + (h - font_size) / 2, font_size, text);
 
-    *clicked = hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON);
+    *clicked = (hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) || ui_focus_activate_pressed(focus_id);
 }
 
 static int
 draw_text_field(UkuApp *app, Font font, const char *label, const char *placeholder,
-                char *buffer, size_t cap, UkuField field, int x, int y, int w, int h)
+                char *buffer, size_t cap, UkuField field, int focus_id, int x, int y, int w, int h)
 {
     int label_font = flint_clamp_px(13, 13, 16);
     int input_font = flint_clamp_px(16, 16, 20);
@@ -523,6 +710,7 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
     int box_y = y + label_font + flint_px(8);
     Rectangle box = {(float)x, (float)box_y, (float)w, (float)h};
     Vector2 mouse = GetMousePosition();
+    int focused;
     int active;
 
     draw_text_font(font, label, x, label_y, label_font, C_MUTED);
@@ -534,6 +722,9 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
             app->active_field = UKU_FIELD_NONE;
     }
 
+    focused = ui_focus_register(focus_id, box);
+    if(focused)
+        app->active_field = field;
     active = app->active_field == field;
     if(CheckCollisionPointRec(mouse, box))
         app->cursor_clickable = 1;
@@ -551,6 +742,8 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
     DrawRectangleRounded(box, 0.08f, 10, WHITE);
     DrawRectangleRoundedLinesEx(box, 0.08f, 10, flint_px(active ? 2 : 1),
                                 active ? C_BLUE : C_LINE);
+    if(focused)
+        ui_focus_draw(box);
 
     if(buffer[0] == '\0') {
         draw_text_font(font, placeholder, x + pad, box_y + pad, input_font, (Color){142, 149, 160, 255});
@@ -578,7 +771,7 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
 
 static int
 draw_stepper(UkuApp *app, Font font, const char *label, int *value, int min_value, int max_value,
-             int x, int y, int w)
+             int x, int y, int w, int minus_focus_id, int plus_focus_id)
 {
     int label_font = flint_clamp_px(13, 13, 16);
     int value_font = flint_clamp_px(18, 18, 22);
@@ -592,13 +785,13 @@ draw_stepper(UkuApp *app, Font font, const char *label, int *value, int min_valu
     draw_text_font(font, label, x, y, label_font, C_MUTED);
     y += label_font + flint_px(7);
 
-    draw_button(app, font, x, y, btn, h, "-", 0, &minus_clicked);
+    draw_button(app, font, x, y, btn, h, "-", 0, minus_focus_id, &minus_clicked);
     DrawRectangleRounded((Rectangle){x + btn + flint_px(4), y, value_w, h}, 0.08f, 10, WHITE);
     DrawRectangleRoundedLinesEx((Rectangle){x + btn + flint_px(4), y, value_w, h}, 0.08f, 10, flint_px(1), C_LINE);
     snprintf(value_text, sizeof(value_text), "%d", *value);
     draw_centered_text(font, value_text, x + btn + flint_px(4) + value_w / 2,
                        y + (h - value_font) / 2, value_font, C_TEXT);
-    draw_button(app, font, x + btn + flint_px(8) + value_w, y, btn, h, "+", 0, &plus_clicked);
+    draw_button(app, font, x + btn + flint_px(8) + value_w, y, btn, h, "+", 0, plus_focus_id, &plus_clicked);
 
     if(minus_clicked)
         *value = clampi(*value - 1, min_value, max_value);
@@ -609,7 +802,7 @@ draw_stepper(UkuApp *app, Font font, const char *label, int *value, int min_valu
 }
 
 static int
-draw_negative_weight_dropdown(UkuApp *app, Font font, const UkuText *text, int x, int y, int w)
+draw_negative_weight_dropdown(UkuApp *app, Font font, const UkuText *text, int x, int y, int w, int focus_id)
 {
     int label_font = flint_clamp_px(13, 13, 16);
     int input_font = flint_clamp_px(16, 16, 20);
@@ -620,20 +813,31 @@ draw_negative_weight_dropdown(UkuApp *app, Font font, const UkuText *text, int x
     Rectangle box;
     Vector2 mouse = GetMousePosition();
     int selected = clampi(app->decision.negative_weight, 0, 9);
+    int focused;
 
     draw_text_font(font, text->negative_weight_label, x, y, label_font, C_MUTED);
     box_y = y + label_font + flint_px(8);
     box = (Rectangle){(float)x, (float)box_y, (float)w, (float)h};
+    focused = ui_focus_register(focus_id, box);
 
     if(CheckCollisionPointRec(mouse, box))
         app->cursor_clickable = 1;
-    if(CheckCollisionPointRec(mouse, box) && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
+    if((CheckCollisionPointRec(mouse, box) && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
+       ui_focus_activate_pressed(focus_id)) {
         app->negative_dropdown_open = !app->negative_dropdown_open;
         app->active_field = UKU_FIELD_NONE;
+    }
+    if(focused) {
+        if(IsKeyPressed(KEY_DOWN))
+            app->decision.negative_weight = clampi(app->decision.negative_weight + 1, 0, 9);
+        if(IsKeyPressed(KEY_UP))
+            app->decision.negative_weight = clampi(app->decision.negative_weight - 1, 0, 9);
     }
 
     DrawRectangleRounded(box, 0.08f, 10, WHITE);
     DrawRectangleRoundedLinesEx(box, 0.08f, 10, flint_px(1), app->negative_dropdown_open ? C_BLUE : C_LINE);
+    if(focused)
+        ui_focus_draw(box);
     draw_text_font(font, text->negative_weight_options[selected], x + pad,
                    box_y + (h - input_font) / 2, input_font, C_TEXT);
     DrawTriangle((Vector2){(float)(x + w - pad - flint_px(10)), (float)(box_y + h / 2 - flint_px(3))},
@@ -724,7 +928,7 @@ draw_form_scrollbar(UkuApp *app, int x, int y, int h, int content_h, int max_scr
 
 static int
 draw_duration_group(UkuApp *app, Font font, const char *title, const UkuText *text,
-                    int *days, int *hours, int *minutes, int x, int y, int w)
+                    int *days, int *hours, int *minutes, int x, int y, int w, int focus_base)
 {
     int title_font = flint_clamp_px(16, 16, 20);
     int gap = flint_px(10);
@@ -734,9 +938,9 @@ draw_duration_group(UkuApp *app, Font font, const char *title, const UkuText *te
     draw_text_font(font, title, x, y, title_font, C_TEXT);
     y += title_font + flint_px(12);
 
-    y2 = draw_stepper(app, font, text->days_label, days, 0, 30, x, y, col_w);
-    draw_stepper(app, font, text->hours_label, hours, 0, 23, x + col_w + gap, y, col_w);
-    draw_stepper(app, font, text->minutes_label, minutes, 0, 59, x + (col_w + gap) * 2, y, col_w);
+    y2 = draw_stepper(app, font, text->days_label, days, 0, 30, x, y, col_w, focus_base, focus_base + 1);
+    draw_stepper(app, font, text->hours_label, hours, 0, 23, x + col_w + gap, y, col_w, focus_base + 2, focus_base + 3);
+    draw_stepper(app, font, text->minutes_label, minutes, 0, 59, x + (col_w + gap) * 2, y, col_w, focus_base + 4, focus_base + 5);
     return y2 + flint_px(6);
 }
 
@@ -789,9 +993,12 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
 
     button_w = UKU_MIN(content_w, flint_px(280));
     button_x = content_x + (content_w - button_w) / 2;
-    draw_button(app, font, button_x, y, button_w, flint_px(48), text->start_process_button, 1, &clicked);
-    if(clicked)
+    draw_button(app, font, button_x, y, button_w, flint_px(48), text->start_process_button, 1,
+                UKU_FOCUS_HOME_START, &clicked);
+    if(clicked) {
         app->screen = UKU_SCREEN_CREATE;
+        ui_focus_clear();
+    }
 
     (void)view_h;
 }
@@ -815,56 +1022,139 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
     int content_h;
     int viewport_y = flint_px(78);
     int viewport_h = view_h - viewport_y;
+    int reserve_scrollbar = app->create_scrollbar_visible;
 
-    app->create_scroll = clampi(app->create_scroll - (int)(GetMouseWheelMove() * flint_px(44)), 0, 2000);
+    app->create_scroll = clampi(app->create_scroll - (int)(GetMouseWheelMove() * flint_px(44)),
+                                0, app->create_max_scroll);
     flint_centered_column(680, side, &content_x, &content_w);
+    if(reserve_scrollbar)
+        content_w = UKU_MAX(flint_px(220), ui_scrollbar_content_width(content_w, 1));
 
     draw_text_font(font, text->create_title, content_x, y, title_font, C_TEXT);
     draw_button(app, font, content_x + content_w - flint_px(120), y, flint_px(120), flint_px(40),
-                text->back_button, 0, &back_clicked);
+                text->back_button, 0, UKU_FOCUS_CREATE_BACK, &back_clicked);
     if(back_clicked) {
         app->screen = UKU_SCREEN_HOME;
         app->active_field = UKU_FIELD_NONE;
+        ui_focus_clear();
     }
     y += title_font + flint_px(24);
 
     BeginScissorMode(0, viewport_y, view_w, viewport_h);
     y = draw_text_field(app, font, text->topic_question_label, text->topic_question_placeholder,
-                        d->topic, sizeof(d->topic), UKU_FIELD_TOPIC,
+                        d->topic, sizeof(d->topic), UKU_FIELD_TOPIC, UKU_FOCUS_TOPIC,
                         content_x, y, content_w, flint_px(46));
     if(d->topic_error) {
         draw_text_font(font, text->topic_error, content_x, y - flint_px(8), small_font, C_RED);
         y += small_font + flint_px(8);
     }
     y = draw_text_field(app, font, text->description_label, text->description_placeholder,
-                        d->description, sizeof(d->description), UKU_FIELD_DESCRIPTION,
+                        d->description, sizeof(d->description), UKU_FIELD_DESCRIPTION, UKU_FOCUS_DESCRIPTION,
                         content_x, y, content_w, flint_px(82));
-    y = draw_negative_weight_dropdown(app, font, text, content_x, y, UKU_MIN(content_w, flint_px(310)));
+    y = draw_negative_weight_dropdown(app, font, text, content_x, y, UKU_MIN(content_w, flint_px(310)),
+                                      UKU_FOCUS_NEGATIVE_WEIGHT);
     y += flint_px(6);
     y = draw_duration_group(app, font, text->proposal_time_label, text,
                             &d->proposal_days, &d->proposal_hours, &d->proposal_minutes,
-                            content_x, y, content_w);
+                            content_x, y, content_w, UKU_FOCUS_PROPOSAL_DAYS_MINUS);
     y = draw_duration_group(app, font, text->voting_time_label, text,
                             &d->voting_days, &d->voting_hours, &d->voting_minutes,
-                            content_x, y, content_w);
+                            content_x, y, content_w, UKU_FOCUS_VOTING_DAYS_MINUS);
 
-    draw_button(app, font, content_x, y, content_w, flint_px(48), text->create_process_button, 1, &clicked);
+    draw_button(app, font, content_x, y, content_w, flint_px(48), text->create_process_button, 1,
+                UKU_FOCUS_CREATE_SUBMIT, &clicked);
     if(clicked) {
         d->topic_error = !has_non_space(d->topic);
-        d->submitted = !d->topic_error;
+        d->db_error = 0;
+        if(!d->topic_error) {
+            d->submitted = db_save_process(app, text);
+            d->db_error = !d->submitted;
+            if(d->submitted) {
+                app->screen = UKU_SCREEN_COLLECT;
+                app->active_field = UKU_FIELD_NONE;
+                ui_focus_clear();
+            }
+        }
     }
     y += flint_px(62);
     if(d->submitted)
         draw_centered_text(font, text->setup_ready, content_x + content_w / 2, y, small_font, C_GREEN);
+    if(d->db_error)
+        draw_centered_text(font, text->db_error, content_x + content_w / 2, y, small_font, C_RED);
     EndScissorMode();
 
     content_bottom = y + app->create_scroll + flint_px(24);
     content_h = content_bottom - viewport_y;
     max_scroll = UKU_MAX(0, content_h - viewport_h);
+    app->create_max_scroll = max_scroll;
+    app->create_scrollbar_visible = max_scroll > 0;
     app->create_scroll = clampi(app->create_scroll, 0, max_scroll);
     draw_form_scrollbar(app, view_w - side - flint_px(8), viewport_y + flint_px(8),
                         viewport_h - flint_px(16), content_h, max_scroll);
     (void)start_y;
+}
+
+static void
+draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
+{
+    int side = flint_page_side_padding();
+    int content_x;
+    int content_w;
+    int title_font = flint_clamp_px(28, 26, 38);
+    int body_font = flint_clamp_px(16, 16, 20);
+    int small_font = flint_clamp_px(13, 13, 16);
+    int line_h = body_font + flint_px(8);
+    int y = flint_px(36);
+    int back_clicked = 0;
+    Font font = app->font;
+    UkuDecision *d = &app->decision;
+
+    flint_centered_column(680, side, &content_x, &content_w);
+
+    draw_button(app, font, content_x + content_w - flint_px(120), y, flint_px(120), flint_px(40),
+                text->back_button, 0, UKU_FOCUS_COLLECT_BACK, &back_clicked);
+    if(back_clicked) {
+        app->screen = UKU_SCREEN_CREATE;
+        ui_focus_clear();
+    }
+
+    draw_text_font(font, text->collect_title, content_x, y, title_font, C_TEXT);
+    y += title_font + flint_px(28);
+
+    draw_text_font(font, d->topic, content_x, y, body_font, C_TEXT);
+    y += body_font + flint_px(18);
+
+    y = draw_wrapped_text(font, text->collect_intro, content_x, y, content_w, body_font, line_h, C_MUTED);
+    y += flint_px(20);
+
+    draw_text_font(font, text->local_address_label, content_x, y, small_font, C_GREEN);
+    y += small_font + flint_px(8);
+    DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)content_w, (float)flint_px(46)}, 0.08f, 10, WHITE);
+    DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)content_w, (float)flint_px(46)}, 0.08f, 10,
+                                flint_px(1), C_LINE);
+    draw_text_font(font, d->local_address, content_x + flint_px(12), y + flint_px(13), body_font, C_TEXT);
+    y += flint_px(70);
+
+    draw_text_font(font, text->default_proposals_label, content_x, y, small_font, C_GREEN);
+    y += small_font + flint_px(12);
+
+    DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)content_w, (float)flint_px(72)}, 0.08f, 10,
+                         (Color){255, 255, 255, 255});
+    DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)content_w, (float)flint_px(72)}, 0.08f, 10,
+                                flint_px(1), C_LINE);
+    draw_text_font(font, text->status_quo_title, content_x + flint_px(12), y + flint_px(10), body_font, C_TEXT);
+    draw_text_font(font, text->status_quo_description, content_x + flint_px(12), y + flint_px(38), small_font, C_MUTED);
+    y += flint_px(84);
+
+    DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)content_w, (float)flint_px(72)}, 0.08f, 10,
+                         (Color){255, 255, 255, 255});
+    DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)content_w, (float)flint_px(72)}, 0.08f, 10,
+                                flint_px(1), C_LINE);
+    draw_text_font(font, text->repeat_process_title, content_x + flint_px(12), y + flint_px(10), body_font, C_TEXT);
+    draw_text_font(font, text->repeat_process_description, content_x + flint_px(12), y + flint_px(38), small_font, C_MUTED);
+
+    (void)view_w;
+    (void)view_h;
 }
 
 int
@@ -875,6 +1165,7 @@ main(void)
 
     load_text_file(&text, LOCALE_TEXT_PATH);
     init_decision(&app, &text);
+    db_init(&app);
 
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(520, 760, text.app_title);
@@ -899,16 +1190,23 @@ main(void)
 
         BeginDrawing();
         ClearBackground(C_BG);
+        ui_focus_begin();
+        ui_focus_set_text_input_active(app.active_field != UKU_FIELD_NONE);
         if(app.screen == UKU_SCREEN_HOME)
             draw_home(&app, &text, view_w, view_h);
-        else
+        else if(app.screen == UKU_SCREEN_CREATE)
             draw_create_placeholder(&app, &text, view_w, view_h);
+        else
+            draw_collect(&app, &text, view_w, view_h);
+        ui_focus_end();
         EndDrawing();
 
         SetMouseCursor(app.cursor_clickable ? MOUSE_CURSOR_POINTING_HAND : MOUSE_CURSOR_DEFAULT);
     }
 
     app_unload_font(&app);
+    if(app.db != NULL)
+        sqlite3_close(app.db);
     CloseWindow();
     return 0;
 }
