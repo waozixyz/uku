@@ -34,6 +34,36 @@ Add context, constraints, or links.
 [negative_weight_label]
 Negative score weighting
 ---
+[negative_weight_infinity]
+∞ (systemic consensus)
+---
+[negative_weight_1]
+1
+---
+[negative_weight_2]
+2
+---
+[negative_weight_3]
+3
+---
+[negative_weight_4]
+4
+---
+[negative_weight_5]
+5
+---
+[negative_weight_6]
+6
+---
+[negative_weight_7]
+7
+---
+[negative_weight_8]
+8
+---
+[negative_weight_9]
+9
+---
 [proposal_time_label]
 Proposal Time
 ---
@@ -48,33 +78,6 @@ Hours
 ---
 [minutes_label]
 Minutes
----
-[default_options_label]
-Default Options
----
-[option_keep_title_label]
-Option 1 Title
----
-[option_keep_description_label]
-Option 1 Description
----
-[option_repeat_title_label]
-Option 2 Title
----
-[option_repeat_description_label]
-Option 2 Description
----
-[default_keep_title]
-Status quo
----
-[default_keep_description]
-Keep things the way they are.
----
-[default_repeat_title]
-Repeat process
----
-[default_repeat_description]
-Repeat the process and look for other options.
 ---
 [create_process_button]
 Create Process

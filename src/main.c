@@ -18,20 +18,12 @@ typedef enum UkuScreen {
 typedef enum UkuField {
     UKU_FIELD_NONE,
     UKU_FIELD_TOPIC,
-    UKU_FIELD_DESCRIPTION,
-    UKU_FIELD_KEEP_TITLE,
-    UKU_FIELD_KEEP_DESCRIPTION,
-    UKU_FIELD_REPEAT_TITLE,
-    UKU_FIELD_REPEAT_DESCRIPTION
+    UKU_FIELD_DESCRIPTION
 } UkuField;
 
 typedef struct UkuDecision {
     char topic[180];
     char description[420];
-    char keep_title[96];
-    char keep_description[180];
-    char repeat_title[96];
-    char repeat_description[180];
     int proposal_days;
     int proposal_hours;
     int proposal_minutes;
@@ -48,6 +40,9 @@ typedef struct UkuApp {
     UkuField active_field;
     int cursor_clickable;
     int create_scroll;
+    int create_scroll_dragging;
+    int create_scroll_drag_offset;
+    int negative_dropdown_open;
     float logo_spin;
     Font font;
     Texture2D font_shapes_texture;
@@ -68,20 +63,12 @@ typedef struct UkuText {
     char description_label[96];
     char description_placeholder[128];
     char negative_weight_label[96];
+    char negative_weight_options[10][96];
     char proposal_time_label[96];
     char voting_time_label[96];
     char days_label[32];
     char hours_label[32];
     char minutes_label[32];
-    char default_options_label[96];
-    char option_keep_title_label[96];
-    char option_keep_description_label[96];
-    char option_repeat_title_label[96];
-    char option_repeat_description_label[96];
-    char default_keep_title[96];
-    char default_keep_description[180];
-    char default_repeat_title[96];
-    char default_repeat_description[180];
     char create_process_button[96];
     char setup_ready[96];
     char back_button[64];
@@ -162,6 +149,15 @@ assign_text(UkuText *text, const char *key, const char *value, size_t len)
         copy_text(text->description_placeholder, sizeof(text->description_placeholder), value, len);
     else if(strcmp(key, "negative_weight_label") == 0)
         copy_text(text->negative_weight_label, sizeof(text->negative_weight_label), value, len);
+    else if(strncmp(key, "negative_weight_", 16) == 0) {
+        if(strcmp(key + 16, "infinity") == 0)
+            copy_text(text->negative_weight_options[0], sizeof(text->negative_weight_options[0]), value, len);
+        else {
+            int index = atoi(key + 16);
+            if(index >= 1 && index <= 9)
+                copy_text(text->negative_weight_options[index], sizeof(text->negative_weight_options[index]), value, len);
+        }
+    }
     else if(strcmp(key, "proposal_time_label") == 0)
         copy_text(text->proposal_time_label, sizeof(text->proposal_time_label), value, len);
     else if(strcmp(key, "voting_time_label") == 0)
@@ -172,24 +168,6 @@ assign_text(UkuText *text, const char *key, const char *value, size_t len)
         copy_text(text->hours_label, sizeof(text->hours_label), value, len);
     else if(strcmp(key, "minutes_label") == 0)
         copy_text(text->minutes_label, sizeof(text->minutes_label), value, len);
-    else if(strcmp(key, "default_options_label") == 0)
-        copy_text(text->default_options_label, sizeof(text->default_options_label), value, len);
-    else if(strcmp(key, "option_keep_title_label") == 0)
-        copy_text(text->option_keep_title_label, sizeof(text->option_keep_title_label), value, len);
-    else if(strcmp(key, "option_keep_description_label") == 0)
-        copy_text(text->option_keep_description_label, sizeof(text->option_keep_description_label), value, len);
-    else if(strcmp(key, "option_repeat_title_label") == 0)
-        copy_text(text->option_repeat_title_label, sizeof(text->option_repeat_title_label), value, len);
-    else if(strcmp(key, "option_repeat_description_label") == 0)
-        copy_text(text->option_repeat_description_label, sizeof(text->option_repeat_description_label), value, len);
-    else if(strcmp(key, "default_keep_title") == 0)
-        copy_text(text->default_keep_title, sizeof(text->default_keep_title), value, len);
-    else if(strcmp(key, "default_keep_description") == 0)
-        copy_text(text->default_keep_description, sizeof(text->default_keep_description), value, len);
-    else if(strcmp(key, "default_repeat_title") == 0)
-        copy_text(text->default_repeat_title, sizeof(text->default_repeat_title), value, len);
-    else if(strcmp(key, "default_repeat_description") == 0)
-        copy_text(text->default_repeat_description, sizeof(text->default_repeat_description), value, len);
     else if(strcmp(key, "create_process_button") == 0)
         copy_text(text->create_process_button, sizeof(text->create_process_button), value, len);
     else if(strcmp(key, "setup_ready") == 0)
@@ -631,6 +609,120 @@ draw_stepper(UkuApp *app, Font font, const char *label, int *value, int min_valu
 }
 
 static int
+draw_negative_weight_dropdown(UkuApp *app, Font font, const UkuText *text, int x, int y, int w)
+{
+    int label_font = flint_clamp_px(13, 13, 16);
+    int input_font = flint_clamp_px(16, 16, 20);
+    int h = flint_px(40);
+    int option_h = flint_px(34);
+    int pad = flint_px(12);
+    int box_y;
+    Rectangle box;
+    Vector2 mouse = GetMousePosition();
+    int selected = clampi(app->decision.negative_weight, 0, 9);
+
+    draw_text_font(font, text->negative_weight_label, x, y, label_font, C_MUTED);
+    box_y = y + label_font + flint_px(8);
+    box = (Rectangle){(float)x, (float)box_y, (float)w, (float)h};
+
+    if(CheckCollisionPointRec(mouse, box))
+        app->cursor_clickable = 1;
+    if(CheckCollisionPointRec(mouse, box) && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
+        app->negative_dropdown_open = !app->negative_dropdown_open;
+        app->active_field = UKU_FIELD_NONE;
+    }
+
+    DrawRectangleRounded(box, 0.08f, 10, WHITE);
+    DrawRectangleRoundedLinesEx(box, 0.08f, 10, flint_px(1), app->negative_dropdown_open ? C_BLUE : C_LINE);
+    draw_text_font(font, text->negative_weight_options[selected], x + pad,
+                   box_y + (h - input_font) / 2, input_font, C_TEXT);
+    DrawTriangle((Vector2){(float)(x + w - pad - flint_px(10)), (float)(box_y + h / 2 - flint_px(3))},
+                 (Vector2){(float)(x + w - pad), (float)(box_y + h / 2 - flint_px(3))},
+                 (Vector2){(float)(x + w - pad - flint_px(5)), (float)(box_y + h / 2 + flint_px(4))},
+                 C_MUTED);
+
+    if(app->negative_dropdown_open) {
+        int menu_y = box_y + h + flint_px(4);
+        int menu_h = option_h * 10;
+        Rectangle menu = {(float)x, (float)menu_y, (float)w, (float)menu_h};
+
+        DrawRectangleRounded(menu, 0.06f, 10, WHITE);
+        DrawRectangleRoundedLinesEx(menu, 0.06f, 10, flint_px(1), C_LINE);
+        for(int i = 0; i < 10; i++) {
+            int oy = menu_y + i * option_h;
+            Rectangle option = {(float)x, (float)oy, (float)w, (float)option_h};
+            int hover = CheckCollisionPointRec(mouse, option);
+
+            if(hover) {
+                DrawRectangle(x + flint_px(2), oy, w - flint_px(4), option_h, (Color){238, 243, 247, 255});
+                app->cursor_clickable = 1;
+            }
+            if(i == selected)
+                DrawRectangle(x + flint_px(5), oy + flint_px(8), flint_px(4), option_h - flint_px(16), C_BLUE);
+            draw_text_font(font, text->negative_weight_options[i], x + pad + flint_px(8),
+                           oy + (option_h - input_font) / 2, input_font, C_TEXT);
+            if(hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
+                app->decision.negative_weight = i;
+                app->negative_dropdown_open = 0;
+            }
+        }
+
+        if(IsMouseButtonPressed(MOUSE_LEFT_BUTTON) &&
+           !CheckCollisionPointRec(mouse, box) && !CheckCollisionPointRec(mouse, menu))
+            app->negative_dropdown_open = 0;
+
+        return menu_y + menu_h + flint_px(18);
+    }
+
+    return box_y + h + flint_px(16);
+}
+
+static void
+draw_form_scrollbar(UkuApp *app, int x, int y, int h, int content_h, int max_scroll)
+{
+    int track_w = flint_px(8);
+    int thumb_h;
+    int thumb_y;
+    Rectangle track;
+    Rectangle thumb;
+    Vector2 mouse = GetMousePosition();
+
+    track = (Rectangle){(float)x, (float)y, (float)track_w, (float)h};
+    if(max_scroll <= 0) {
+        DrawRectangleRounded(track, 0.5f, 8, (Color){232, 235, 238, 255});
+        DrawRectangleRounded((Rectangle){(float)x, (float)y, (float)track_w, (float)h},
+                             0.5f, 8, (Color){202, 209, 216, 255});
+        return;
+    }
+
+    thumb_h = UKU_MAX(flint_px(42), (int)((float)h * (float)h / (float)content_h));
+    thumb_h = UKU_MIN(thumb_h, h);
+    thumb_y = y + (int)((float)(h - thumb_h) * ((float)app->create_scroll / (float)max_scroll));
+    thumb = (Rectangle){(float)x, (float)thumb_y, (float)track_w, (float)thumb_h};
+
+    DrawRectangleRounded(track, 0.5f, 8, (Color){226, 230, 233, 255});
+    DrawRectangleRounded(thumb, 0.5f, 8, C_BLUE);
+
+    if(CheckCollisionPointRec(mouse, track))
+        app->cursor_clickable = 1;
+
+    if(IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && CheckCollisionPointRec(mouse, thumb)) {
+        app->create_scroll_dragging = 1;
+        app->create_scroll_drag_offset = (int)mouse.y - thumb_y;
+    }
+
+    if(!IsMouseButtonDown(MOUSE_LEFT_BUTTON))
+        app->create_scroll_dragging = 0;
+
+    if(app->create_scroll_dragging) {
+        int local_y = (int)mouse.y - y - app->create_scroll_drag_offset;
+        local_y = clampi(local_y, 0, h - thumb_h);
+        app->create_scroll = (int)((float)local_y / (float)(h - thumb_h) * (float)max_scroll + 0.5f);
+        app->cursor_clickable = 1;
+    }
+}
+
+static int
 draw_duration_group(UkuApp *app, Font font, const char *title, const UkuText *text,
                     int *days, int *hours, int *minutes, int x, int y, int w)
 {
@@ -653,12 +745,6 @@ init_decision(UkuApp *app, const UkuText *text)
 {
     UkuDecision *d = &app->decision;
 
-    copy_text(d->keep_title, sizeof(d->keep_title), text->default_keep_title, strlen(text->default_keep_title));
-    copy_text(d->keep_description, sizeof(d->keep_description),
-              text->default_keep_description, strlen(text->default_keep_description));
-    copy_text(d->repeat_title, sizeof(d->repeat_title), text->default_repeat_title, strlen(text->default_repeat_title));
-    copy_text(d->repeat_description, sizeof(d->repeat_description),
-              text->default_repeat_description, strlen(text->default_repeat_description));
     d->proposal_days = 2;
     d->proposal_hours = 0;
     d->proposal_minutes = 1;
@@ -666,6 +752,7 @@ init_decision(UkuApp *app, const UkuText *text)
     d->voting_hours = 0;
     d->voting_minutes = 1;
     d->negative_weight = 3;
+    (void)text;
 }
 
 static void
@@ -724,6 +811,10 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
     Font font = app->font;
     UkuDecision *d = &app->decision;
     int max_scroll;
+    int content_bottom;
+    int content_h;
+    int viewport_y = flint_px(78);
+    int viewport_h = view_h - viewport_y;
 
     app->create_scroll = clampi(app->create_scroll - (int)(GetMouseWheelMove() * flint_px(44)), 0, 2000);
     flint_centered_column(680, side, &content_x, &content_w);
@@ -737,7 +828,7 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
     }
     y += title_font + flint_px(24);
 
-    BeginScissorMode(0, flint_px(78), view_w, view_h - flint_px(78));
+    BeginScissorMode(0, viewport_y, view_w, viewport_h);
     y = draw_text_field(app, font, text->topic_question_label, text->topic_question_placeholder,
                         d->topic, sizeof(d->topic), UKU_FIELD_TOPIC,
                         content_x, y, content_w, flint_px(46));
@@ -748,8 +839,7 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
     y = draw_text_field(app, font, text->description_label, text->description_placeholder,
                         d->description, sizeof(d->description), UKU_FIELD_DESCRIPTION,
                         content_x, y, content_w, flint_px(82));
-    y = draw_stepper(app, font, text->negative_weight_label, &d->negative_weight, 1, 9,
-                     content_x, y, UKU_MIN(content_w, flint_px(250)));
+    y = draw_negative_weight_dropdown(app, font, text, content_x, y, UKU_MIN(content_w, flint_px(310)));
     y += flint_px(6);
     y = draw_duration_group(app, font, text->proposal_time_label, text,
                             &d->proposal_days, &d->proposal_hours, &d->proposal_minutes,
@@ -758,20 +848,6 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
                             &d->voting_days, &d->voting_hours, &d->voting_minutes,
                             content_x, y, content_w);
 
-    draw_text_font(font, text->default_options_label, content_x, y, title_font - flint_px(6), C_TEXT);
-    y += title_font + flint_px(10);
-    y = draw_text_field(app, font, text->option_keep_title_label, "",
-                        d->keep_title, sizeof(d->keep_title), UKU_FIELD_KEEP_TITLE,
-                        content_x, y, content_w, flint_px(44));
-    y = draw_text_field(app, font, text->option_keep_description_label, "",
-                        d->keep_description, sizeof(d->keep_description), UKU_FIELD_KEEP_DESCRIPTION,
-                        content_x, y, content_w, flint_px(64));
-    y = draw_text_field(app, font, text->option_repeat_title_label, "",
-                        d->repeat_title, sizeof(d->repeat_title), UKU_FIELD_REPEAT_TITLE,
-                        content_x, y, content_w, flint_px(44));
-    y = draw_text_field(app, font, text->option_repeat_description_label, "",
-                        d->repeat_description, sizeof(d->repeat_description), UKU_FIELD_REPEAT_DESCRIPTION,
-                        content_x, y, content_w, flint_px(64));
     draw_button(app, font, content_x, y, content_w, flint_px(48), text->create_process_button, 1, &clicked);
     if(clicked) {
         d->topic_error = !has_non_space(d->topic);
@@ -782,8 +858,12 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
         draw_centered_text(font, text->setup_ready, content_x + content_w / 2, y, small_font, C_GREEN);
     EndScissorMode();
 
-    max_scroll = UKU_MAX(0, (y + app->create_scroll + flint_px(24)) - view_h);
+    content_bottom = y + app->create_scroll + flint_px(24);
+    content_h = content_bottom - viewport_y;
+    max_scroll = UKU_MAX(0, content_h - viewport_h);
     app->create_scroll = clampi(app->create_scroll, 0, max_scroll);
+    draw_form_scrollbar(app, view_w - side - flint_px(8), viewport_y + flint_px(8),
+                        viewport_h - flint_px(16), content_h, max_scroll);
     (void)start_y;
 }
 
