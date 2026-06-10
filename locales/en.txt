@@ -1,0 +1,90 @@
+[app_title]
+Ukuvota
+---
+[home_title]
+Ukuvota
+---
+[home_subtitle]
+Systemic Consensus
+---
+[home_summary]
+Ukuvota helps groups make collective decisions with score voting. Participants can support or oppose every option, so the result favors choices people can accept and still act on.
+---
+[start_process_button]
+Start Process
+---
+[create_title]
+Decision Setup
+---
+[topic_question_label]
+Topic Question
+---
+[topic_question_placeholder]
+What should this group decide?
+---
+[topic_error]
+Add a topic question to start the process.
+---
+[description_label]
+Description (optional)
+---
+[description_placeholder]
+Add context, constraints, or links.
+---
+[negative_weight_label]
+Negative score weighting
+---
+[proposal_time_label]
+Proposal Time
+---
+[voting_time_label]
+Voting Time
+---
+[days_label]
+Days
+---
+[hours_label]
+Hours
+---
+[minutes_label]
+Minutes
+---
+[default_options_label]
+Default Options
+---
+[option_keep_title_label]
+Option 1 Title
+---
+[option_keep_description_label]
+Option 1 Description
+---
+[option_repeat_title_label]
+Option 2 Title
+---
+[option_repeat_description_label]
+Option 2 Description
+---
+[default_keep_title]
+Status quo
+---
+[default_keep_description]
+Keep things the way they are.
+---
+[default_repeat_title]
+Repeat process
+---
+[default_repeat_description]
+Repeat the process and look for other options.
+---
+[create_process_button]
+Create Process
+---
+[setup_ready]
+Process draft ready.
+---
+[back_button]
+Back
+---
+[brand_short]
+Uku
+---

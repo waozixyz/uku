@@ -1,0 +1,11 @@
+build/
+assets/fonts/
+result
+result-*
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+.direnv/
