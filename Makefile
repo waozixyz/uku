@@ -24,7 +24,7 @@ LINUX_BUILD_DIR := $(BUILD_DIR)/linux
 TARGET := $(LINUX_BUILD_DIR)/uku-$(PLATFORM)-$(ARCH)
 PACKAGE_ID := xyz.waozi.uku
 
-SRC := src/main.c
+SRC := src/main.c src/flint_shim.c
 FLINT_DIR := vendor/flint
 FLINT_SRCS := $(wildcard $(FLINT_DIR)/src/*.c)
 RAYLIB_DIR := ../inbe/vendor/raylib/src
@@ -60,6 +60,14 @@ all: native
 
 native: $(TARGET)
 
+linux: native
+
+dist: dist-linux
+
+dist-linux: $(TARGET)
+	mkdir -p $(BUILD_DIR)/dist/linux
+	tar -czf $(BUILD_DIR)/dist/linux/uku-linux-$(ARCH).tar.gz -C $(LINUX_BUILD_DIR) uku-$(PLATFORM)-$(ARCH)
+
 $(LINUX_BUILD_DIR):
 	mkdir -p $@
 
@@ -91,6 +99,7 @@ $(TARGET): $(SRC) $(FLINT_SRCS) $(FONT_OUTPUTS) $(RAYLIB_A) | $(LINUX_BUILD_DIR)
 	$(CC) $(CFLAGS) \
 		-I$(RAYLIB_DIR) \
 		-I$(FLINT_DIR)/include \
+		-Isrc \
 		$(RAY_CFLAGS) \
 		-o $@ \
 		$(SRC) \
@@ -106,4 +115,4 @@ run: $(TARGET)
 clean:
 	rm -rf $(BUILD_DIR) assets/fonts
 
-.PHONY: all native run clean
+.PHONY: all native linux dist dist-linux run clean

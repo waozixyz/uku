@@ -2,10 +2,10 @@
 
 Native Ukuvota prototype using Raylib and Flint.
 
-Build it from its Nix shell:
+Build and run with Flint:
 
 ```sh
-nix develop path:.
-make
-make run
+flint doctor
+flint build native
+flint run native
 ```

@@ -1,0 +1,23 @@
+[app]
+name = "uku"
+title = "Uku"
+id = "xyz.waozi.uku"
+
+[paths]
+raylib = "../inbe/vendor/raylib/src"
+flint = "vendor/flint"
+
+[sources]
+app = ["src/main.c"]
+
+[assets]
+locales = "locales/*.txt"
+fonts = ["assets/fonts/locales.png", "assets/fonts/locales.dat"]
+
+[raylib]
+audio = false
+models = false
+graphics = "gles2"
+
+[platform.linux]
+arches = ["x86_64", "aarch64"]

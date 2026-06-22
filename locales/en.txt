@@ -23,15 +23,33 @@ Active Processes
 Manual
 ---
 [manual_body]
-Ukuvota is a cooperative process for collective decisions. It uses score voting so every participant can express support, acceptance, or opposition for every proposal.
+Ukuvota is a cooperative process for collective decisions.
 
-The goal is not only to find the most popular proposal. A good decision should have enough support to happen and little enough opposition that people can accept it.
+It uses score voting so every participant can express support, acceptance, or opposition for every proposal.
 
-Start by creating a process with a clear topic question. During the proposal phase, participants add possible options. Ukuvota includes two default proposals: keeping the status quo and repeating the process to find other options.
 
-During voting, each participant scores each proposal. Negative scores are weighted so resistance is not hidden by unrelated support. This makes acceptance visible and helps groups choose options with less conflict.
+The goal is not only to find the most popular proposal.
 
-Use the dashboard to return to active processes. The local address shown in a process is stored on this device for now.
+A good decision should have enough support to happen and little enough opposition that people can accept it.
+
+
+Start by creating a process with a clear topic question.
+
+During the proposal phase, participants add possible options.
+
+Ukuvota includes two default proposals: keeping the status quo and repeating the process to find other options.
+
+
+During voting, each participant scores each proposal.
+
+Negative scores are weighted so resistance is not hidden by unrelated support.
+
+This makes acceptance visible and helps groups choose options with less conflict.
+
+
+Use the dashboard to return to active processes.
+
+The local address shown in a process is stored on this device for now.
 ---
 [create_title]
 Decision Setup
@@ -110,6 +128,18 @@ Collect Proposals
 ---
 [collect_intro]
 The process was saved locally. Share this address with participants on this device while local-only storage is in use.
+---
+[proposal_phase_label]
+Proposal phase
+---
+[voting_phase_label]
+Voting phase
+---
+[results_phase_label]
+Results ready
+---
+[time_remaining_label]
+remaining
 ---
 [local_address_label]
 Local address

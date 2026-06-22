@@ -25,6 +25,12 @@ typedef enum UkuField {
     UKU_FIELD_DESCRIPTION
 } UkuField;
 
+typedef enum UkuProcessPhase {
+    UKU_PROCESS_PROPOSAL,
+    UKU_PROCESS_VOTING,
+    UKU_PROCESS_RESULTS
+} UkuProcessPhase;
+
 typedef struct UkuDecision {
     char id[40];
     char local_address[96];
@@ -40,6 +46,7 @@ typedef struct UkuDecision {
     int submitted;
     int topic_error;
     int db_error;
+    sqlite3_int64 created_at;
 } UkuDecision;
 
 #define UKU_MAX_PROCESSES 64
@@ -76,6 +83,8 @@ typedef struct UkuApp {
     int process_count;
     Font font;
     Texture2D font_shapes_texture;
+    Texture2D icons[UI_ICON_TYPE_COUNT];
+    int icons_loaded;
     int locale_font_ready;
     sqlite3 *db;
     UkuDecision decision;
@@ -109,6 +118,10 @@ typedef struct UkuText {
     char setup_ready[96];
     char collect_title[96];
     char collect_intro[256];
+    char proposal_phase_label[96];
+    char voting_phase_label[96];
+    char results_phase_label[96];
+    char time_remaining_label[96];
     char local_address_label[96];
     char default_proposals_label[96];
     char status_quo_title[96];
@@ -141,7 +154,9 @@ typedef enum UkuFocusId {
     UKU_FOCUS_CREATE_SUBMIT,
     UKU_FOCUS_COLLECT_BACK,
     UKU_FOCUS_DASHBOARD_MANUAL,
+    UKU_FOCUS_SETTINGS,
     UKU_FOCUS_DASHBOARD_NEW,
+    UKU_FOCUS_DASHBOARD_CLOSE,
     UKU_FOCUS_MANUAL_BACK,
     UKU_FOCUS_DASHBOARD_PROCESS_BASE = 100
 } UkuFocusId;
@@ -157,13 +172,6 @@ typedef struct ChoppedGlyph {
     int32_t advanceX;
 } ChoppedGlyph;
 
-static const Color C_BG = {250, 248, 242, 255};
-static const Color C_TEXT = {31, 39, 51, 255};
-static const Color C_MUTED = {91, 101, 115, 255};
-static const Color C_LINE = {209, 214, 219, 255};
-static const Color C_GREEN = {45, 121, 93, 255};
-static const Color C_BLUE = {42, 92, 156, 255};
-static const Color C_RED = {178, 73, 68, 255};
 
 #define LOCALE_FONT_PNG "assets/fonts/locales.png"
 #define LOCALE_FONT_DAT "assets/fonts/locales.dat"
@@ -254,6 +262,14 @@ assign_text(UkuText *text, const char *key, const char *value, size_t len)
         copy_text(text->collect_title, sizeof(text->collect_title), value, len);
     else if(strcmp(key, "collect_intro") == 0)
         copy_text(text->collect_intro, sizeof(text->collect_intro), value, len);
+    else if(strcmp(key, "proposal_phase_label") == 0)
+        copy_text(text->proposal_phase_label, sizeof(text->proposal_phase_label), value, len);
+    else if(strcmp(key, "voting_phase_label") == 0)
+        copy_text(text->voting_phase_label, sizeof(text->voting_phase_label), value, len);
+    else if(strcmp(key, "results_phase_label") == 0)
+        copy_text(text->results_phase_label, sizeof(text->results_phase_label), value, len);
+    else if(strcmp(key, "time_remaining_label") == 0)
+        copy_text(text->time_remaining_label, sizeof(text->time_remaining_label), value, len);
     else if(strcmp(key, "local_address_label") == 0)
         copy_text(text->local_address_label, sizeof(text->local_address_label), value, len);
     else if(strcmp(key, "default_proposals_label") == 0)
@@ -619,6 +635,7 @@ db_save_process(UkuApp *app, const UkuText *text)
 
     generate_process_id(d->id, sizeof(d->id));
     snprintf(d->local_address, sizeof(d->local_address), "/app/%s/collect", d->id);
+    d->created_at = now;
 
     if(sqlite3_exec(app->db, "begin immediate", NULL, NULL, NULL) != SQLITE_OK)
         return 0;
@@ -714,6 +731,7 @@ open_process_row(UkuApp *app, const UkuProcessRow *row)
     d->voting_hours = (row->voting_minutes / 60) % 24;
     d->voting_minutes = row->voting_minutes % 60;
     d->negative_weight = row->negative_weight;
+    d->created_at = row->created_at;
     d->submitted = 1;
     app->screen = UKU_SCREEN_COLLECT;
     app->active_field = UKU_FIELD_NONE;
@@ -759,18 +777,18 @@ draw_button(UkuApp *app, Font font, int x, int y, int w, int h, const char *labe
     Rectangle bounds = {(float)x, (float)y, (float)w, (float)h};
     int hover = CheckCollisionPointRec(mouse, bounds);
     int focused = ui_focus_register(focus_id, bounds);
-    Color fill = primary ? C_BLUE : (Color){255, 255, 255, 255};
-    Color text = primary ? WHITE : C_TEXT;
+    Color fill = primary ? flint_theme_get_button() : (Color){255, 255, 255, 255};
+    Color text = primary ? WHITE : flint_theme_get_text();
     int font_size = flint_clamp_px(16, 16, 20);
 
     if(hover || focused) {
-        fill = primary ? flint_lighten(C_BLUE, 18) : (Color){242, 245, 247, 255};
+        fill = primary ? flint_lighten(flint_theme_get_button(), 18) : (Color){242, 245, 247, 255};
         if(hover)
             app->cursor_clickable = 1;
     }
 
     DrawRectangleRounded(bounds, 0.12f, 12, fill);
-    DrawRectangleRoundedLinesEx(bounds, 0.12f, 12, flint_px(1), primary ? flint_darken(C_BLUE, 20) : C_LINE);
+    DrawRectangleRoundedLinesEx(bounds, 0.12f, 12, flint_px(1), primary ? flint_darken(flint_theme_get_button(), 20) : flint_theme_get_text());
     if(focused)
         ui_focus_draw(bounds);
     draw_centered_text(font, label, x + w / 2, y + (h - font_size) / 2, font_size, text);
@@ -778,64 +796,90 @@ draw_button(UkuApp *app, Font font, int x, int y, int w, int h, const char *labe
     *clicked = (hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) || ui_focus_activate_pressed(focus_id);
 }
 
-static int
-draw_icon_button(UkuApp *app, Font font, int x, int y, int size, const char *label,
-                 FlintIconType icon, int focus_id, int primary)
+static void
+load_icons_once(UkuApp *app)
 {
+    if(!app->icons_loaded) {
+        for(int i = 0; i < UI_ICON_TYPE_COUNT; i++) {
+            app->icons[i] = flint_load_icon_texture(i);
+        }
+        app->icons_loaded = 1;
+    }
+}
+
+static int
+draw_icon_button(UkuApp *app, int x, int y, int size, UIIconType icon, int focus_id)
+{
+    (void)focus_id;
+
     Rectangle bounds = {(float)x, (float)y, (float)size, (float)size};
     Vector2 mouse = GetMousePosition();
     int hover = CheckCollisionPointRec(mouse, bounds);
-    int focused = ui_focus_register(focus_id, bounds);
-    int clicked;
-    Color fill = primary ? C_BLUE : WHITE;
-    Color ink = primary ? WHITE : C_TEXT;
-    int font_size = flint_clamp_px(20, 18, 24);
 
-    if(hover || focused)
-        fill = primary ? flint_lighten(C_BLUE, 18) : (Color){242, 245, 247, 255};
-    if(hover)
+    Color bg = flint_theme_get_button();
+    Color hover_bg = flint_theme_get_button_hover();
+
+    if(hover) {
         app->cursor_clickable = 1;
+        DrawRectangleRounded(bounds, 0.22f, 12, hover_bg);
+        if(IsMouseButtonReleased(MOUSE_LEFT_BUTTON))
+            return 1;
+    } else {
+        DrawRectangleRounded(bounds, 0.22f, 12, bg);
+    }
 
-    DrawRectangleRounded(bounds, 0.22f, 12, fill);
-    DrawRectangleRoundedLinesEx(bounds, 0.22f, 12, flint_px(1), primary ? flint_darken(C_BLUE, 20) : C_LINE);
-    if(focused)
-        ui_focus_draw(bounds);
+    Texture2D icon_texture = app->icons[icon];
+    Rectangle icon_rect = {x + size/2 - icon_texture.width/2, y + size/2 - icon_texture.height/2,
+                          (float)icon_texture.width, (float)icon_texture.height};
+    DrawTexturePro(icon_texture, (Rectangle){0, 0, icon_texture.width, icon_texture.height},
+                  icon_rect, (Vector2){0}, 0.0f, flint_theme_get_icon());
 
-    if(icon != FLINT_ICON_TYPE_NONE)
-        flint_draw_icon_fallback(icon, x + size / 2 - flint_px(11), y + size / 2 - flint_px(11), flint_px(22), ink);
-    else
-        draw_centered_text(font, label, x + size / 2, y + (size - font_size) / 2, font_size, ink);
-
-    clicked = (hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) || ui_focus_activate_pressed(focus_id);
-    return clicked;
+    return 0;
 }
 
 static void
-draw_top_bar(UkuApp *app, Font font, const char *title, int show_back, int back_focus_id, int *back_clicked,
-             int show_manual, int *manual_clicked, int view_w)
+draw_top_bar(UkuApp *app, const char *title, int show_back, int back_focus_id, int *back_clicked,
+             int show_manual, int *manual_clicked, int show_settings, int *settings_clicked, int show_close, int *close_clicked, int view_w)
 {
     int h = flint_px(58);
     int font_size = flint_clamp_px(18, 18, 24);
     int x = flint_px(18);
 
-    DrawRectangle(0, 0, view_w, h, (Color){246, 243, 235, 255});
-    DrawLine(0, h - 1, view_w, h - 1, C_LINE);
+    DrawRectangle(0, 0, view_w, h, flint_theme_get_surface());
+    DrawLine(0, h - 1, view_w, h - 1, flint_theme_get_text());
 
     if(show_back) {
-        int clicked = draw_icon_button(app, font, x, flint_px(9), flint_px(40), "<",
-                                       FLINT_ICON_TYPE_RETURN, back_focus_id, 0);
+        int clicked = draw_icon_button(app, x, flint_px(9), flint_px(28),
+                                       UI_ICON_TYPE_RETURN, back_focus_id);
         if(back_clicked != NULL && clicked)
             *back_clicked = 1;
-        x += flint_px(52);
+        x += flint_px(36);
     }
 
-    draw_text_font(font, title, x, flint_ui_text_y(title, 0, h, font_size), font_size, C_TEXT);
+    draw_text_font(app->font, title, x, flint_ui_text_y(title, 0, h, font_size), font_size, flint_theme_get_text());
+
+    int button_x = view_w - flint_px(44);
+    if(show_settings && settings_clicked != NULL) {
+        int clicked = draw_icon_button(app, button_x, flint_px(9), flint_px(28),
+                                       UI_ICON_TYPE_GEAR, UKU_FOCUS_SETTINGS);
+        if(clicked)
+            *settings_clicked = 1;
+        button_x -= flint_px(36);
+    }
 
     if(show_manual && manual_clicked != NULL) {
-        int clicked = draw_icon_button(app, font, view_w - flint_px(58), flint_px(9), flint_px(40), "?",
-                                       FLINT_ICON_TYPE_MANUAL, UKU_FOCUS_DASHBOARD_MANUAL, 0);
+        int clicked = draw_icon_button(app, button_x, flint_px(9), flint_px(28),
+                                       UI_ICON_TYPE_MANUAL, UKU_FOCUS_DASHBOARD_MANUAL);
         if(clicked)
             *manual_clicked = 1;
+        button_x -= flint_px(36);
+    }
+
+    if(show_close && close_clicked != NULL) {
+        int clicked = draw_icon_button(app, button_x, flint_px(9), flint_px(28),
+                                       UI_ICON_TYPE_RETURN, UKU_FOCUS_DASHBOARD_CLOSE);
+        if(clicked)
+            *close_clicked = 1;
     }
 }
 
@@ -853,7 +897,7 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
     int focused;
     int active;
 
-    draw_text_font(font, label, x, label_y, label_font, C_MUTED);
+    draw_text_font(font, label, x, label_y, label_font, flint_theme_get_text());
 
     if(IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
         if(CheckCollisionPointRec(mouse, box))
@@ -879,9 +923,9 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
             delete_char(buffer);
     }
 
-    DrawRectangleRounded(box, 0.08f, 10, WHITE);
+    DrawRectangleRounded(box, 0.08f, 10, flint_theme_get_surface());
     DrawRectangleRoundedLinesEx(box, 0.08f, 10, flint_px(active ? 2 : 1),
-                                active ? C_BLUE : C_LINE);
+                                active ? flint_theme_get_button() : flint_theme_get_text());
     if(focused)
         ui_focus_draw(box);
 
@@ -890,11 +934,11 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
     } else if(h > flint_px(58)) {
         BeginScissorMode(x + pad, box_y + pad, w - pad * 2, h - pad * 2);
         draw_wrapped_text(font, buffer, x + pad, box_y + pad, w - pad * 2,
-                          input_font, input_font + flint_px(7), C_TEXT);
+                          input_font, input_font + flint_px(7), flint_theme_get_text());
         EndScissorMode();
     } else {
         const char *visible = fit_tail(font, buffer, input_font, w - pad * 2 - flint_px(8));
-        draw_text_font(font, visible, x + pad, box_y + (h - input_font) / 2, input_font, C_TEXT);
+        draw_text_font(font, visible, x + pad, box_y + (h - input_font) / 2, input_font, flint_theme_get_text());
     }
 
     if(active && ((int)(GetTime() * 2.0) % 2) == 0) {
@@ -903,7 +947,7 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
             cursor_x = x + pad + UKU_MIN(measure_text_font(font, buffer, input_font), w - pad * 2 - flint_px(4));
         else
             cursor_x = x + pad + measure_text_font(font, fit_tail(font, buffer, input_font, w - pad * 2 - flint_px(8)), input_font);
-        DrawLine(cursor_x, box_y + pad, cursor_x, box_y + h - pad, C_BLUE);
+        DrawLine(cursor_x, box_y + pad, cursor_x, box_y + h - pad, flint_theme_get_button());
     }
 
     return box_y + h + flint_px(16);
@@ -922,15 +966,15 @@ draw_stepper(UkuApp *app, Font font, const char *label, int *value, int min_valu
     int plus_clicked = 0;
     char value_text[16];
 
-    draw_text_font(font, label, x, y, label_font, C_MUTED);
+    draw_text_font(font, label, x, y, label_font, flint_theme_get_text());
     y += label_font + flint_px(7);
 
     draw_button(app, font, x, y, btn, h, "-", 0, minus_focus_id, &minus_clicked);
-    DrawRectangleRounded((Rectangle){x + btn + flint_px(4), y, value_w, h}, 0.08f, 10, WHITE);
-    DrawRectangleRoundedLinesEx((Rectangle){x + btn + flint_px(4), y, value_w, h}, 0.08f, 10, flint_px(1), C_LINE);
+    DrawRectangleRounded((Rectangle){x + btn + flint_px(4), y, value_w, h}, 0.08f, 10, flint_theme_get_surface());
+    DrawRectangleRoundedLinesEx((Rectangle){x + btn + flint_px(4), y, value_w, h}, 0.08f, 10, flint_px(1), flint_theme_get_text());
     snprintf(value_text, sizeof(value_text), "%d", *value);
     draw_centered_text(font, value_text, x + btn + flint_px(4) + value_w / 2,
-                       y + (h - value_font) / 2, value_font, C_TEXT);
+                       y + (h - value_font) / 2, value_font, flint_theme_get_text());
     draw_button(app, font, x + btn + flint_px(8) + value_w, y, btn, h, "+", 0, plus_focus_id, &plus_clicked);
 
     if(minus_clicked)
@@ -955,7 +999,7 @@ draw_negative_weight_dropdown(UkuApp *app, Font font, const UkuText *text, int x
     int selected = clampi(app->decision.negative_weight, 0, 9);
     int focused;
 
-    draw_text_font(font, text->negative_weight_label, x, y, label_font, C_MUTED);
+    draw_text_font(font, text->negative_weight_label, x, y, label_font, flint_theme_get_text());
     box_y = y + label_font + flint_px(8);
     box = (Rectangle){(float)x, (float)box_y, (float)w, (float)h};
     focused = ui_focus_register(focus_id, box);
@@ -974,24 +1018,24 @@ draw_negative_weight_dropdown(UkuApp *app, Font font, const UkuText *text, int x
             app->decision.negative_weight = clampi(app->decision.negative_weight - 1, 0, 9);
     }
 
-    DrawRectangleRounded(box, 0.08f, 10, WHITE);
-    DrawRectangleRoundedLinesEx(box, 0.08f, 10, flint_px(1), app->negative_dropdown_open ? C_BLUE : C_LINE);
+    DrawRectangleRounded(box, 0.08f, 10, flint_theme_get_surface());
+    DrawRectangleRoundedLinesEx(box, 0.08f, 10, flint_px(1), app->negative_dropdown_open ? flint_theme_get_button() : flint_theme_get_text());
     if(focused)
         ui_focus_draw(box);
     draw_text_font(font, text->negative_weight_options[selected], x + pad,
-                   box_y + (h - input_font) / 2, input_font, C_TEXT);
+                   box_y + (h - input_font) / 2, input_font, flint_theme_get_text());
     DrawTriangle((Vector2){(float)(x + w - pad - flint_px(10)), (float)(box_y + h / 2 - flint_px(3))},
                  (Vector2){(float)(x + w - pad), (float)(box_y + h / 2 - flint_px(3))},
                  (Vector2){(float)(x + w - pad - flint_px(5)), (float)(box_y + h / 2 + flint_px(4))},
-                 C_MUTED);
+                 flint_theme_get_text());
 
     if(app->negative_dropdown_open) {
         int menu_y = box_y + h + flint_px(4);
         int menu_h = option_h * 10;
         Rectangle menu = {(float)x, (float)menu_y, (float)w, (float)menu_h};
 
-        DrawRectangleRounded(menu, 0.06f, 10, WHITE);
-        DrawRectangleRoundedLinesEx(menu, 0.06f, 10, flint_px(1), C_LINE);
+        DrawRectangleRounded(menu, 0.06f, 10, flint_theme_get_surface());
+        DrawRectangleRoundedLinesEx(menu, 0.06f, 10, flint_px(1), flint_theme_get_text());
         for(int i = 0; i < 10; i++) {
             int oy = menu_y + i * option_h;
             Rectangle option = {(float)x, (float)oy, (float)w, (float)option_h};
@@ -1002,9 +1046,9 @@ draw_negative_weight_dropdown(UkuApp *app, Font font, const UkuText *text, int x
                 app->cursor_clickable = 1;
             }
             if(i == selected)
-                DrawRectangle(x + flint_px(5), oy + flint_px(8), flint_px(4), option_h - flint_px(16), C_BLUE);
+                DrawRectangle(x + flint_px(5), oy + flint_px(8), flint_px(4), option_h - flint_px(16), flint_theme_get_button());
             draw_text_font(font, text->negative_weight_options[i], x + pad + flint_px(8),
-                           oy + (option_h - input_font) / 2, input_font, C_TEXT);
+                           oy + (option_h - input_font) / 2, input_font, flint_theme_get_text());
             if(hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
                 app->decision.negative_weight = i;
                 app->negative_dropdown_open = 0;
@@ -1044,7 +1088,7 @@ draw_scrollbar(UkuApp *app, int x, int y, int h, int content_h, int max_scroll,
     thumb = (Rectangle){(float)x, (float)thumb_y, (float)track_w, (float)thumb_h};
 
     DrawRectangleRounded(track, 0.5f, 8, (Color){226, 230, 233, 255});
-    DrawRectangleRounded(thumb, 0.5f, 8, C_BLUE);
+    DrawRectangleRounded(thumb, 0.5f, 8, flint_theme_get_button());
 
     if(CheckCollisionPointRec(mouse, track))
         app->cursor_clickable = 1;
@@ -1074,7 +1118,7 @@ draw_duration_group(UkuApp *app, Font font, const char *title, const UkuText *te
     int col_w = (w - gap * 2) / 3;
     int y2;
 
-    draw_text_font(font, title, x, y, title_font, C_TEXT);
+    draw_text_font(font, title, x, y, title_font, flint_theme_get_text());
     y += title_font + flint_px(12);
 
     y2 = draw_stepper(app, font, text->days_label, days, 0, 30, x, y, col_w, focus_base, focus_base + 1);
@@ -1123,6 +1167,102 @@ format_created_at(char *dst, size_t size, sqlite3_int64 value)
     strftime(dst, size, "%Y-%m-%d %H:%M", tmv);
 }
 
+static UkuProcessPhase
+process_phase(sqlite3_int64 created_at, int proposal_minutes, int voting_minutes,
+              sqlite3_int64 now, sqlite3_int64 *remaining_seconds)
+{
+    sqlite3_int64 proposal_end = created_at + (sqlite3_int64)proposal_minutes * 60;
+    sqlite3_int64 voting_end = proposal_end + (sqlite3_int64)voting_minutes * 60;
+
+    if(now < proposal_end) {
+        if(remaining_seconds != NULL)
+            *remaining_seconds = proposal_end - now;
+        return UKU_PROCESS_PROPOSAL;
+    }
+    if(now < voting_end) {
+        if(remaining_seconds != NULL)
+            *remaining_seconds = voting_end - now;
+        return UKU_PROCESS_VOTING;
+    }
+
+    if(remaining_seconds != NULL)
+        *remaining_seconds = 0;
+    return UKU_PROCESS_RESULTS;
+}
+
+static const char *
+phase_label(const UkuText *text, UkuProcessPhase phase)
+{
+    if(phase == UKU_PROCESS_PROPOSAL)
+        return text->proposal_phase_label;
+    if(phase == UKU_PROCESS_VOTING)
+        return text->voting_phase_label;
+    return text->results_phase_label;
+}
+
+static void
+format_duration_compact(char *dst, size_t size, sqlite3_int64 seconds)
+{
+    sqlite3_int64 days;
+    sqlite3_int64 hours;
+    sqlite3_int64 minutes;
+
+    if(seconds < 0)
+        seconds = 0;
+
+    days = seconds / 86400;
+    seconds %= 86400;
+    hours = seconds / 3600;
+    seconds %= 3600;
+    minutes = seconds / 60;
+    seconds %= 60;
+
+    if(days > 0)
+        snprintf(dst, size, "%lldd %lldh", (long long)days, (long long)hours);
+    else if(hours > 0)
+        snprintf(dst, size, "%lldh %lldm", (long long)hours, (long long)minutes);
+    else if(minutes > 0)
+        snprintf(dst, size, "%lldm %llds", (long long)minutes, (long long)seconds);
+    else
+        snprintf(dst, size, "%llds", (long long)seconds);
+}
+
+static void
+append_text(char *dst, size_t size, const char *src)
+{
+    size_t len;
+
+    if(dst == NULL || size == 0 || src == NULL)
+        return;
+
+    len = strlen(dst);
+    if(len >= size - 1)
+        return;
+
+    copy_text(dst + len, size - len, src, strlen(src));
+}
+
+static void
+format_process_timer(char *dst, size_t size, const UkuText *text, sqlite3_int64 created_at,
+                     int proposal_minutes, int voting_minutes, sqlite3_int64 now)
+{
+    sqlite3_int64 remaining = 0;
+    UkuProcessPhase phase = process_phase(created_at, proposal_minutes, voting_minutes, now, &remaining);
+    char duration[48];
+
+    if(phase == UKU_PROCESS_RESULTS) {
+        copy_text(dst, size, phase_label(text, phase), strlen(phase_label(text, phase)));
+        return;
+    }
+
+    format_duration_compact(duration, sizeof(duration), remaining);
+    copy_text(dst, size, phase_label(text, phase), strlen(phase_label(text, phase)));
+    append_text(dst, size, " | ");
+    append_text(dst, size, duration);
+    append_text(dst, size, " ");
+    append_text(dst, size, text->time_remaining_label);
+}
+
 static void
 draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
 {
@@ -1140,29 +1280,35 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
     int content_bottom;
     int content_h;
     int manual_clicked = 0;
+    int settings_clicked = 0;
     int new_clicked = 0;
     Font font = app->font;
+    sqlite3_int64 now = (sqlite3_int64)time(NULL);
 
     db_load_processes(app);
     flint_centered_column(760, side, &content_x, &content_w);
     app->dashboard_scroll = clampi(app->dashboard_scroll - (int)(GetMouseWheelMove() * flint_px(44)),
                                    0, app->dashboard_max_scroll);
 
-    draw_top_bar(app, font, text->home_title, 0, 0, NULL, 1, &manual_clicked, view_w);
+    draw_top_bar(app, text->home_title, 0, 0, NULL, 1, &manual_clicked, 1, &settings_clicked, 0, NULL, view_w);
     if(manual_clicked) {
         app->screen = UKU_SCREEN_MANUAL;
         app->manual_scroll = 0;
         ui_focus_clear();
     }
+    if(settings_clicked) {
+        // Toggle theme or open settings
+        ui_focus_clear();
+    }
 
     BeginScissorMode(0, viewport_y, view_w, viewport_h);
-    draw_text_font(font, text->dashboard_recent_label, content_x, y, title_font, C_TEXT);
+    draw_text_font(font, text->dashboard_recent_label, content_x, y, title_font, flint_theme_get_text());
     y += title_font + flint_px(18);
 
     if(app->process_count <= 0) {
-        y = draw_wrapped_text(font, text->dashboard_empty, content_x, y, content_w, body_font, line_h, C_MUTED);
+        y = draw_wrapped_text(font, text->dashboard_empty, content_x, y, content_w, body_font, line_h, flint_theme_get_text());
     } else {
-        int card_h = flint_px(96);
+        int card_h = flint_px(118);
         int gap = flint_px(12);
         for(int i = 0; i < app->process_count; i++) {
             UkuProcessRow *row = &app->processes[i];
@@ -1173,6 +1319,7 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
             int focused = ui_focus_register(focus_id, card);
             char meta[160];
             char created[32];
+            char timer[128];
             int open = 0;
 
             if(y + card_h < viewport_y || y > viewport_y + viewport_h) {
@@ -1182,20 +1329,25 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
 
             if(hovered)
                 app->cursor_clickable = 1;
-            DrawRectangleRounded(card, 0.07f, 10, hovered || focused ? (Color){244, 248, 250, 255} : WHITE);
-            DrawRectangleRoundedLinesEx(card, 0.07f, 10, flint_px(1), focused ? C_BLUE : C_LINE);
+            DrawRectangleRounded(card, 0.07f, 10, hovered || focused ? flint_theme_get_surface() : flint_theme_get_surface());
+            DrawRectangleRoundedLinesEx(card, 0.07f, 10, flint_px(1), focused ? flint_theme_get_button() : flint_theme_get_text());
             if(focused)
                 ui_focus_draw(card);
 
             draw_text_font(font, fit_tail(font, row->topic, body_font, content_w - flint_px(28)),
-                           content_x + flint_px(14), y + flint_px(12), body_font, C_TEXT);
+                           content_x + flint_px(14), y + flint_px(12), body_font, flint_theme_get_text());
+            format_process_timer(timer, sizeof(timer), text, row->created_at,
+                                 row->proposal_minutes, row->voting_minutes, now);
+            draw_text_font(font, fit_tail(font, timer, small_font, content_w - flint_px(28)),
+                           content_x + flint_px(14), y + flint_px(40), small_font,
+                           process_phase(row->created_at, row->proposal_minutes, row->voting_minutes, now, NULL) == UKU_PROCESS_RESULTS ? flint_theme_get_text() : flint_theme_get_button());
             format_created_at(created, sizeof(created), row->created_at);
             snprintf(meta, sizeof(meta), "%s  |  %s", row->local_address, created);
             draw_text_font(font, fit_tail(font, meta, small_font, content_w - flint_px(28)),
-                           content_x + flint_px(14), y + flint_px(42), small_font, C_GREEN);
+                           content_x + flint_px(14), y + flint_px(66), small_font, flint_theme_get_button());
             if(row->description[0] != '\0')
                 draw_text_font(font, fit_tail(font, row->description, small_font, content_w - flint_px(28)),
-                               content_x + flint_px(14), y + flint_px(66), small_font, C_MUTED);
+                               content_x + flint_px(14), y + flint_px(90), small_font, flint_theme_get_text());
 
             open = (hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) || ui_focus_activate_pressed(focus_id);
             if(open)
@@ -1213,8 +1365,8 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                    viewport_h - flint_px(16), content_h, app->dashboard_max_scroll,
                    &app->dashboard_scroll, &app->dashboard_drag_scrollbar, &app->dashboard_scroll_drag_offset);
 
-    new_clicked = draw_icon_button(app, font, view_w - flint_px(70), view_h - flint_px(70),
-                                   flint_px(52), "+", FLINT_ICON_TYPE_NONE, UKU_FOCUS_DASHBOARD_NEW, 1);
+    new_clicked = draw_icon_button(app, view_w - flint_px(44), view_h - flint_px(44),
+                                   flint_px(36), UI_ICON_TYPE_PLUS, UKU_FOCUS_DASHBOARD_NEW);
     if(new_clicked) {
         reset_decision(app, text);
         app->screen = UKU_SCREEN_CREATE;
@@ -1249,7 +1401,7 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
     if(reserve_scrollbar)
         content_w = UKU_MAX(flint_px(220), ui_scrollbar_content_width(content_w, 1));
 
-    draw_top_bar(app, font, text->create_title, 1, UKU_FOCUS_CREATE_BACK, &back_clicked, 0, NULL, view_w);
+    draw_top_bar(app, text->create_title, 1, UKU_FOCUS_CREATE_BACK, &back_clicked, 0, NULL, 0, NULL, 0, NULL, view_w);
     if(back_clicked) {
         app->screen = UKU_SCREEN_HOME;
         app->active_field = UKU_FIELD_NONE;
@@ -1261,7 +1413,7 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
                         d->topic, sizeof(d->topic), UKU_FIELD_TOPIC, UKU_FOCUS_TOPIC,
                         content_x, y, content_w, flint_px(46));
     if(d->topic_error) {
-        draw_text_font(font, text->topic_error, content_x, y - flint_px(8), small_font, C_RED);
+        draw_text_font(font, text->topic_error, content_x, y - flint_px(8), small_font, flint_theme_get_button());
         y += small_font + flint_px(8);
     }
     y = draw_text_field(app, font, text->description_label, text->description_placeholder,
@@ -1294,9 +1446,9 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
     }
     y += flint_px(62);
     if(d->submitted)
-        draw_centered_text(font, text->setup_ready, content_x + content_w / 2, y, small_font, C_GREEN);
+        draw_centered_text(font, text->setup_ready, content_x + content_w / 2, y, small_font, flint_theme_get_button());
     if(d->db_error)
-        draw_centered_text(font, text->db_error, content_x + content_w / 2, y, small_font, C_RED);
+        draw_centered_text(font, text->db_error, content_x + content_w / 2, y, small_font, flint_theme_get_button());
     EndScissorMode();
 
     content_bottom = y + app->create_scroll + flint_px(24);
@@ -1324,47 +1476,61 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     int back_clicked = 0;
     Font font = app->font;
     UkuDecision *d = &app->decision;
+    char timer[128];
+    int proposal_total = duration_minutes(d->proposal_days, d->proposal_hours, d->proposal_minutes);
+    int voting_total = duration_minutes(d->voting_days, d->voting_hours, d->voting_minutes);
+    sqlite3_int64 now = (sqlite3_int64)time(NULL);
 
     flint_centered_column(680, side, &content_x, &content_w);
 
-    draw_top_bar(app, font, text->collect_title, 1, UKU_FOCUS_COLLECT_BACK, &back_clicked, 0, NULL, view_w);
+    draw_top_bar(app, text->collect_title, 1, UKU_FOCUS_COLLECT_BACK, &back_clicked, 0, NULL, 0, NULL, 0, NULL, view_w);
     if(back_clicked) {
         app->screen = UKU_SCREEN_HOME;
         db_load_processes(app);
         ui_focus_clear();
     }
 
-    draw_text_font(font, d->topic, content_x, y, body_font, C_TEXT);
+    draw_text_font(font, d->topic, content_x, y, body_font, flint_theme_get_text());
     y += body_font + flint_px(18);
 
-    y = draw_wrapped_text(font, text->collect_intro, content_x, y, content_w, body_font, line_h, C_MUTED);
+    format_process_timer(timer, sizeof(timer), text, d->created_at, proposal_total, voting_total, now);
+    DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)content_w, (float)flint_px(44)}, 0.08f, 10,
+                         (Color){255, 255, 255, 255});
+    DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)content_w, (float)flint_px(44)}, 0.08f, 10,
+                                flint_px(1), flint_theme_get_text());
+    draw_text_font(font, fit_tail(font, timer, body_font, content_w - flint_px(24)),
+                   content_x + flint_px(12), y + flint_px(12), body_font,
+                   process_phase(d->created_at, proposal_total, voting_total, now, NULL) == UKU_PROCESS_RESULTS ? flint_theme_get_text() : flint_theme_get_button());
+    y += flint_px(62);
+
+    y = draw_wrapped_text(font, text->collect_intro, content_x, y, content_w, body_font, line_h, flint_theme_get_text());
     y += flint_px(20);
 
-    draw_text_font(font, text->local_address_label, content_x, y, small_font, C_GREEN);
+    draw_text_font(font, text->local_address_label, content_x, y, small_font, flint_theme_get_button());
     y += small_font + flint_px(8);
     DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)content_w, (float)flint_px(46)}, 0.08f, 10, WHITE);
     DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)content_w, (float)flint_px(46)}, 0.08f, 10,
-                                flint_px(1), C_LINE);
-    draw_text_font(font, d->local_address, content_x + flint_px(12), y + flint_px(13), body_font, C_TEXT);
+                                flint_px(1), flint_theme_get_text());
+    draw_text_font(font, d->local_address, content_x + flint_px(12), y + flint_px(13), body_font, flint_theme_get_text());
     y += flint_px(70);
 
-    draw_text_font(font, text->default_proposals_label, content_x, y, small_font, C_GREEN);
+    draw_text_font(font, text->default_proposals_label, content_x, y, small_font, flint_theme_get_button());
     y += small_font + flint_px(12);
 
     DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)content_w, (float)flint_px(72)}, 0.08f, 10,
                          (Color){255, 255, 255, 255});
     DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)content_w, (float)flint_px(72)}, 0.08f, 10,
-                                flint_px(1), C_LINE);
-    draw_text_font(font, text->status_quo_title, content_x + flint_px(12), y + flint_px(10), body_font, C_TEXT);
-    draw_text_font(font, text->status_quo_description, content_x + flint_px(12), y + flint_px(38), small_font, C_MUTED);
+                                flint_px(1), flint_theme_get_text());
+    draw_text_font(font, text->status_quo_title, content_x + flint_px(12), y + flint_px(10), body_font, flint_theme_get_text());
+    draw_text_font(font, text->status_quo_description, content_x + flint_px(12), y + flint_px(38), small_font, flint_theme_get_text());
     y += flint_px(84);
 
     DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)content_w, (float)flint_px(72)}, 0.08f, 10,
                          (Color){255, 255, 255, 255});
     DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)content_w, (float)flint_px(72)}, 0.08f, 10,
-                                flint_px(1), C_LINE);
-    draw_text_font(font, text->repeat_process_title, content_x + flint_px(12), y + flint_px(10), body_font, C_TEXT);
-    draw_text_font(font, text->repeat_process_description, content_x + flint_px(12), y + flint_px(38), small_font, C_MUTED);
+                                flint_px(1), flint_theme_get_text());
+    draw_text_font(font, text->repeat_process_title, content_x + flint_px(12), y + flint_px(10), body_font, flint_theme_get_text());
+    draw_text_font(font, text->repeat_process_description, content_x + flint_px(12), y + flint_px(38), small_font, flint_theme_get_text());
 
     (void)view_w;
     (void)view_h;
@@ -1392,16 +1558,16 @@ draw_manual(UkuApp *app, const UkuText *text, int view_w, int view_h)
                                 0, app->manual_max_scroll);
     flint_centered_column(760, side, &content_x, &content_w);
 
-    draw_top_bar(app, font, text->manual_title, 1, UKU_FOCUS_MANUAL_BACK, &back_clicked, 0, NULL, view_w);
+    draw_top_bar(app, text->manual_title, 1, UKU_FOCUS_MANUAL_BACK, &back_clicked, 0, NULL, 0, NULL, 0, NULL, view_w);
     if(back_clicked) {
         app->screen = UKU_SCREEN_HOME;
         ui_focus_clear();
     }
 
     BeginScissorMode(0, viewport_y, view_w, viewport_h);
-    draw_text_font(font, text->manual_title, content_x, y, title_font, C_TEXT);
+    draw_text_font(font, text->manual_title, content_x, y, title_font, flint_theme_get_text());
     y += title_font + flint_px(18);
-    y = draw_wrapped_text(font, text->manual_body, content_x, y, content_w, body_font, line_h, C_TEXT);
+    y = draw_wrapped_text(font, text->manual_body, content_x, y, content_w, body_font, line_h, flint_theme_get_text());
     EndScissorMode();
 
     content_bottom = y + app->manual_scroll + flint_px(24);
@@ -1428,6 +1594,7 @@ main(void)
     SetTargetFPS(60);
     flint_dpi_init();
     app_load_font(&app);
+    load_icons_once(&app);
 
     while(!WindowShouldClose()) {
         int view_w = GetScreenWidth();
@@ -1439,12 +1606,12 @@ main(void)
         ui_init(view_w, view_h, flint_get_dpi_scale());
         ui_set_frame((Camera2D){0});
         ui_set_cursor_clickable(&app.cursor_clickable);
-        ui_set_colors(C_TEXT, C_BG, C_GREEN, C_BLUE, flint_lighten(C_BLUE, 18), C_TEXT);
+        ui_set_colors(flint_theme_get_text(), flint_theme_get_bg(), flint_theme_get_surface(), flint_theme_get_circle(), flint_theme_get_button(), flint_theme_get_button_hover(), flint_theme_get_icon());
 
         app.cursor_clickable = 0;
 
         BeginDrawing();
-        ClearBackground(C_BG);
+        ClearBackground(flint_theme_get_bg());
         ui_focus_begin();
         ui_focus_set_text_input_active(app.active_field != UKU_FIELD_NONE);
         if(app.screen == UKU_SCREEN_HOME)
