@@ -24,17 +24,20 @@ LINUX_BUILD_DIR := $(BUILD_DIR)/linux
 TARGET := $(LINUX_BUILD_DIR)/uku-$(PLATFORM)-$(ARCH)
 PACKAGE_ID := xyz.waozi.uku
 
-SRC := src/main.c src/flint_shim.c
+SRC := src/main.c
 FLINT_DIR := vendor/flint
-FLINT_SRCS := $(wildcard $(FLINT_DIR)/src/*.c)
-RAYLIB_DIR := ../inbe/vendor/raylib/src
-RAYLIB_BUILD_DIR := ../inbe/vendor/raylib/build/sdl
+FLINT_ICON_ASSETS_C := $(FLINT_DIR)/src/flint_icon_assets.c
+FLINT_SRCS := $(filter-out $(FLINT_ICON_ASSETS_C),$(wildcard $(FLINT_DIR)/src/*.c) $(wildcard $(FLINT_DIR)/src/ui/*.c)) $(FLINT_ICON_ASSETS_C)
+RAYLIB_DIR := $(FLINT_DIR)/vendor/raylib/src
+RAYLIB_BUILD_ROOT := $(BUILD_DIR)/vendor/raylib
+RAYLIB_BUILD_SRC_DIR := $(RAYLIB_BUILD_ROOT)/src
+RAYLIB_BUILD_DIR := $(RAYLIB_BUILD_ROOT)/build/sdl
 RAYLIB_A := $(RAYLIB_BUILD_DIR)/libraylib.a
-RAYLIB_SOURCES := $(wildcard $(RAYLIB_DIR)/*.c) $(wildcard $(RAYLIB_DIR)/*.h)
+RAYLIB_SOURCES := $(shell if [ -d "$(RAYLIB_DIR)" ]; then find "$(RAYLIB_DIR)" -type f \( -name '*.c' -o -name '*.h' \); fi)
 LOCALE_FILES := $(wildcard locales/*.txt)
 FONT_OUTPUTS := assets/fonts/locales.png assets/fonts/locales.dat
-FONT_TOOL := ../otfchop/otfchop
-FONT_SOURCE := ../otfchop/unifont-17.0.04.otf
+FONT_TOOL := $(FLINT_DIR)/tools/otfchop/otfchop
+FONT_SOURCE := $(FLINT_DIR)/tools/otfchop/unifont-17.0.04.otf
 
 UKU_RAYLIB_CONFIG := $(RAY_RAYLIB_CONFIG) -DSUPPORT_MODULE_RAUDIO=0
 CFLAGS := -Wall -Wextra -std=c99 -Os -D_DEFAULT_SOURCE -D_GNU_SOURCE -ffunction-sections -fdata-sections
@@ -77,14 +80,17 @@ assets/fonts:
 $(FONT_OUTPUTS): $(LOCALE_FILES) $(FONT_TOOL) | assets/fonts
 	$(FONT_TOOL) $(FONT_SOURCE) $(LOCALE_FILES) assets/fonts/locales
 
-$(FONT_TOOL): ../otfchop/otfchop.c ../otfchop/stb_truetype.h ../otfchop/stb_image_write.h
-	$(MAKE) -C ../otfchop otfchop
+$(FONT_TOOL): $(FLINT_DIR)/tools/otfchop/otfchop.c $(FLINT_DIR)/tools/otfchop/stb_truetype.h $(FLINT_DIR)/tools/otfchop/stb_image_write.h
+	$(MAKE) -C $(FLINT_DIR)/tools/otfchop otfchop
 
 $(RAYLIB_BUILD_DIR):
 	mkdir -p $@
 
 $(RAYLIB_A): $(RAYLIB_SOURCES) | $(RAYLIB_BUILD_DIR)
-	$(MAKE) -j1 -C $(RAYLIB_DIR) \
+	rm -rf $(RAYLIB_BUILD_SRC_DIR)
+	mkdir -p $(RAYLIB_BUILD_SRC_DIR)
+	cp -R $(RAYLIB_DIR)/. $(RAYLIB_BUILD_SRC_DIR)/
+	$(MAKE) -j1 -C $(RAYLIB_BUILD_SRC_DIR) \
 		PLATFORM=PLATFORM_DESKTOP_SDL \
 		GRAPHICS=GRAPHICS_API_OPENGL_ES2 \
 		RAYLIB_LIBTYPE=STATIC \

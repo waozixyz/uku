@@ -4,7 +4,6 @@ title = "Uku"
 id = "xyz.waozi.uku"
 
 [paths]
-raylib = "../inbe/vendor/raylib/src"
 flint = "vendor/flint"
 
 [sources]
