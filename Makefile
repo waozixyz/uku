@@ -36,8 +36,6 @@ RAYLIB_A := $(RAYLIB_BUILD_DIR)/libraylib.a
 RAYLIB_SOURCES := $(shell if [ -d "$(RAYLIB_DIR)" ]; then find "$(RAYLIB_DIR)" -type f \( -name '*.c' -o -name '*.h' \); fi)
 LOCALE_FILES := $(wildcard locales/*.txt)
 FONT_OUTPUTS := assets/fonts/locales.png assets/fonts/locales.dat
-FONT_TOOL := $(FLINT_DIR)/tools/otfchop/otfchop
-FONT_SOURCE := $(FLINT_DIR)/tools/otfchop/unifont-17.0.04.otf
 
 UKU_RAYLIB_CONFIG := $(RAY_RAYLIB_CONFIG) -DSUPPORT_MODULE_RAUDIO=0
 CFLAGS := -Wall -Wextra -std=c99 -Os -D_DEFAULT_SOURCE -D_GNU_SOURCE -ffunction-sections -fdata-sections
@@ -77,11 +75,10 @@ $(LINUX_BUILD_DIR):
 assets/fonts:
 	mkdir -p $@
 
-$(FONT_OUTPUTS): $(LOCALE_FILES) $(FONT_TOOL) | assets/fonts
-	$(FONT_TOOL) $(FONT_SOURCE) $(LOCALE_FILES) assets/fonts/locales
-
-$(FONT_TOOL): $(FLINT_DIR)/tools/otfchop/otfchop.c $(FLINT_DIR)/tools/otfchop/stb_truetype.h $(FLINT_DIR)/tools/otfchop/stb_image_write.h
-	$(MAKE) -C $(FLINT_DIR)/tools/otfchop otfchop
+$(FONT_OUTPUTS): $(LOCALE_FILES) | assets/fonts
+	$(MAKE) -C $(FLINT_DIR) font-assets \
+		FLINT_FONT_LOCALES="$(abspath $(LOCALE_FILES))" \
+		FLINT_FONT_OUT="$(abspath assets/fonts/locales)"
 
 $(RAYLIB_BUILD_DIR):
 	mkdir -p $@
