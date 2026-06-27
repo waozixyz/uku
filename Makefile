@@ -1,142 +1,37 @@
 .DEFAULT_GOAL := all
 
-CC = gcc
-CMAKE ?= $(shell if [ -x /usr/bin/cmake ]; then echo /usr/bin/cmake; else command -v cmake; fi)
-
-UNAME_S := $(shell uname -s)
-UNAME_M := $(shell uname -m)
-
-ifeq ($(UNAME_S),Linux)
-	PLATFORM := linux
-else
-	PLATFORM := unknown
-endif
-
-ifeq ($(UNAME_M),x86_64)
-	ARCH := x86_64
-else ifeq ($(UNAME_M),aarch64)
-	ARCH := aarch64
-else
-	ARCH := $(UNAME_M)
-endif
-
-BUILD_DIR := build
-LINUX_BUILD_DIR := $(BUILD_DIR)/linux
-TARGET := $(LINUX_BUILD_DIR)/uku-$(PLATFORM)-$(ARCH)
-PACKAGE_ID := xyz.waozi.uku
-
+APP_NAME := uku
+ANDROID_APP_ID := xyz.waozi.uku
 SRC := src/main.c
 FLINT_DIR := vendor/flint
-FLINT_ICON_ASSETS_C := $(FLINT_DIR)/src/flint_icon_assets.c
-FLINT_SRCS := $(filter-out $(FLINT_ICON_ASSETS_C),$(wildcard $(FLINT_DIR)/src/*.c) $(wildcard $(FLINT_DIR)/src/ui/*.c)) $(FLINT_ICON_ASSETS_C)
-RAYLIB_DIR := $(FLINT_DIR)/vendor/raylib/src
-RAYLIB_BUILD_ROOT := $(BUILD_DIR)/vendor/raylib
-RAYLIB_BUILD_SRC_DIR := $(RAYLIB_BUILD_ROOT)/src
-RAYLIB_BUILD_DIR := $(RAYLIB_BUILD_ROOT)/build/sdl
-RAYLIB_A := $(RAYLIB_BUILD_DIR)/libraylib.a
-RAYLIB_SOURCES := $(shell if [ -d "$(RAYLIB_DIR)" ]; then find "$(RAYLIB_DIR)" -type f \( -name '*.c' -o -name '*.h' \); fi)
-LIBOQS_DIR := $(FLINT_DIR)/vendor/liboqs
-LIBOQS_BUILD_DIR := $(BUILD_DIR)/vendor/flint-liboqs
-LIBOQS_A := $(LIBOQS_BUILD_DIR)/lib/liboqs.a
-LIBOQS_INCLUDE := -I$(LIBOQS_BUILD_DIR)/include
-CURL_CFLAGS ?= $(shell pkg-config --cflags libcurl 2>/dev/null)
-CURL_LDLIBS ?= $(shell pkg-config --libs libcurl 2>/dev/null || printf '%s' -lcurl)
-LOCALE_FILES := $(wildcard locales/*.txt)
-FONT_OUTPUTS := assets/fonts/locales.png assets/fonts/locales.dat
+FLINT_MAKE_DIR := $(FLINT_DIR)/mk/
+FLINT_USE_SYSTEM_CURL := 0
 
-UKU_RAYLIB_CONFIG := $(RAY_RAYLIB_CONFIG) -DSUPPORT_MODULE_RAUDIO=0
-CFLAGS := -Wall -Wextra -std=c99 -Os -D_DEFAULT_SOURCE -D_GNU_SOURCE -ffunction-sections -fdata-sections
-LDFLAGS := -Wl,--gc-sections -s
+FLINT_RAYLIB_MODULE_AUDIO := FALSE
+FLINT_NATIVE_SUPPORT_FLAGS := -DSUPPORT_MODULE_RAUDIO=0
+APP_RAYLIB_CONFIG := $(RAY_RAYLIB_CONFIG) -DSUPPORT_MODULE_RAUDIO=0
 
-ifeq ($(strip $(RAY_CFLAGS)),)
-$(error RAY_CFLAGS is not set. Enter the ray flake shell with 'nix develop')
-endif
-ifeq ($(strip $(RAY_LDLIBS)),)
-$(error RAY_LDLIBS is not set. Enter the ray flake shell with 'nix develop')
-endif
-ifeq ($(strip $(RAY_SDL_LDLIBS)),)
-$(error RAY_SDL_LDLIBS is not set. Enter the ray flake shell with 'nix develop')
-endif
-ifeq ($(strip $(RAY_SDL_INCLUDE_DIR)),)
-$(error RAY_SDL_INCLUDE_DIR is not set. Enter the ray flake shell with 'nix develop')
-endif
-ifeq ($(strip $(RAY_RAYLIB_CONFIG)),)
-$(error RAY_RAYLIB_CONFIG is not set. Enter the ray flake shell with 'nix develop')
-endif
+include $(FLINT_MAKE_DIR)common.mk
 
-all: native
+LINUX_BIN_DIR := $(BUILD_DIR)/linux
+FLINT_VENDOR_BUILD_DIR := $(BUILD_DIR)/vendor
+FLINT_LIBOQS_BUILD_DIR := $(FLINT_VENDOR_BUILD_DIR)/liboqs
+FLINT_CURL_BUILD_TYPE := Release
+FLINT_LIBRESSL_BUILD_TYPE := Release
 
-native: $(TARGET)
+include $(FLINT_MAKE_DIR)vendor.mk
+
+FLINT_NATIVE_DEPS := $(FLINT_LIBOQS_A) $(FLINT_CURL_SO)
+FLINT_NATIVE_CFLAGS := $(FLINT_LIBOQS_INCLUDE) $(FLINT_CURL_CFLAGS) -DFLINT_HAS_LIBOQS=1
+FLINT_NATIVE_LDLIBS := $(FLINT_LIBOQS_A) $(FLINT_CURL_LDLIBS) -lsqlite3
+
+include $(FLINT_MAKE_DIR)raylib.mk
+include $(FLINT_MAKE_DIR)native.mk
+include $(FLINT_MAKE_DIR)dist.mk
+include $(FLINT_MAKE_DIR)clean.mk
 
 linux: native
 
 dist: dist-linux
 
-dist-linux: $(TARGET)
-	mkdir -p $(BUILD_DIR)/dist/linux
-	tar -czf $(BUILD_DIR)/dist/linux/uku-linux-$(ARCH).tar.gz -C $(LINUX_BUILD_DIR) uku-$(PLATFORM)-$(ARCH)
-
-$(LINUX_BUILD_DIR):
-	mkdir -p $@
-
-assets/fonts:
-	mkdir -p $@
-
-$(FONT_OUTPUTS): $(LOCALE_FILES) | assets/fonts
-	$(MAKE) -C $(FLINT_DIR) font-assets \
-		FLINT_FONT_LOCALES="$(abspath $(LOCALE_FILES))" \
-		FLINT_FONT_OUT="$(abspath assets/fonts/locales)"
-
-$(RAYLIB_BUILD_DIR):
-	mkdir -p $@
-
-$(RAYLIB_A): $(RAYLIB_SOURCES) | $(RAYLIB_BUILD_DIR)
-	rm -rf $(RAYLIB_BUILD_SRC_DIR)
-	mkdir -p $(RAYLIB_BUILD_SRC_DIR)
-	cp -R $(RAYLIB_DIR)/. $(RAYLIB_BUILD_SRC_DIR)/
-	$(MAKE) -j1 -C $(RAYLIB_BUILD_SRC_DIR) \
-		PLATFORM=PLATFORM_DESKTOP_SDL \
-		GRAPHICS=GRAPHICS_API_OPENGL_ES2 \
-		RAYLIB_LIBTYPE=STATIC \
-		RAYLIB_RELEASE_PATH=../build/sdl \
-		RAYLIB_MODULE_AUDIO=FALSE \
-		RAYLIB_MODULE_MODELS=FALSE \
-		SDL_INCLUDE_PATH="$(RAY_SDL_INCLUDE_DIR)" \
-		SDL_LIBRARIES="$(RAY_SDL_LDLIBS)" \
-		CUSTOM_CFLAGS="-DUSING_SDL2_PROJECT $(RAY_CFLAGS) $(UKU_RAYLIB_CONFIG) -Os -ffunction-sections -fdata-sections"
-
-$(LIBOQS_A): $(LIBOQS_DIR)/CMakeLists.txt | $(LINUX_BUILD_DIR)
-	$(CMAKE) -S $(LIBOQS_DIR) -B $(LIBOQS_BUILD_DIR) \
-		-DCMAKE_BUILD_TYPE=Release \
-		-DBUILD_SHARED_LIBS=OFF \
-		-DOQS_BUILD_ONLY_LIB=ON \
-		-DOQS_USE_OPENSSL=OFF \
-		-DOQS_MINIMAL_BUILD=SIG_ml_dsa_44
-	$(CMAKE) --build $(LIBOQS_BUILD_DIR) --target oqs
-
-$(TARGET): $(SRC) $(FLINT_SRCS) $(FONT_OUTPUTS) $(RAYLIB_A) $(LIBOQS_A) | $(LINUX_BUILD_DIR)
-	$(CC) $(CFLAGS) \
-		-I$(RAYLIB_DIR) \
-		-I$(FLINT_DIR)/include \
-		-Isrc \
-		$(LIBOQS_INCLUDE) \
-		$(CURL_CFLAGS) \
-		$(RAY_CFLAGS) \
-		-DFLINT_HAS_LIBOQS=1 \
-		-o $@ \
-		$(SRC) \
-		$(FLINT_SRCS) \
-		$(RAYLIB_A) \
-		$(LIBOQS_A) \
-		$(RAY_LDLIBS) \
-		$(CURL_LDLIBS) \
-		-lsqlite3 -lm -lpthread -ldl -lrt \
-		$(LDFLAGS)
-
-run: $(TARGET)
-	./$(TARGET)
-
-clean:
-	rm -rf $(BUILD_DIR) assets/fonts
-
-.PHONY: all native linux dist dist-linux run clean
+.PHONY: all native linux dist run clean
