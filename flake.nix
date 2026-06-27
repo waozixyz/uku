@@ -27,6 +27,9 @@
             packages = with pkgs; [
               SDL2
               SDL2.dev
+              cmake
+              curl
+              curl.dev
               gcc
               gnumake
               libdrm

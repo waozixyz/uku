@@ -1,9 +1,16 @@
 #include "raylib.h"
 #include "flint.h"
+#include "flint_file_dialog.h"
+#include "flint_lyra_account.h"
 #include "sqlite3.h"
+
+#if !defined(PLATFORM_WEB)
+#include <curl/curl.h>
+#endif
 
 #include <math.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,14 +23,23 @@ typedef enum UkuScreen {
     UKU_SCREEN_HOME,
     UKU_SCREEN_CREATE,
     UKU_SCREEN_COLLECT,
-    UKU_SCREEN_MANUAL
+    UKU_SCREEN_MANUAL,
+    UKU_SCREEN_ACCOUNT
 } UkuScreen;
 
 typedef enum UkuField {
     UKU_FIELD_NONE,
     UKU_FIELD_TOPIC,
-    UKU_FIELD_DESCRIPTION
+    UKU_FIELD_DESCRIPTION,
+    UKU_FIELD_SERVER_URL,
+    UKU_FIELD_ALIAS
 } UkuField;
+
+typedef enum UkuAccountFileAction {
+    UKU_ACCOUNT_FILE_NONE,
+    UKU_ACCOUNT_FILE_IMPORT,
+    UKU_ACCOUNT_FILE_EXPORT
+} UkuAccountFileAction;
 
 typedef enum UkuProcessPhase {
     UKU_PROCESS_PROPOSAL,
@@ -46,6 +62,7 @@ typedef struct UkuDecision {
     int submitted;
     int topic_error;
     int db_error;
+    int remote_error;
     sqlite3_int64 created_at;
 } UkuDecision;
 
@@ -61,6 +78,15 @@ typedef struct UkuProcessRow {
     int negative_weight;
     sqlite3_int64 created_at;
 } UkuProcessRow;
+
+typedef struct UkuAccount {
+    char public_id[65];
+    char public_key_hex[2625];
+    char private_key_hex[5121];
+    char auth_token[768];
+    int loaded;
+    int import_failed;
+} UkuAccount;
 
 typedef struct UkuApp {
     UkuScreen screen;
@@ -81,6 +107,17 @@ typedef struct UkuApp {
     int manual_scroll_drag_offset;
     int negative_dropdown_open;
     int process_count;
+    int remote_processes_loaded;
+    int server_url_error;
+    int account_file_action;
+    int account_alias_lookup_attempted;
+    int account_public_id_modal_open;
+    int account_alias_modal_open;
+    char account_status[160];
+    char server_url[256];
+    char alias_input[40];
+    FlintFileDialog account_import_dialog;
+    FlintFileDialog account_export_dialog;
     Font font;
     Texture2D font_shapes_texture;
     Texture2D icons[UI_ICON_TYPE_COUNT];
@@ -88,6 +125,7 @@ typedef struct UkuApp {
     int locale_font_ready;
     sqlite3 *db;
     UkuDecision decision;
+    UkuAccount account;
     UkuProcessRow processes[UKU_MAX_PROCESSES];
 } UkuApp;
 
@@ -158,6 +196,13 @@ typedef enum UkuFocusId {
     UKU_FOCUS_DASHBOARD_NEW,
     UKU_FOCUS_DASHBOARD_CLOSE,
     UKU_FOCUS_MANUAL_BACK,
+    UKU_FOCUS_ACCOUNT_ID,
+    UKU_FOCUS_PUBLIC_ID_COPY,
+    UKU_FOCUS_PUBLIC_ID_CLOSE,
+    UKU_FOCUS_PUBLIC_ID_ALIAS,
+    UKU_FOCUS_ALIAS_FIELD,
+    UKU_FOCUS_ALIAS_CLOSE,
+    UKU_FOCUS_ALIAS_SAVE,
     UKU_FOCUS_DASHBOARD_PROCESS_BASE = 100
 } UkuFocusId;
 
@@ -178,6 +223,11 @@ typedef struct ChoppedGlyph {
 #define LOCALE_TEXT_PATH "locales/en.txt"
 #define LOCALE_FONT_BASE_SIZE 16
 #define UKU_PACKAGE_ID "xyz.waozi.uku"
+#define UKU_SYNC_SERVER_URL_DEFAULT "https://api.waozi.xyz"
+#define UKU_SYNC_SERVER_URL_KEY "sync_server_url"
+#define UKU_SYNC_ACCOUNT_ALIAS_KEY "sync_account_alias"
+#define UKU_ACCOUNT_KEY_FILE "account.key"
+#define UKU_ACCOUNT_KEY_FILTER ".key"
 
 static void
 copy_text(char *dst, size_t dst_size, const char *src, size_t len)
@@ -429,12 +479,16 @@ app_load_font(UkuApp *app)
     UnloadImage(white);
     if(app->font_shapes_texture.id != 0)
         SetShapesTexture(app->font_shapes_texture, (Rectangle){0, 0, 1, 1});
+    flint_text_set_font(app->font);
+    flint_text_set_small_font(app->font);
     app->locale_font_ready = 1;
 }
 
 static void
 app_unload_font(UkuApp *app)
 {
+    flint_text_set_font((Font){0});
+    flint_text_set_small_font((Font){0});
     if(app->locale_font_ready) {
         UnloadTexture(app->font.texture);
         free(app->font.glyphs);
@@ -448,6 +502,24 @@ static int
 measure_text_font(Font font, const char *text, int font_size)
 {
     return (int)(MeasureTextEx(font, text, (float)font_size, 0).x + 0.5f);
+}
+
+static void
+compact_public_id(const char *public_id, char *out, size_t out_size)
+{
+    size_t len;
+
+    if(out == NULL || out_size == 0)
+        return;
+    out[0] = '\0';
+    if(public_id == NULL)
+        return;
+    len = strlen(public_id);
+    if(len <= 12) {
+        snprintf(out, out_size, "%s", public_id);
+        return;
+    }
+    snprintf(out, out_size, "%.*s...%.*s", 4, public_id, 4, public_id + len - 4);
 }
 
 static void
@@ -566,31 +638,952 @@ db_init(UkuApp *app)
     if(sqlite3_open("uku.sqlite3", &app->db) != SQLITE_OK)
         return 0;
 
-    return exec_sql(app->db,
-                    "create table if not exists processes ("
-                    "id text primary key,"
-                    "topic text not null,"
-                    "description text not null,"
-                    "proposal_minutes integer not null,"
-                    "voting_minutes integer not null,"
-                    "negative_weight integer not null,"
-                    "local_address text not null,"
-                    "created_at integer not null"
-                    ");"
-                    "create table if not exists proposals ("
-                    "id integer primary key autoincrement,"
-                    "process_id text not null,"
-                    "title text not null,"
-                    "description text not null,"
-                    "created_at integer not null,"
-                    "foreign key(process_id) references processes(id)"
-                    ");");
+    if(!exec_sql(app->db,
+                 "create table if not exists processes ("
+                 "id text primary key,"
+                 "topic text not null,"
+                 "description text not null,"
+                 "proposal_minutes integer not null,"
+                 "voting_minutes integer not null,"
+                 "negative_weight integer not null,"
+                 "local_address text not null,"
+                 "created_at integer not null"
+                 ");"
+                 "create table if not exists proposals ("
+                 "id integer primary key autoincrement,"
+                 "process_id text not null,"
+                 "title text not null,"
+                 "description text not null,"
+                 "created_at integer not null,"
+                 "foreign key(process_id) references processes(id)"
+                 ");"
+                 "create table if not exists account ("
+                 "id integer primary key check(id = 1),"
+                 "public_id text not null,"
+                 "public_key text not null,"
+                 "private_key text not null"
+                 ");"
+                 "create table if not exists settings ("
+                 "key text primary key,"
+                 "value text not null"
+                 ");"))
+        return 0;
+    sqlite3_exec(app->db, "alter table account add column auth_token text not null default ''", NULL, NULL, NULL);
+    sqlite3_exec(app->db, "alter table account add column server_url text not null default 'https://api.waozi.xyz'", NULL, NULL, NULL);
+    return 1;
 }
 
 static int
 duration_minutes(int days, int hours, int minutes)
 {
     return days * 24 * 60 + hours * 60 + minutes;
+}
+
+static void
+setting_load_text(UkuApp *app, const char *key, const char *fallback, char *out, size_t out_size)
+{
+    sqlite3_stmt *stmt = NULL;
+
+    if(out == NULL || out_size == 0)
+        return;
+    snprintf(out, out_size, "%s", fallback != NULL ? fallback : "");
+    if(app == NULL || app->db == NULL || key == NULL)
+        return;
+    if(sqlite3_prepare_v2(app->db, "select value from settings where key=?", -1, &stmt, NULL) != SQLITE_OK)
+        return;
+    sqlite3_bind_text(stmt, 1, key, -1, SQLITE_TRANSIENT);
+    if(sqlite3_step(stmt) == SQLITE_ROW) {
+        const unsigned char *value = sqlite3_column_text(stmt, 0);
+        copy_text(out, out_size, (const char *)(value != NULL ? value : (const unsigned char *)""),
+                  strlen((const char *)(value != NULL ? value : (const unsigned char *)"")));
+    }
+    sqlite3_finalize(stmt);
+}
+
+static int
+setting_save_text(UkuApp *app, const char *key, const char *value)
+{
+    sqlite3_stmt *stmt = NULL;
+    int ok;
+
+    if(app == NULL || app->db == NULL || key == NULL || value == NULL)
+        return 0;
+    if(sqlite3_prepare_v2(app->db, "insert or replace into settings(key, value) values(?, ?)",
+                          -1, &stmt, NULL) != SQLITE_OK)
+        return 0;
+    sqlite3_bind_text(stmt, 1, key, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, value, -1, SQLITE_TRANSIENT);
+    ok = sqlite3_step(stmt) == SQLITE_DONE;
+    sqlite3_finalize(stmt);
+    return ok;
+}
+
+static int
+has_prefix(const char *text, const char *prefix)
+{
+    return text != NULL && prefix != NULL &&
+           strncmp(text, prefix, strlen(prefix)) == 0;
+}
+
+static int
+url_host_boundary(char ch)
+{
+    return ch == '\0' || ch == ':' || ch == '/' || ch == '?' || ch == '#';
+}
+
+static int
+loopback_authority_valid(const char *authority)
+{
+    static const char *const hosts[] = {"localhost", "127.0.0.1", "10.0.2.2"};
+
+    if(authority == NULL || authority[0] == '\0')
+        return 0;
+    for(size_t i = 0; i < sizeof(hosts) / sizeof(hosts[0]); i++) {
+        size_t len = strlen(hosts[i]);
+        if(strncmp(authority, hosts[i], len) == 0 && url_host_boundary(authority[len]))
+            return 1;
+    }
+    return 0;
+}
+
+static int
+sync_url_valid(const char *url)
+{
+    if(url == NULL || url[0] == '\0')
+        return 0;
+    if(has_prefix(url, "https://"))
+        return url[8] != '\0';
+    if(has_prefix(url, "http://"))
+        return loopback_authority_valid(url + 7);
+    return loopback_authority_valid(url);
+}
+
+static int
+sync_url_normalize(const char *input, char *out, size_t out_size)
+{
+    int len;
+
+    if(out == NULL || out_size == 0)
+        return 0;
+    out[0] = '\0';
+    if(!sync_url_valid(input))
+        return 0;
+    if(has_prefix(input, "https://") || has_prefix(input, "http://"))
+        len = snprintf(out, out_size, "%s", input);
+    else
+        len = snprintf(out, out_size, "http://%s", input);
+    return len > 0 && (size_t)len < out_size;
+}
+
+static int
+sync_server_save(UkuApp *app)
+{
+    char normalized[sizeof(app->server_url)];
+
+    if(!sync_url_normalize(app->server_url, normalized, sizeof(normalized))) {
+        app->server_url_error = 1;
+        return 0;
+    }
+    snprintf(app->server_url, sizeof(app->server_url), "%s", normalized);
+    app->server_url_error = 0;
+    return setting_save_text(app, UKU_SYNC_SERVER_URL_KEY, normalized);
+}
+
+static void
+account_to_flint(const UkuAccount *account, FlintLyraAccount *out)
+{
+    if(out == NULL)
+        return;
+    memset(out, 0, sizeof(*out));
+    if(account == NULL)
+        return;
+    snprintf(out->public_id, sizeof(out->public_id), "%s", account->public_id);
+    snprintf(out->public_key_hex, sizeof(out->public_key_hex), "%s", account->public_key_hex);
+    snprintf(out->private_key_hex, sizeof(out->private_key_hex), "%s", account->private_key_hex);
+}
+
+static void
+account_from_flint(UkuAccount *account, const FlintLyraAccount *source)
+{
+    char auth_token[sizeof(account->auth_token)];
+    int import_failed;
+
+    if(account == NULL || source == NULL)
+        return;
+    snprintf(auth_token, sizeof(auth_token), "%s", account->auth_token);
+    import_failed = account->import_failed;
+    memset(account, 0, sizeof(*account));
+    snprintf(account->public_id, sizeof(account->public_id), "%s", source->public_id);
+    snprintf(account->public_key_hex, sizeof(account->public_key_hex), "%s", source->public_key_hex);
+    snprintf(account->private_key_hex, sizeof(account->private_key_hex), "%s", source->private_key_hex);
+    snprintf(account->auth_token, sizeof(account->auth_token), "%s", auth_token);
+    account->import_failed = import_failed;
+    account->loaded = 1;
+}
+
+static void
+alias_normalize(char *text)
+{
+    size_t write = 0;
+
+    if(text == NULL)
+        return;
+    for(size_t read = 0; text[read] != '\0'; read++) {
+        char c = text[read];
+        if(c >= 'A' && c <= 'Z')
+            c = (char)(c - 'A' + 'a');
+        if(c == '@' && write == 0)
+            continue;
+        if((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_') {
+            if(write + 1 < 40)
+                text[write++] = c;
+        }
+    }
+    text[write] = '\0';
+}
+
+static int
+alias_valid(const char *text)
+{
+    size_t len;
+
+    if(text == NULL)
+        return 0;
+    len = strlen(text);
+    if(len < 4 || len > 32)
+        return 0;
+    for(size_t i = 0; i < len; i++) {
+        char c = text[i];
+        if((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_')
+            continue;
+        return 0;
+    }
+    return 1;
+}
+
+static int
+account_validate_import(UkuAccount *account)
+{
+    FlintLyraAccount flint_account;
+
+    if(account == NULL)
+        return 0;
+    account_to_flint(account, &flint_account);
+    if(!flint_lyra_account_validate(&flint_account))
+        return 0;
+    account_from_flint(account, &flint_account);
+    return 1;
+}
+
+static int
+account_parse_key_text(const char *body, UkuAccount *account)
+{
+    FlintLyraAccount parsed;
+
+    if(body == NULL || account == NULL)
+        return 0;
+    if(!flint_lyra_account_parse_text(body, &parsed))
+        return 0;
+    memset(account, 0, sizeof(*account));
+    account_from_flint(account, &parsed);
+    return 1;
+}
+
+static int
+account_has_values(const UkuAccount *account)
+{
+    FlintLyraAccount flint_account;
+
+    account_to_flint(account, &flint_account);
+    return flint_lyra_account_validate(&flint_account);
+}
+
+static int
+account_save(UkuApp *app, const UkuAccount *account)
+{
+    sqlite3_stmt *stmt = NULL;
+    int ok;
+
+    if(app->db == NULL || !account_has_values(account))
+        return 0;
+    if(sqlite3_prepare_v2(app->db,
+                          "insert or replace into account(id, public_id, public_key, private_key, auth_token) values(1, ?, ?, ?, ?)",
+                          -1, &stmt, NULL) != SQLITE_OK)
+        return 0;
+    sqlite3_bind_text(stmt, 1, account->public_id, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, account->public_key_hex, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, account->private_key_hex, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, account->auth_token, -1, SQLITE_TRANSIENT);
+    ok = sqlite3_step(stmt) == SQLITE_DONE;
+    sqlite3_finalize(stmt);
+    return ok;
+}
+
+static void
+account_load(UkuApp *app)
+{
+    sqlite3_stmt *stmt = NULL;
+
+    memset(&app->account, 0, sizeof(app->account));
+    if(app->db == NULL)
+        return;
+    if(sqlite3_prepare_v2(app->db,
+                          "select public_id, public_key, private_key, auth_token from account where id=1",
+                          -1, &stmt, NULL) != SQLITE_OK)
+        return;
+    if(sqlite3_step(stmt) == SQLITE_ROW) {
+        const unsigned char *public_id = sqlite3_column_text(stmt, 0);
+        const unsigned char *public_key = sqlite3_column_text(stmt, 1);
+        const unsigned char *private_key = sqlite3_column_text(stmt, 2);
+        const unsigned char *auth_token = sqlite3_column_text(stmt, 3);
+        copy_text(app->account.public_id, sizeof(app->account.public_id),
+                  (const char *)(public_id != NULL ? public_id : (const unsigned char *)""),
+                  strlen((const char *)(public_id != NULL ? public_id : (const unsigned char *)"")));
+        copy_text(app->account.public_key_hex, sizeof(app->account.public_key_hex),
+                  (const char *)(public_key != NULL ? public_key : (const unsigned char *)""),
+                  strlen((const char *)(public_key != NULL ? public_key : (const unsigned char *)"")));
+        copy_text(app->account.private_key_hex, sizeof(app->account.private_key_hex),
+                  (const char *)(private_key != NULL ? private_key : (const unsigned char *)""),
+                  strlen((const char *)(private_key != NULL ? private_key : (const unsigned char *)"")));
+        copy_text(app->account.auth_token, sizeof(app->account.auth_token),
+                  (const char *)(auth_token != NULL ? auth_token : (const unsigned char *)""),
+                  strlen((const char *)(auth_token != NULL ? auth_token : (const unsigned char *)"")));
+        app->account.loaded = account_has_values(&app->account);
+    }
+    sqlite3_finalize(stmt);
+}
+
+static int
+account_import_file(UkuApp *app, const char *path)
+{
+    char *body;
+    UkuAccount imported;
+
+    app->account.import_failed = 0;
+    app->account_status[0] = '\0';
+    body = LoadFileText(path);
+    if(body == NULL) {
+        app->account.import_failed = 1;
+        copy_text(app->account_status, sizeof(app->account_status),
+                  "Import failed. Choose a readable account key file.",
+                  strlen("Import failed. Choose a readable account key file."));
+        return 0;
+    }
+    if(!account_parse_key_text(body, &imported) || !account_validate_import(&imported) ||
+       !account_save(app, &imported)) {
+        app->account.import_failed = 1;
+        copy_text(app->account_status, sizeof(app->account_status),
+                  "Import failed. The selected key is not valid.",
+                  strlen("Import failed. The selected key is not valid."));
+        UnloadFileText(body);
+        return 0;
+    }
+    UnloadFileText(body);
+    app->account = imported;
+    app->account.loaded = 1;
+    app->account_alias_lookup_attempted = 0;
+    copy_text(app->account_status, sizeof(app->account_status),
+              "Account key imported.", strlen("Account key imported."));
+    return 1;
+}
+
+static int
+account_export_file(UkuApp *app, const char *path)
+{
+    char body[FLINT_LYRA_ACCOUNT_EXPORT_TEXT_SIZE];
+    FlintLyraAccount flint_account;
+    int ok;
+
+    if(app == NULL || !account_has_values(&app->account) || path == NULL || path[0] == '\0')
+        return 0;
+    account_to_flint(&app->account, &flint_account);
+    if(!flint_lyra_account_export_text(&flint_account, body, sizeof(body)))
+        return 0;
+    ok = SaveFileData(path, body, (int)strlen(body));
+    copy_text(app->account_status, sizeof(app->account_status),
+              ok ? "Account key exported." : "Account key export failed.",
+              strlen(ok ? "Account key exported." : "Account key export failed."));
+    return ok;
+}
+
+static void
+account_apply_file_dialog_theme(void)
+{
+    flint_file_dialog_set_theme_scope(flint_theme_scope_for(FLINT_THEME_SUNSET,
+                                                            flint_theme_get_dark_mode()));
+}
+
+static void
+account_start_import_dialog(UkuApp *app)
+{
+    if(app == NULL)
+        return;
+    account_apply_file_dialog_theme();
+    app->account_file_action = UKU_ACCOUNT_FILE_IMPORT;
+    app->account.import_failed = 0;
+    app->account_status[0] = '\0';
+    flint_file_dialog_begin_load_filtered(&app->account_import_dialog,
+                                          "Import account key", UKU_ACCOUNT_KEY_FILTER);
+}
+
+static void
+account_start_export_dialog(UkuApp *app)
+{
+    if(app == NULL || !account_has_values(&app->account))
+        return;
+    account_apply_file_dialog_theme();
+    app->account_file_action = UKU_ACCOUNT_FILE_EXPORT;
+    app->account_status[0] = '\0';
+    flint_file_dialog_begin_save(&app->account_export_dialog,
+                                 "Export account key", UKU_ACCOUNT_KEY_FILE);
+}
+
+static int
+account_draw_pending_file_dialog(UkuApp *app)
+{
+    FlintFileDialog *dlg;
+    int result;
+
+    if(app == NULL || app->account_file_action == UKU_ACCOUNT_FILE_NONE)
+        return 0;
+
+    account_apply_file_dialog_theme();
+    dlg = app->account_file_action == UKU_ACCOUNT_FILE_IMPORT
+              ? &app->account_import_dialog
+              : &app->account_export_dialog;
+    result = flint_file_dialog_update(dlg);
+    if(result < 0)
+        return 1;
+
+    if(app->account_file_action == UKU_ACCOUNT_FILE_IMPORT) {
+        if(result == 1) {
+            const char *path = flint_file_dialog_get_path(&app->account_import_dialog);
+            if(path != NULL && path[0] != '\0')
+                account_import_file(app, path);
+            else
+                copy_text(app->account_status, sizeof(app->account_status),
+                          "Import cancelled.", strlen("Import cancelled."));
+        } else {
+            copy_text(app->account_status, sizeof(app->account_status),
+                      "Import cancelled.", strlen("Import cancelled."));
+        }
+        flint_file_dialog_cleanup(&app->account_import_dialog);
+    } else if(app->account_file_action == UKU_ACCOUNT_FILE_EXPORT) {
+        if(result == 1) {
+            const char *path = flint_file_dialog_get_path(&app->account_export_dialog);
+            if(path != NULL && path[0] != '\0')
+                account_export_file(app, path);
+            else
+                copy_text(app->account_status, sizeof(app->account_status),
+                          "Export cancelled.", strlen("Export cancelled."));
+        } else {
+            copy_text(app->account_status, sizeof(app->account_status),
+                      "Export cancelled.", strlen("Export cancelled."));
+        }
+        flint_file_dialog_cleanup(&app->account_export_dialog);
+    }
+
+    app->account_file_action = UKU_ACCOUNT_FILE_NONE;
+    return 1;
+}
+
+static int
+account_create(UkuApp *app)
+{
+    FlintLyraAccount flint_account;
+    UkuAccount generated;
+
+    memset(&generated, 0, sizeof(generated));
+    if(!flint_lyra_account_create(&flint_account)) {
+        copy_text(app->account_status, sizeof(app->account_status),
+                  "Account creation failed.", strlen("Account creation failed."));
+        return 0;
+    }
+    account_from_flint(&generated, &flint_account);
+    if(!account_save(app, &generated)) {
+        copy_text(app->account_status, sizeof(app->account_status),
+                  "Account creation failed.", strlen("Account creation failed."));
+        return 0;
+    }
+    app->account = generated;
+    app->account_alias_lookup_attempted = 0;
+    copy_text(app->account_status, sizeof(app->account_status),
+              "Account created.", strlen("Account created."));
+    return 1;
+}
+
+static int
+account_sign_hex(UkuApp *app, const uint8_t *message, size_t message_len,
+                 char *out_signature_hex, size_t out_size)
+{
+    FlintLyraAccount flint_account;
+
+    if(app == NULL || !app->account.loaded)
+        return 0;
+    account_to_flint(&app->account, &flint_account);
+    return flint_lyra_account_sign_hex(&flint_account, message, message_len, out_signature_hex,
+                                       out_size);
+}
+
+typedef struct UkuHttpBuffer {
+    char *data;
+    size_t len;
+    size_t cap;
+} UkuHttpBuffer;
+
+static int
+http_buffer_append(UkuHttpBuffer *buffer, const char *data, size_t len)
+{
+    char *next;
+    size_t next_cap;
+
+    if(buffer == NULL || data == NULL || len == 0)
+        return 1;
+    if(buffer->cap == 0 || len >= buffer->cap - buffer->len) {
+        next_cap = buffer->cap > 0 ? buffer->cap : 4096;
+        while(len >= next_cap - buffer->len)
+            next_cap *= 2;
+        next = (char *)realloc(buffer->data, next_cap);
+        if(next == NULL)
+            return 0;
+        buffer->data = next;
+        buffer->cap = next_cap;
+    }
+    memcpy(buffer->data + buffer->len, data, len);
+    buffer->len += len;
+    buffer->data[buffer->len] = '\0';
+    return 1;
+}
+
+static int
+json_append_string(UkuHttpBuffer *buffer, const char *text)
+{
+    if(!http_buffer_append(buffer, "\"", 1))
+        return 0;
+    if(text == NULL)
+        text = "";
+    for(const char *p = text; *p != '\0'; p++) {
+        char one[2] = {*p, '\0'};
+        if(*p == '"' && !http_buffer_append(buffer, "\\\"", 2))
+            return 0;
+        else if(*p == '\\' && !http_buffer_append(buffer, "\\\\", 2))
+            return 0;
+        else if(*p == '\n' && !http_buffer_append(buffer, "\\n", 2))
+            return 0;
+        else if(*p == '\r' && !http_buffer_append(buffer, "\\r", 2))
+            return 0;
+        else if(*p == '\t' && !http_buffer_append(buffer, "\\t", 2))
+            return 0;
+        else if(*p >= 32 && !http_buffer_append(buffer, one, 1))
+            return 0;
+    }
+    return http_buffer_append(buffer, "\"", 1);
+}
+
+#if !defined(PLATFORM_WEB)
+static size_t
+curl_write_cb(char *ptr, size_t size, size_t nmemb, void *userdata)
+{
+    size_t bytes = size * nmemb;
+    UkuHttpBuffer *buffer = (UkuHttpBuffer *)userdata;
+    return http_buffer_append(buffer, ptr, bytes) ? bytes : 0;
+}
+#endif
+
+static int
+extract_json_string(const char *json, const char *key, char *out, size_t out_size)
+{
+    char pattern[64];
+    const char *p;
+    size_t n = 0;
+
+    if(json == NULL || key == NULL || out == NULL || out_size == 0)
+        return 0;
+    out[0] = '\0';
+    snprintf(pattern, sizeof(pattern), "\"%s\"", key);
+    p = strstr(json, pattern);
+    if(p == NULL)
+        return 0;
+    p = strchr(p + strlen(pattern), ':');
+    if(p == NULL)
+        return 0;
+    p++;
+    while(*p == ' ' || *p == '\t')
+        p++;
+    if(*p != '"')
+        return 0;
+    p++;
+    while(*p != '\0' && *p != '"' && n + 1 < out_size) {
+        if(*p == '\\' && p[1] != '\0')
+            p++;
+        out[n++] = *p++;
+    }
+    out[n] = '\0';
+    return n > 0;
+}
+
+static int
+extract_json_int(const char *json, const char *key, int *out)
+{
+    char pattern[64];
+    const char *p;
+
+    if(json == NULL || key == NULL || out == NULL)
+        return 0;
+    snprintf(pattern, sizeof(pattern), "\"%s\"", key);
+    p = strstr(json, pattern);
+    if(p == NULL)
+        return 0;
+    p = strchr(p + strlen(pattern), ':');
+    if(p == NULL)
+        return 0;
+    p++;
+    while(*p == ' ' || *p == '\t')
+        p++;
+    *out = atoi(p);
+    return 1;
+}
+
+static void
+join_url(char *out, size_t out_size, const char *base, const char *path)
+{
+    size_t len;
+
+    if(out == NULL || out_size == 0)
+        return;
+    out[0] = '\0';
+    if(base == NULL || path == NULL)
+        return;
+    len = strlen(base);
+    while(len > 0 && base[len - 1] == '/')
+        len--;
+    snprintf(out, out_size, "%.*s%s", (int)len, base, path);
+}
+
+static void
+canonical_message_hex(const char *nonce_hex, const char *method, const char *path,
+                      const char *body, char *out, size_t out_size)
+{
+    char digest_hex[65];
+
+    flint_lyra_sha256_hex((const uint8_t *)body, strlen(body), digest_hex);
+    snprintf(out, out_size, "inbe-sync-v1\n%s\n%s\n%s\n%s\n", method, path, digest_hex, nonce_hex);
+}
+
+static int
+lyra_http_request(const char *method, const char *url, struct curl_slist *headers,
+                  const char *body, long *status_out, UkuHttpBuffer *response)
+{
+#if !defined(PLATFORM_WEB)
+    CURL *curl;
+    CURLcode code;
+    long status = 0;
+
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    curl = curl_easy_init();
+    if(curl == NULL)
+        return 0;
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write_cb);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 12L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    if(headers != NULL)
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    if(strcmp(method, "POST") == 0) {
+        curl_easy_setopt(curl, CURLOPT_POST, 1L);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body != NULL ? body : "");
+    } else if(strcmp(method, "PATCH") == 0) {
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PATCH");
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body != NULL ? body : "");
+    }
+    code = curl_easy_perform(curl);
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
+    curl_easy_cleanup(curl);
+    if(status_out != NULL)
+        *status_out = status;
+    return code == CURLE_OK;
+#else
+    (void)method;
+    (void)url;
+    (void)headers;
+    (void)body;
+    (void)status_out;
+    (void)response;
+    return 0;
+#endif
+}
+
+static int
+lyra_login(UkuApp *app, const char *base_url)
+{
+    char url[512];
+    char challenge_path[160];
+    char nonce[80];
+    char body[3100];
+    char message[3600];
+    char signature[4841];
+    char user_header[96];
+    char account_alias[40];
+    UkuHttpBuffer response = {0};
+    struct curl_slist *headers = NULL;
+    long status = 0;
+    int ok = 0;
+
+    if(app == NULL || !app->account.loaded)
+        return 0;
+    snprintf(challenge_path, sizeof(challenge_path), "/api/v1/sync/challenge?user_id=%s", app->account.public_id);
+    join_url(url, sizeof(url), base_url, challenge_path);
+    if(!lyra_http_request("GET", url, NULL, NULL, &status, &response) || status != 200 ||
+       !extract_json_string(response.data, "nonce", nonce, sizeof(nonce)))
+        goto cleanup;
+    free(response.data);
+    response = (UkuHttpBuffer){0};
+
+    snprintf(body, sizeof(body), "{\"user_id_hash\":\"%s\",\"client_id\":\"uku-native-client\",\"public_key\":\"%s\"}",
+             app->account.public_id, app->account.public_key_hex);
+    canonical_message_hex(nonce, "POST", "/api/v1/sync/login", body, message, sizeof(message));
+    if(!account_sign_hex(app, (const uint8_t *)message, strlen(message), signature, sizeof(signature)))
+        goto cleanup;
+    join_url(url, sizeof(url), base_url, "/api/v1/sync/login");
+    snprintf(user_header, sizeof(user_header), "X-Inbe-User: %s", app->account.public_id);
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+    headers = curl_slist_append(headers, user_header);
+    {
+        char sig_header[4880];
+        snprintf(sig_header, sizeof(sig_header), "X-Inbe-Signature: %s", signature);
+        headers = curl_slist_append(headers, sig_header);
+    }
+    if(!lyra_http_request("POST", url, headers, body, &status, &response) || status != 200 ||
+       !extract_json_string(response.data, "auth_token", app->account.auth_token, sizeof(app->account.auth_token)))
+        goto cleanup;
+    if(extract_json_string(response.data, "account_alias", account_alias, sizeof(account_alias)) &&
+       account_alias[0] != '\0')
+        setting_save_text(app, UKU_SYNC_ACCOUNT_ALIAS_KEY, account_alias);
+    account_save(app, &app->account);
+    ok = 1;
+
+cleanup:
+    if(headers != NULL)
+        curl_slist_free_all(headers);
+    free(response.data);
+    return ok;
+}
+
+static char *
+build_remote_process_json(UkuApp *app)
+{
+    UkuHttpBuffer json = {0};
+    UkuDecision *d = &app->decision;
+    char tmp[512];
+
+    if(!http_buffer_append(&json, "{\"user_id_hash\":", 16) ||
+       !json_append_string(&json, app->account.public_id) ||
+       !http_buffer_append(&json, ",\"id\":", 6) ||
+       !json_append_string(&json, d->id) ||
+       !http_buffer_append(&json, ",\"question\":", 12) ||
+       !json_append_string(&json, d->topic) ||
+       !http_buffer_append(&json, ",\"description\":", 15) ||
+       !json_append_string(&json, d->description))
+        goto fail;
+    snprintf(tmp, sizeof(tmp),
+             ",\"visibility\":\"public\",\"proposal_minutes\":%d,\"voting_minutes\":%d,\"negative_weight\":%d}",
+             duration_minutes(d->proposal_days, d->proposal_hours, d->proposal_minutes),
+             duration_minutes(d->voting_days, d->voting_hours, d->voting_minutes),
+             d->negative_weight);
+    if(!http_buffer_append(&json, tmp, strlen(tmp)))
+        goto fail;
+    return json.data;
+
+fail:
+    free(json.data);
+    return NULL;
+}
+
+static int
+lyra_create_process(UkuApp *app, const char *base_url)
+{
+    char url[512];
+    char user_header[96];
+    char auth_header[900];
+    char *body;
+    UkuHttpBuffer response = {0};
+    struct curl_slist *headers = NULL;
+    long status = 0;
+    int ok = 0;
+
+    if(app == NULL || !app->account.loaded)
+        return 0;
+    if(app->account.auth_token[0] == '\0' && !lyra_login(app, base_url))
+        return 0;
+    body = build_remote_process_json(app);
+    if(body == NULL)
+        return 0;
+    join_url(url, sizeof(url), base_url, "/api/v1/uku/processes");
+    snprintf(user_header, sizeof(user_header), "X-Inbe-User: %s", app->account.public_id);
+    snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s", app->account.auth_token);
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+    headers = curl_slist_append(headers, user_header);
+    headers = curl_slist_append(headers, auth_header);
+    if(lyra_http_request("POST", url, headers, body, &status, &response) && status == 201) {
+        ok = 1;
+    } else if(status == 401) {
+        app->account.auth_token[0] = '\0';
+        account_save(app, &app->account);
+        if(headers != NULL)
+            curl_slist_free_all(headers);
+        headers = NULL;
+        free(response.data);
+        response = (UkuHttpBuffer){0};
+        if(lyra_login(app, base_url)) {
+            snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s", app->account.auth_token);
+            headers = curl_slist_append(headers, "Content-Type: application/json");
+            headers = curl_slist_append(headers, user_header);
+            headers = curl_slist_append(headers, auth_header);
+            ok = lyra_http_request("POST", url, headers, body, &status, &response) && status == 201;
+        }
+    }
+    if(headers != NULL)
+        curl_slist_free_all(headers);
+    free(response.data);
+    free(body);
+    return ok;
+}
+
+static int
+lyra_register_alias(UkuApp *app, const char *base_url, const char *alias)
+{
+    char url[512];
+    char user_header[96];
+    char auth_header[900];
+    char saved_alias[40];
+    UkuHttpBuffer body = {0};
+    UkuHttpBuffer response = {0};
+    struct curl_slist *headers = NULL;
+    long status = 0;
+    int ok = 0;
+
+    if(app == NULL || !app->account.loaded || !alias_valid(alias))
+        return 0;
+    app->account.auth_token[0] = '\0';
+    account_save(app, &app->account);
+    if(!lyra_login(app, base_url))
+        return 0;
+    if(!http_buffer_append(&body, "{\"user_id_hash\":", strlen("{\"user_id_hash\":")) ||
+       !json_append_string(&body, app->account.public_id) ||
+       !http_buffer_append(&body, ",\"alias\":", strlen(",\"alias\":")) ||
+       !json_append_string(&body, alias) ||
+       !http_buffer_append(&body, "}", 1))
+        goto cleanup;
+
+    join_url(url, sizeof(url), base_url, "/api/v1/account/alias");
+    snprintf(user_header, sizeof(user_header), "X-Inbe-User: %s", app->account.public_id);
+    snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s", app->account.auth_token);
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+    headers = curl_slist_append(headers, user_header);
+    headers = curl_slist_append(headers, auth_header);
+    if(!lyra_http_request("POST", url, headers, body.data, &status, &response) ||
+       status < 200 || status >= 300)
+        goto cleanup;
+    if(extract_json_string(response.data, "alias", saved_alias, sizeof(saved_alias)) &&
+       saved_alias[0] != '\0') {
+        setting_save_text(app, UKU_SYNC_ACCOUNT_ALIAS_KEY, saved_alias);
+        ok = 1;
+    }
+
+cleanup:
+    if(headers != NULL)
+        curl_slist_free_all(headers);
+    free(body.data);
+    free(response.data);
+    return ok;
+}
+
+static void
+lyra_fetch_public_processes(UkuApp *app, const char *base_url)
+{
+    char url[512];
+    UkuHttpBuffer response = {0};
+    long status = 0;
+    const char *p;
+
+    if(app == NULL || app->remote_processes_loaded)
+        return;
+    app->remote_processes_loaded = 1;
+    if(!sync_url_valid(base_url))
+        return;
+    join_url(url, sizeof(url), base_url, "/api/v1/uku/processes");
+    if(!lyra_http_request("GET", url, NULL, NULL, &status, &response) || status != 200 ||
+       response.data == NULL)
+        goto cleanup;
+
+    p = response.data;
+    while(app->process_count < UKU_MAX_PROCESSES && (p = strchr(p, '{')) != NULL) {
+        const char *end = strchr(p, '}');
+        UkuProcessRow row;
+        char created_at[64];
+
+        if(end == NULL)
+            break;
+        memset(&row, 0, sizeof(row));
+        if(!extract_json_string(p, "id", row.id, sizeof(row.id)) ||
+           !extract_json_string(p, "question", row.topic, sizeof(row.topic))) {
+            p = end + 1;
+            continue;
+        }
+        extract_json_string(p, "description", row.description, sizeof(row.description));
+        extract_json_int(p, "proposal_minutes", &row.proposal_minutes);
+        extract_json_int(p, "voting_minutes", &row.voting_minutes);
+        extract_json_int(p, "negative_weight", &row.negative_weight);
+        snprintf(row.local_address, sizeof(row.local_address), "/app/%s/collect", row.id);
+        if(extract_json_string(p, "created_at", created_at, sizeof(created_at))) {
+            row.created_at = (sqlite3_int64)time(NULL);
+        } else {
+            row.created_at = (sqlite3_int64)time(NULL);
+        }
+        app->processes[app->process_count++] = row;
+        p = end + 1;
+    }
+
+cleanup:
+    free(response.data);
+}
+
+static void
+account_refresh_alias_once(UkuApp *app)
+{
+    char alias[40];
+
+    if(app == NULL || !app->account.loaded || app->account_alias_lookup_attempted)
+        return;
+    setting_load_text(app, UKU_SYNC_ACCOUNT_ALIAS_KEY, "", alias, sizeof(alias));
+    if(alias[0] != '\0')
+        return;
+    app->account_alias_lookup_attempted = 1;
+    app->account.auth_token[0] = '\0';
+    account_save(app, &app->account);
+    lyra_login(app, app->server_url);
+}
+
+static void
+account_open_alias_modal(UkuApp *app)
+{
+    if(app == NULL)
+        return;
+    setting_load_text(app, UKU_SYNC_ACCOUNT_ALIAS_KEY, "", app->alias_input, sizeof(app->alias_input));
+    alias_normalize(app->alias_input);
+    app->account_public_id_modal_open = 0;
+    app->account_alias_modal_open = 1;
+    app->active_field = UKU_FIELD_ALIAS;
+}
+
+static void
+account_open_public_id_modal(UkuApp *app)
+{
+    if(app == NULL)
+        return;
+    app->account_public_id_modal_open = 1;
+    app->active_field = UKU_FIELD_NONE;
 }
 
 static void
@@ -794,6 +1787,30 @@ draw_button(UkuApp *app, Font font, int x, int y, int w, int h, const char *labe
     draw_centered_text(font, label, x + w / 2, y + (h - font_size) / 2, font_size, text);
 
     *clicked = (hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) || ui_focus_activate_pressed(focus_id);
+}
+
+static int
+draw_readonly_field(UkuApp *app, Font font, const char *text, int x, int y, int w, int h,
+                    int focus_id, int *clicked)
+{
+    Vector2 mouse = GetMousePosition();
+    Rectangle box = {(float)x, (float)y, (float)w, (float)h};
+    int hover = CheckCollisionPointRec(mouse, box);
+    int focused = ui_focus_register(focus_id, box);
+    int pad = flint_px(12);
+    int text_font = flint_clamp_px(15, 15, 19);
+
+    if(hover)
+        app->cursor_clickable = 1;
+    DrawRectangleRounded(box, 0.08f, 10, flint_theme_get_surface());
+    DrawRectangleRoundedLinesEx(box, 0.08f, 10, flint_px(focused ? 2 : 1),
+                                focused ? flint_theme_get_button() : flint_theme_get_text());
+    if(focused)
+        ui_focus_draw(box);
+    draw_text_font(font, fit_tail(font, text, text_font, w - pad * 2),
+                   x + pad, y + (h - text_font) / 2, text_font, flint_theme_get_text());
+    *clicked = (hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) || ui_focus_activate_pressed(focus_id);
+    return y + h + flint_px(16);
 }
 
 static void
@@ -1285,7 +2302,10 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
     Font font = app->font;
     sqlite3_int64 now = (sqlite3_int64)time(NULL);
 
-    db_load_processes(app);
+    if(!app->remote_processes_loaded) {
+        db_load_processes(app);
+        lyra_fetch_public_processes(app, app->server_url);
+    }
     flint_centered_column(760, side, &content_x, &content_w);
     app->dashboard_scroll = clampi(app->dashboard_scroll - (int)(GetMouseWheelMove() * flint_px(44)),
                                    0, app->dashboard_max_scroll);
@@ -1297,7 +2317,7 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
         ui_focus_clear();
     }
     if(settings_clicked) {
-        // Toggle theme or open settings
+        app->screen = UKU_SCREEN_ACCOUNT;
         ui_focus_clear();
     }
 
@@ -1368,8 +2388,12 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
     new_clicked = draw_icon_button(app, view_w - flint_px(44), view_h - flint_px(44),
                                    flint_px(36), UI_ICON_TYPE_PLUS, UKU_FOCUS_DASHBOARD_NEW);
     if(new_clicked) {
-        reset_decision(app, text);
-        app->screen = UKU_SCREEN_CREATE;
+        if(app->account.loaded) {
+            reset_decision(app, text);
+            app->screen = UKU_SCREEN_CREATE;
+        } else {
+            app->screen = UKU_SCREEN_ACCOUNT;
+        }
         ui_focus_clear();
     }
 }
@@ -1434,10 +2458,13 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
     if(clicked) {
         d->topic_error = !has_non_space(d->topic);
         d->db_error = 0;
+        d->remote_error = 0;
         if(!d->topic_error) {
             d->submitted = db_save_process(app, text);
             d->db_error = !d->submitted;
             if(d->submitted) {
+                d->remote_error = !lyra_create_process(app, app->server_url);
+                app->remote_processes_loaded = 0;
                 app->screen = UKU_SCREEN_COLLECT;
                 app->active_field = UKU_FIELD_NONE;
                 ui_focus_clear();
@@ -1449,6 +2476,8 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
         draw_centered_text(font, text->setup_ready, content_x + content_w / 2, y, small_font, flint_theme_get_button());
     if(d->db_error)
         draw_centered_text(font, text->db_error, content_x + content_w / 2, y, small_font, flint_theme_get_button());
+    if(d->remote_error)
+        draw_centered_text(font, "Saved locally, but Lyra upload failed.", content_x + content_w / 2, y + flint_px(20), small_font, flint_theme_get_button());
     EndScissorMode();
 
     content_bottom = y + app->create_scroll + flint_px(24);
@@ -1506,6 +2535,11 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     y = draw_wrapped_text(font, text->collect_intro, content_x, y, content_w, body_font, line_h, flint_theme_get_text());
     y += flint_px(20);
 
+    if(d->remote_error) {
+        y = draw_wrapped_text(font, "Saved locally, but Lyra upload failed. Check your connection and account.", content_x, y, content_w, small_font, line_h, flint_theme_get_button());
+        y += flint_px(16);
+    }
+
     draw_text_font(font, text->local_address_label, content_x, y, small_font, flint_theme_get_button());
     y += small_font + flint_px(8);
     DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)content_w, (float)flint_px(46)}, 0.08f, 10, WHITE);
@@ -1537,6 +2571,219 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
 }
 
 static void
+draw_public_id_modal(UkuApp *app, int view_w, int view_h)
+{
+    int panel_w = UKU_MIN(view_w - flint_px(32), flint_px(380));
+    int panel_h = flint_px(274);
+    int x = (view_w - panel_w) / 2;
+    int y = (view_h - panel_h) / 2;
+    int pad = flint_px(18);
+    int body_font = flint_clamp_px(15, 15, 19);
+    int small_font = flint_clamp_px(13, 13, 16);
+    int line_h = body_font + flint_px(7);
+    int copy_clicked = 0;
+    int close_clicked = 0;
+    int alias_clicked = 0;
+    int content_y;
+    int half_w = (panel_w - pad * 2 - flint_px(10)) / 2;
+    Rectangle overlay = {0, 0, (float)view_w, (float)view_h};
+    Rectangle panel = {(float)x, (float)y, (float)panel_w, (float)panel_h};
+    Font font = app->font;
+
+    if(!app->account_public_id_modal_open)
+        return;
+
+    DrawRectangleRec(overlay, (Color){0, 0, 0, 96});
+    DrawRectangleRounded(panel, 0.08f, 12, flint_theme_get_surface());
+    DrawRectangleRoundedLinesEx(panel, 0.08f, 12, flint_px(1), flint_theme_get_text());
+    draw_text_font(font, "Full Public ID", x + pad, y + pad, body_font, flint_theme_get_text());
+    content_y = y + pad + body_font + flint_px(14);
+    content_y = draw_wrapped_text(font, "This is the full account ID used by the server.",
+                                  x + pad, content_y, panel_w - pad * 2, small_font, line_h,
+                                  flint_theme_get_text());
+    content_y += flint_px(10);
+    content_y = draw_readonly_field(app, font, app->account.public_id,
+                                    x + pad, content_y, panel_w - pad * 2, flint_px(46),
+                                    UKU_FOCUS_ACCOUNT_ID, &copy_clicked);
+    if(copy_clicked) {
+        SetClipboardText(app->account.public_id);
+        copy_text(app->account_status, sizeof(app->account_status),
+                  "Public ID copied.", strlen("Public ID copied."));
+    }
+    content_y += flint_px(4);
+    draw_button(app, font, x + pad, content_y, half_w, flint_px(40), "Copy", 1,
+                UKU_FOCUS_PUBLIC_ID_COPY, &copy_clicked);
+    draw_button(app, font, x + pad + half_w + flint_px(10), content_y, half_w, flint_px(40),
+                "Close", 0, UKU_FOCUS_PUBLIC_ID_CLOSE, &close_clicked);
+    if(copy_clicked) {
+        SetClipboardText(app->account.public_id);
+        copy_text(app->account_status, sizeof(app->account_status),
+                  "Public ID copied.", strlen("Public ID copied."));
+    }
+    if(close_clicked)
+        app->account_public_id_modal_open = 0;
+
+    draw_button(app, font, x + pad, y + panel_h - pad - flint_px(40),
+                panel_w - pad * 2, flint_px(40), "Alias", 0,
+                UKU_FOCUS_PUBLIC_ID_ALIAS, &alias_clicked);
+    if(alias_clicked)
+        account_open_alias_modal(app);
+}
+
+static void
+draw_alias_modal(UkuApp *app, int view_w, int view_h)
+{
+    int panel_w = UKU_MIN(view_w - flint_px(32), flint_px(360));
+    int panel_h = flint_px(248);
+    int x = (view_w - panel_w) / 2;
+    int y = (view_h - panel_h) / 2;
+    int pad = flint_px(18);
+    int body_font = flint_clamp_px(15, 15, 19);
+    int small_font = flint_clamp_px(13, 13, 16);
+    int line_h = body_font + flint_px(7);
+    int close_clicked = 0;
+    int save_clicked = 0;
+    int input_x;
+    int input_w;
+    int content_y;
+    Rectangle overlay = {0, 0, (float)view_w, (float)view_h};
+    Rectangle panel = {(float)x, (float)y, (float)panel_w, (float)panel_h};
+    Font font = app->font;
+
+    if(!app->account_alias_modal_open)
+        return;
+
+    DrawRectangleRec(overlay, (Color){0, 0, 0, 96});
+    DrawRectangleRounded(panel, 0.08f, 12, flint_theme_get_surface());
+    DrawRectangleRoundedLinesEx(panel, 0.08f, 12, flint_px(1), flint_theme_get_text());
+    draw_text_font(font, "Account alias", x + pad, y + pad, body_font, flint_theme_get_text());
+    content_y = y + pad + body_font + flint_px(14);
+    content_y = draw_wrapped_text(font, "Choose a short alias for this account on the current server.",
+                                  x + pad, content_y, panel_w - pad * 2, small_font, line_h,
+                                  flint_theme_get_text());
+    content_y += flint_px(8);
+    draw_text_font(font, "@", x + pad, content_y + flint_px(30), body_font, flint_theme_get_text());
+    input_x = x + pad + flint_px(24);
+    input_w = panel_w - pad * 2 - flint_px(24);
+    draw_text_field(app, font, "Alias", "name",
+                    app->alias_input, sizeof(app->alias_input), UKU_FIELD_ALIAS,
+                    UKU_FOCUS_ALIAS_FIELD, input_x, content_y, input_w, flint_px(42));
+    alias_normalize(app->alias_input);
+    content_y += flint_px(74);
+    draw_text_font(font, "4-32 letters, numbers, or underscore.", x + pad, content_y,
+                   small_font, flint_theme_get_button());
+    content_y += flint_px(28);
+    draw_button(app, font, x + pad, content_y, (panel_w - pad * 2 - flint_px(10)) / 2,
+                flint_px(40), "Close", 0, UKU_FOCUS_ALIAS_CLOSE, &close_clicked);
+    draw_button(app, font, x + pad + (panel_w - pad * 2 + flint_px(10)) / 2, content_y,
+                (panel_w - pad * 2 - flint_px(10)) / 2, flint_px(40), "Save", 1,
+                UKU_FOCUS_ALIAS_SAVE, &save_clicked);
+
+    if(close_clicked) {
+        app->account_alias_modal_open = 0;
+        app->active_field = UKU_FIELD_NONE;
+    } else if(save_clicked) {
+        alias_normalize(app->alias_input);
+        if(alias_valid(app->alias_input) &&
+           lyra_register_alias(app, app->server_url, app->alias_input)) {
+            copy_text(app->account_status, sizeof(app->account_status),
+                      "Alias saved.", strlen("Alias saved."));
+            app->account_alias_modal_open = 0;
+            app->active_field = UKU_FIELD_NONE;
+        } else {
+            copy_text(app->account_status, sizeof(app->account_status),
+                      "Could not save alias.", strlen("Could not save alias."));
+        }
+    }
+}
+
+static void
+draw_account(UkuApp *app, const UkuText *text, int view_w, int view_h)
+{
+    int side = flint_page_side_padding();
+    int content_x;
+    int content_w;
+    int top_h = flint_px(58);
+    int y = top_h + flint_px(24);
+    int body_font = flint_clamp_px(15, 15, 19);
+    int small_font = flint_clamp_px(13, 13, 16);
+    int line_h = body_font + flint_px(8);
+    int back_clicked = 0;
+    int create_clicked = 0;
+    int import_clicked = 0;
+    int save_server_clicked = 0;
+    int export_clicked = 0;
+    int account_id_clicked = 0;
+    char alias[40];
+    char display_id[96];
+    Font font = app->font;
+
+    flint_centered_column(680, side, &content_x, &content_w);
+    draw_top_bar(app, "Account", 1, UKU_FOCUS_MANUAL_BACK, &back_clicked, 0, NULL, 0, NULL, 0, NULL, view_w);
+    if(back_clicked) {
+        app->screen = UKU_SCREEN_HOME;
+        ui_focus_clear();
+    }
+
+    y = draw_text_field(app, font, "Lyra server", "https://api.waozi.xyz",
+                        app->server_url, sizeof(app->server_url), UKU_FIELD_SERVER_URL,
+                        UKU_FOCUS_TOPIC, content_x, y, content_w, flint_px(46));
+    draw_button(app, font, content_x, y, content_w, flint_px(42), "Save server URL", 0,
+                UKU_FOCUS_DESCRIPTION, &save_server_clicked);
+    if(save_server_clicked)
+        sync_server_save(app);
+    y += flint_px(54);
+    if(app->server_url_error) {
+        y = draw_wrapped_text(font, "Use HTTPS for remote servers, or localhost/127.0.0.1/10.0.2.2 for HTTP development.", content_x, y, content_w, small_font, line_h, flint_theme_get_button());
+        y += flint_px(12);
+    }
+
+    if(app->account.loaded) {
+        account_refresh_alias_once(app);
+        setting_load_text(app, UKU_SYNC_ACCOUNT_ALIAS_KEY, "", alias, sizeof(alias));
+        if(alias[0] != '\0')
+            snprintf(display_id, sizeof(display_id), "@%s", alias);
+        else
+            compact_public_id(app->account.public_id, display_id, sizeof(display_id));
+        draw_text_font(font, "Public ID", content_x, y, small_font, flint_theme_get_button());
+        y += small_font + flint_px(8);
+        y = draw_readonly_field(app, font, display_id, content_x, y, content_w, flint_px(46),
+                                UKU_FOCUS_ACCOUNT_ID, &account_id_clicked);
+        if(account_id_clicked)
+            account_open_public_id_modal(app);
+        y += flint_px(6);
+        draw_button(app, font, content_x, y, content_w, flint_px(46), "Export account.key", 0,
+                    UKU_FOCUS_SETTINGS, &export_clicked);
+        if(export_clicked)
+            account_start_export_dialog(app);
+        y += flint_px(58);
+    } else {
+        if(flint_lyra_account_available()) {
+            y = draw_wrapped_text(font, "Create an account or import an account key to start processes, add proposals, or vote.", content_x, y, content_w, body_font, line_h, flint_theme_get_text());
+            y += flint_px(18);
+            draw_button(app, font, content_x, y, content_w, flint_px(46), "Create account", 1,
+                        UKU_FOCUS_CREATE_SUBMIT, &create_clicked);
+            y += flint_px(58);
+            draw_button(app, font, content_x, y, content_w, flint_px(46), "Import account.key", 0,
+                        UKU_FOCUS_SETTINGS, &import_clicked);
+            y += flint_px(58);
+            if(create_clicked)
+                account_create(app);
+            if(import_clicked)
+                account_start_import_dialog(app);
+        } else {
+            y = draw_wrapped_text(font, "This build does not include liboqs, so account creation and signing are unavailable.", content_x, y, content_w, body_font, line_h, flint_theme_get_button());
+        }
+    }
+    if(app->account_status[0] != '\0')
+        draw_wrapped_text(font, app->account_status, content_x, y, content_w, small_font, line_h,
+                          app->account.import_failed ? flint_theme_get_button() : flint_theme_get_text());
+
+    (void)text;
+    (void)view_h;
+}
+
+static void
 draw_manual(UkuApp *app, const UkuText *text, int view_w, int view_h)
 {
     int side = flint_page_side_padding();
@@ -1545,10 +2792,9 @@ draw_manual(UkuApp *app, const UkuText *text, int view_w, int view_h)
     int top_h = flint_px(58);
     int viewport_y = top_h;
     int viewport_h = view_h - viewport_y;
-    int title_font = flint_clamp_px(20, 20, 28);
     int body_font = flint_clamp_px(15, 15, 19);
     int line_h = body_font + flint_px(7);
-    int y = viewport_y + flint_px(20) - app->manual_scroll;
+    int y = viewport_y + flint_px(24) - app->manual_scroll;
     int back_clicked = 0;
     int content_bottom;
     int content_h;
@@ -1565,8 +2811,6 @@ draw_manual(UkuApp *app, const UkuText *text, int view_w, int view_h)
     }
 
     BeginScissorMode(0, viewport_y, view_w, viewport_h);
-    draw_text_font(font, text->manual_title, content_x, y, title_font, flint_theme_get_text());
-    y += title_font + flint_px(18);
     y = draw_wrapped_text(font, text->manual_body, content_x, y, content_w, body_font, line_h, flint_theme_get_text());
     EndScissorMode();
 
@@ -1588,11 +2832,22 @@ main(void)
     load_text_file(&text, LOCALE_TEXT_PATH);
     init_decision(&app, &text);
     db_init(&app);
+    setting_load_text(&app, UKU_SYNC_SERVER_URL_KEY, UKU_SYNC_SERVER_URL_DEFAULT,
+                      app.server_url, sizeof(app.server_url));
+    {
+        char normalized_url[sizeof(app.server_url)];
+        if(sync_url_normalize(app.server_url, normalized_url, sizeof(normalized_url)))
+            snprintf(app.server_url, sizeof(app.server_url), "%s", normalized_url);
+        else
+            snprintf(app.server_url, sizeof(app.server_url), "%s", UKU_SYNC_SERVER_URL_DEFAULT);
+    }
+    account_load(&app);
 
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(520, 760, text.app_title);
     SetTargetFPS(60);
     flint_dpi_init();
+    flint_theme_set_current(FLINT_THEME_SUNSET, 0);
     app_load_font(&app);
     load_icons_once(&app);
 
@@ -1620,8 +2875,13 @@ main(void)
             draw_create_placeholder(&app, &text, view_w, view_h);
         else if(app.screen == UKU_SCREEN_COLLECT)
             draw_collect(&app, &text, view_w, view_h);
+        else if(app.screen == UKU_SCREEN_ACCOUNT)
+            draw_account(&app, &text, view_w, view_h);
         else
             draw_manual(&app, &text, view_w, view_h);
+        draw_public_id_modal(&app, view_w, view_h);
+        draw_alias_modal(&app, view_w, view_h);
+        account_draw_pending_file_dialog(&app);
         ui_focus_end();
         EndDrawing();
 
@@ -1629,6 +2889,8 @@ main(void)
     }
 
     app_unload_font(&app);
+    flint_file_dialog_cleanup(&app.account_import_dialog);
+    flint_file_dialog_cleanup(&app.account_export_dialog);
     if(app.db != NULL)
         sqlite3_close(app.db);
     CloseWindow();

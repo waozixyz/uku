@@ -1,6 +1,7 @@
 .DEFAULT_GOAL := all
 
 CC = gcc
+CMAKE ?= $(shell if [ -x /usr/bin/cmake ]; then echo /usr/bin/cmake; else command -v cmake; fi)
 
 UNAME_S := $(shell uname -s)
 UNAME_M := $(shell uname -m)
@@ -34,6 +35,12 @@ RAYLIB_BUILD_SRC_DIR := $(RAYLIB_BUILD_ROOT)/src
 RAYLIB_BUILD_DIR := $(RAYLIB_BUILD_ROOT)/build/sdl
 RAYLIB_A := $(RAYLIB_BUILD_DIR)/libraylib.a
 RAYLIB_SOURCES := $(shell if [ -d "$(RAYLIB_DIR)" ]; then find "$(RAYLIB_DIR)" -type f \( -name '*.c' -o -name '*.h' \); fi)
+LIBOQS_DIR := $(FLINT_DIR)/vendor/liboqs
+LIBOQS_BUILD_DIR := $(BUILD_DIR)/vendor/flint-liboqs
+LIBOQS_A := $(LIBOQS_BUILD_DIR)/lib/liboqs.a
+LIBOQS_INCLUDE := -I$(LIBOQS_BUILD_DIR)/include
+CURL_CFLAGS ?= $(shell pkg-config --cflags libcurl 2>/dev/null)
+CURL_LDLIBS ?= $(shell pkg-config --libs libcurl 2>/dev/null || printf '%s' -lcurl)
 LOCALE_FILES := $(wildcard locales/*.txt)
 FONT_OUTPUTS := assets/fonts/locales.png assets/fonts/locales.dat
 
@@ -98,17 +105,31 @@ $(RAYLIB_A): $(RAYLIB_SOURCES) | $(RAYLIB_BUILD_DIR)
 		SDL_LIBRARIES="$(RAY_SDL_LDLIBS)" \
 		CUSTOM_CFLAGS="-DUSING_SDL2_PROJECT $(RAY_CFLAGS) $(UKU_RAYLIB_CONFIG) -Os -ffunction-sections -fdata-sections"
 
-$(TARGET): $(SRC) $(FLINT_SRCS) $(FONT_OUTPUTS) $(RAYLIB_A) | $(LINUX_BUILD_DIR)
+$(LIBOQS_A): $(LIBOQS_DIR)/CMakeLists.txt | $(LINUX_BUILD_DIR)
+	$(CMAKE) -S $(LIBOQS_DIR) -B $(LIBOQS_BUILD_DIR) \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DBUILD_SHARED_LIBS=OFF \
+		-DOQS_BUILD_ONLY_LIB=ON \
+		-DOQS_USE_OPENSSL=OFF \
+		-DOQS_MINIMAL_BUILD=SIG_ml_dsa_44
+	$(CMAKE) --build $(LIBOQS_BUILD_DIR) --target oqs
+
+$(TARGET): $(SRC) $(FLINT_SRCS) $(FONT_OUTPUTS) $(RAYLIB_A) $(LIBOQS_A) | $(LINUX_BUILD_DIR)
 	$(CC) $(CFLAGS) \
 		-I$(RAYLIB_DIR) \
 		-I$(FLINT_DIR)/include \
 		-Isrc \
+		$(LIBOQS_INCLUDE) \
+		$(CURL_CFLAGS) \
 		$(RAY_CFLAGS) \
+		-DFLINT_HAS_LIBOQS=1 \
 		-o $@ \
 		$(SRC) \
 		$(FLINT_SRCS) \
 		$(RAYLIB_A) \
+		$(LIBOQS_A) \
 		$(RAY_LDLIBS) \
+		$(CURL_LDLIBS) \
 		-lsqlite3 -lm -lpthread -ldl -lrt \
 		$(LDFLAGS)
 
