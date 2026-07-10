@@ -10,3 +10,4 @@ uku.sqlite3
 *.dll
 *.exe
 .direnv/
+*.core

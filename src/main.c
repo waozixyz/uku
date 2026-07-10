@@ -1,8 +1,13 @@
 #include "raylib.h"
 #include "flint.h"
-#include "flint_file_dialog.h"
-#include "flint_lyra_account.h"
+#include "file_dialog.h"
+
+#if defined(PLATFORM_WEB)
+typedef long long sqlite3_int64;
+typedef struct sqlite3 sqlite3;
+#else
 #include "sqlite3.h"
+#endif
 
 #if !defined(PLATFORM_WEB)
 #include <curl/curl.h>
@@ -34,12 +39,6 @@ typedef enum UkuField {
     UKU_FIELD_SERVER_URL,
     UKU_FIELD_ALIAS
 } UkuField;
-
-typedef enum UkuAccountFileAction {
-    UKU_ACCOUNT_FILE_NONE,
-    UKU_ACCOUNT_FILE_IMPORT,
-    UKU_ACCOUNT_FILE_EXPORT
-} UkuAccountFileAction;
 
 typedef enum UkuProcessPhase {
     UKU_PROCESS_PROPOSAL,
@@ -109,15 +108,14 @@ typedef struct UkuApp {
     int process_count;
     int remote_processes_loaded;
     int server_url_error;
-    int account_file_action;
     int account_alias_lookup_attempted;
     int account_public_id_modal_open;
     int account_alias_modal_open;
     char account_status[160];
     char server_url[256];
     char alias_input[40];
-    FlintFileDialog account_import_dialog;
-    FlintFileDialog account_export_dialog;
+    FileDialog account_import_dialog;
+    FileDialog account_export_dialog;
     Font font;
     Texture2D font_shapes_texture;
     Texture2D icons[UI_ICON_TYPE_COUNT];
@@ -479,16 +477,16 @@ app_load_font(UkuApp *app)
     UnloadImage(white);
     if(app->font_shapes_texture.id != 0)
         SetShapesTexture(app->font_shapes_texture, (Rectangle){0, 0, 1, 1});
-    flint_text_set_font(app->font);
-    flint_text_set_small_font(app->font);
+    SetUIFont(app->font);
+    SetUISmallFont(app->font);
     app->locale_font_ready = 1;
 }
 
 static void
 app_unload_font(UkuApp *app)
 {
-    flint_text_set_font((Font){0});
-    flint_text_set_small_font((Font){0});
+    SetUIFont((Font){0});
+    SetUISmallFont((Font){0});
     if(app->locale_font_ready) {
         UnloadTexture(app->font.texture);
         free(app->font.glyphs);
@@ -621,6 +619,7 @@ has_non_space(const char *text)
     return 0;
 }
 
+#if !defined(PLATFORM_WEB)
 static int
 exec_sql(sqlite3 *db, const char *sql)
 {
@@ -672,6 +671,14 @@ db_init(UkuApp *app)
     sqlite3_exec(app->db, "alter table account add column server_url text not null default 'https://api.waozi.xyz'", NULL, NULL, NULL);
     return 1;
 }
+#else
+static int
+db_init(UkuApp *app)
+{
+    app->db = (sqlite3 *)app;
+    return 1;
+}
+#endif
 
 static int
 duration_minutes(int days, int hours, int minutes)
@@ -682,6 +689,12 @@ duration_minutes(int days, int hours, int minutes)
 static void
 setting_load_text(UkuApp *app, const char *key, const char *fallback, char *out, size_t out_size)
 {
+#if defined(PLATFORM_WEB)
+    (void)app;
+    (void)key;
+    if(out != NULL && out_size > 0)
+        snprintf(out, out_size, "%s", fallback != NULL ? fallback : "");
+#else
     sqlite3_stmt *stmt = NULL;
 
     if(out == NULL || out_size == 0)
@@ -698,11 +711,18 @@ setting_load_text(UkuApp *app, const char *key, const char *fallback, char *out,
                   strlen((const char *)(value != NULL ? value : (const unsigned char *)"")));
     }
     sqlite3_finalize(stmt);
+#endif
 }
 
 static int
 setting_save_text(UkuApp *app, const char *key, const char *value)
 {
+#if defined(PLATFORM_WEB)
+    (void)app;
+    (void)key;
+    (void)value;
+    return 1;
+#else
     sqlite3_stmt *stmt = NULL;
     int ok;
 
@@ -716,6 +736,7 @@ setting_save_text(UkuApp *app, const char *key, const char *value)
     ok = sqlite3_step(stmt) == SQLITE_DONE;
     sqlite3_finalize(stmt);
     return ok;
+#endif
 }
 
 static int
@@ -790,7 +811,7 @@ sync_server_save(UkuApp *app)
 }
 
 static void
-account_to_flint(const UkuAccount *account, FlintLyraAccount *out)
+account_to_lyra(const UkuAccount *account, LyraAccount *out)
 {
     if(out == NULL)
         return;
@@ -803,7 +824,7 @@ account_to_flint(const UkuAccount *account, FlintLyraAccount *out)
 }
 
 static void
-account_from_flint(UkuAccount *account, const FlintLyraAccount *source)
+account_from_lyra(UkuAccount *account, const LyraAccount *source)
 {
     char auth_token[sizeof(account->auth_token)];
     int import_failed;
@@ -864,43 +885,49 @@ alias_valid(const char *text)
 static int
 account_validate_import(UkuAccount *account)
 {
-    FlintLyraAccount flint_account;
+    LyraAccount lyra_account;
 
     if(account == NULL)
         return 0;
-    account_to_flint(account, &flint_account);
-    if(!flint_lyra_account_validate(&flint_account))
+    account_to_lyra(account, &lyra_account);
+    if(!ValidateLyraAccount(&lyra_account))
         return 0;
-    account_from_flint(account, &flint_account);
+    account_from_lyra(account, &lyra_account);
     return 1;
 }
 
 static int
 account_parse_key_text(const char *body, UkuAccount *account)
 {
-    FlintLyraAccount parsed;
+    LyraAccount parsed;
 
     if(body == NULL || account == NULL)
         return 0;
-    if(!flint_lyra_account_parse_text(body, &parsed))
+    if(!ParseLyraAccountText(body, &parsed))
         return 0;
     memset(account, 0, sizeof(*account));
-    account_from_flint(account, &parsed);
+    account_from_lyra(account, &parsed);
     return 1;
 }
 
 static int
 account_has_values(const UkuAccount *account)
 {
-    FlintLyraAccount flint_account;
+    LyraAccount lyra_account;
 
-    account_to_flint(account, &flint_account);
-    return flint_lyra_account_validate(&flint_account);
+    account_to_lyra(account, &lyra_account);
+    return ValidateLyraAccount(&lyra_account);
 }
 
 static int
 account_save(UkuApp *app, const UkuAccount *account)
 {
+#if defined(PLATFORM_WEB)
+    if(app == NULL || !account_has_values(account))
+        return 0;
+    app->account = *account;
+    return 1;
+#else
     sqlite3_stmt *stmt = NULL;
     int ok;
 
@@ -917,11 +944,15 @@ account_save(UkuApp *app, const UkuAccount *account)
     ok = sqlite3_step(stmt) == SQLITE_DONE;
     sqlite3_finalize(stmt);
     return ok;
+#endif
 }
 
 static void
 account_load(UkuApp *app)
 {
+#if defined(PLATFORM_WEB)
+    memset(&app->account, 0, sizeof(app->account));
+#else
     sqlite3_stmt *stmt = NULL;
 
     memset(&app->account, 0, sizeof(app->account));
@@ -951,6 +982,7 @@ account_load(UkuApp *app)
         app->account.loaded = account_has_values(&app->account);
     }
     sqlite3_finalize(stmt);
+#endif
 }
 
 static int
@@ -990,14 +1022,14 @@ account_import_file(UkuApp *app, const char *path)
 static int
 account_export_file(UkuApp *app, const char *path)
 {
-    char body[FLINT_LYRA_ACCOUNT_EXPORT_TEXT_SIZE];
-    FlintLyraAccount flint_account;
+    char body[LYRA_ACCOUNT_EXPORT_TEXT_SIZE];
+    LyraAccount lyra_account;
     int ok;
 
     if(app == NULL || !account_has_values(&app->account) || path == NULL || path[0] == '\0')
         return 0;
-    account_to_flint(&app->account, &flint_account);
-    if(!flint_lyra_account_export_text(&flint_account, body, sizeof(body)))
+    account_to_lyra(&app->account, &lyra_account);
+    if(!ExportLyraAccountText(&lyra_account, body, sizeof(body)))
         return 0;
     ok = SaveFileData(path, body, (int)strlen(body));
     copy_text(app->account_status, sizeof(app->account_status),
@@ -1009,97 +1041,84 @@ account_export_file(UkuApp *app, const char *path)
 static void
 account_apply_file_dialog_theme(void)
 {
-    flint_file_dialog_set_theme_scope(flint_theme_scope_for(FLINT_THEME_SUNSET,
-                                                            flint_theme_get_dark_mode()));
+#if !defined(PLATFORM_WEB)
+    SetFileDialogThemeScope(GetThemeScopeName(THEME_SUNSET, GetThemeDarkMode()));
+#endif
 }
 
 static void
 account_start_import_dialog(UkuApp *app)
 {
+#if defined(PLATFORM_WEB)
+    if(app == NULL)
+        return;
+    app->account.import_failed = 1;
+    copy_text(app->account_status, sizeof(app->account_status),
+              "Account key import is desktop-only in this web build.",
+              strlen("Account key import is desktop-only in this web build."));
+#else
+    const char *path;
+
     if(app == NULL)
         return;
     account_apply_file_dialog_theme();
-    app->account_file_action = UKU_ACCOUNT_FILE_IMPORT;
     app->account.import_failed = 0;
     app->account_status[0] = '\0';
-    flint_file_dialog_begin_load_filtered(&app->account_import_dialog,
-                                          "Import account key", UKU_ACCOUNT_KEY_FILTER);
+    if(LoadFilteredFileDialog(&app->account_import_dialog, "Import account key",
+                              UKU_ACCOUNT_KEY_FILTER)) {
+        path = GetFileDialogPath(&app->account_import_dialog);
+        if(path != NULL && path[0] != '\0') {
+            account_import_file(app, path);
+            return;
+        }
+    }
+    copy_text(app->account_status, sizeof(app->account_status),
+              "Import cancelled.", strlen("Import cancelled."));
+#endif
 }
 
 static void
 account_start_export_dialog(UkuApp *app)
 {
+#if defined(PLATFORM_WEB)
+    if(app == NULL)
+        return;
+    copy_text(app->account_status, sizeof(app->account_status),
+              "Account key export is desktop-only in this web build.",
+              strlen("Account key export is desktop-only in this web build."));
+#else
+    const char *path;
+
     if(app == NULL || !account_has_values(&app->account))
         return;
     account_apply_file_dialog_theme();
-    app->account_file_action = UKU_ACCOUNT_FILE_EXPORT;
     app->account_status[0] = '\0';
-    flint_file_dialog_begin_save(&app->account_export_dialog,
-                                 "Export account key", UKU_ACCOUNT_KEY_FILE);
-}
-
-static int
-account_draw_pending_file_dialog(UkuApp *app)
-{
-    FlintFileDialog *dlg;
-    int result;
-
-    if(app == NULL || app->account_file_action == UKU_ACCOUNT_FILE_NONE)
-        return 0;
-
-    account_apply_file_dialog_theme();
-    dlg = app->account_file_action == UKU_ACCOUNT_FILE_IMPORT
-              ? &app->account_import_dialog
-              : &app->account_export_dialog;
-    result = flint_file_dialog_update(dlg);
-    if(result < 0)
-        return 1;
-
-    if(app->account_file_action == UKU_ACCOUNT_FILE_IMPORT) {
-        if(result == 1) {
-            const char *path = flint_file_dialog_get_path(&app->account_import_dialog);
-            if(path != NULL && path[0] != '\0')
-                account_import_file(app, path);
-            else
-                copy_text(app->account_status, sizeof(app->account_status),
-                          "Import cancelled.", strlen("Import cancelled."));
-        } else {
-            copy_text(app->account_status, sizeof(app->account_status),
-                      "Import cancelled.", strlen("Import cancelled."));
+    if(SaveFileDialog(&app->account_export_dialog, "Export account key",
+                      UKU_ACCOUNT_KEY_FILE)) {
+        path = GetFileDialogPath(&app->account_export_dialog);
+        if(path != NULL && path[0] != '\0') {
+            account_export_file(app, path);
+            return;
         }
-        flint_file_dialog_cleanup(&app->account_import_dialog);
-    } else if(app->account_file_action == UKU_ACCOUNT_FILE_EXPORT) {
-        if(result == 1) {
-            const char *path = flint_file_dialog_get_path(&app->account_export_dialog);
-            if(path != NULL && path[0] != '\0')
-                account_export_file(app, path);
-            else
-                copy_text(app->account_status, sizeof(app->account_status),
-                          "Export cancelled.", strlen("Export cancelled."));
-        } else {
-            copy_text(app->account_status, sizeof(app->account_status),
-                      "Export cancelled.", strlen("Export cancelled."));
-        }
-        flint_file_dialog_cleanup(&app->account_export_dialog);
     }
-
-    app->account_file_action = UKU_ACCOUNT_FILE_NONE;
-    return 1;
+    copy_text(app->account_status, sizeof(app->account_status),
+              "Export cancelled.", strlen("Export cancelled."));
+#endif
 }
 
 static int
 account_create(UkuApp *app)
 {
-    FlintLyraAccount flint_account;
+    LyraAccount lyra_account;
     UkuAccount generated;
 
     memset(&generated, 0, sizeof(generated));
-    if(!flint_lyra_account_create(&flint_account)) {
+    if(!CreateLyraAccount(&lyra_account)) {
         copy_text(app->account_status, sizeof(app->account_status),
                   "Account creation failed.", strlen("Account creation failed."));
         return 0;
     }
-    account_from_flint(&generated, &flint_account);
+    account_from_lyra(&generated, &lyra_account);
     if(!account_save(app, &generated)) {
         copy_text(app->account_status, sizeof(app->account_status),
                   "Account creation failed.", strlen("Account creation failed."));
@@ -1116,12 +1135,12 @@ static int
 account_sign_hex(UkuApp *app, const uint8_t *message, size_t message_len,
                  char *out_signature_hex, size_t out_size)
 {
-    FlintLyraAccount flint_account;
+    LyraAccount lyra_account;
 
     if(app == NULL || !app->account.loaded)
         return 0;
-    account_to_flint(&app->account, &flint_account);
-    return flint_lyra_account_sign_hex(&flint_account, message, message_len, out_signature_hex,
+    account_to_lyra(&app->account, &lyra_account);
+    return SignLyraAccountHex(&lyra_account, message, message_len, out_signature_hex,
                                        out_size);
 }
 
@@ -1266,15 +1285,15 @@ canonical_message_hex(const char *nonce_hex, const char *method, const char *pat
 {
     char digest_hex[65];
 
-    flint_lyra_sha256_hex((const uint8_t *)body, strlen(body), digest_hex);
+    LyraSha256Hex((const uint8_t *)body, strlen(body), digest_hex);
     snprintf(out, out_size, "inbe-sync-v1\n%s\n%s\n%s\n%s\n", method, path, digest_hex, nonce_hex);
 }
 
+#if !defined(PLATFORM_WEB)
 static int
 lyra_http_request(const char *method, const char *url, struct curl_slist *headers,
                   const char *body, long *status_out, UkuHttpBuffer *response)
 {
-#if !defined(PLATFORM_WEB)
     CURL *curl;
     CURLcode code;
     long status = 0;
@@ -1303,15 +1322,6 @@ lyra_http_request(const char *method, const char *url, struct curl_slist *header
     if(status_out != NULL)
         *status_out = status;
     return code == CURLE_OK;
-#else
-    (void)method;
-    (void)url;
-    (void)headers;
-    (void)body;
-    (void)status_out;
-    (void)response;
-    return 0;
-#endif
 }
 
 static int
@@ -1564,6 +1574,39 @@ account_refresh_alias_once(UkuApp *app)
     account_save(app, &app->account);
     lyra_login(app, app->server_url);
 }
+#else
+static int
+lyra_create_process(UkuApp *app, const char *base_url)
+{
+    (void)app;
+    (void)base_url;
+    return 0;
+}
+
+static int
+lyra_register_alias(UkuApp *app, const char *base_url, const char *alias)
+{
+    (void)app;
+    (void)base_url;
+    (void)alias;
+    return 0;
+}
+
+static void
+lyra_fetch_public_processes(UkuApp *app, const char *base_url)
+{
+    (void)base_url;
+    if(app != NULL)
+        app->remote_processes_loaded = 1;
+}
+
+static void
+account_refresh_alias_once(UkuApp *app)
+{
+    if(app != NULL)
+        app->account_alias_lookup_attempted = 1;
+}
+#endif
 
 static void
 account_open_alias_modal(UkuApp *app)
@@ -1598,6 +1641,14 @@ generate_process_id(char *dst, size_t size)
 static int
 db_insert_proposal(sqlite3 *db, const char *process_id, const char *title, const char *description, sqlite3_int64 created_at)
 {
+#if defined(PLATFORM_WEB)
+    (void)db;
+    (void)process_id;
+    (void)title;
+    (void)description;
+    (void)created_at;
+    return 1;
+#else
     sqlite3_stmt *stmt = NULL;
     int ok;
 
@@ -1613,11 +1664,41 @@ db_insert_proposal(sqlite3 *db, const char *process_id, const char *title, const
     ok = sqlite3_step(stmt) == SQLITE_DONE;
     sqlite3_finalize(stmt);
     return ok;
+#endif
 }
 
 static int
 db_save_process(UkuApp *app, const UkuText *text)
 {
+#if defined(PLATFORM_WEB)
+    UkuDecision *d = &app->decision;
+    sqlite3_int64 now = (sqlite3_int64)time(NULL);
+    UkuProcessRow row = {0};
+
+    (void)text;
+    if(app->db == NULL)
+        return 0;
+    generate_process_id(d->id, sizeof(d->id));
+    snprintf(d->local_address, sizeof(d->local_address), "/app/%s/collect", d->id);
+    d->created_at = now;
+
+    copy_text(row.id, sizeof(row.id), d->id, strlen(d->id));
+    copy_text(row.local_address, sizeof(row.local_address), d->local_address, strlen(d->local_address));
+    copy_text(row.topic, sizeof(row.topic), d->topic, strlen(d->topic));
+    copy_text(row.description, sizeof(row.description), d->description, strlen(d->description));
+    row.proposal_minutes = duration_minutes(d->proposal_days, d->proposal_hours, d->proposal_minutes);
+    row.voting_minutes = duration_minutes(d->voting_days, d->voting_hours, d->voting_minutes);
+    row.negative_weight = d->negative_weight;
+    row.created_at = now;
+
+    if(app->process_count < UKU_MAX_PROCESSES)
+        app->process_count++;
+    if(app->process_count > 1)
+        memmove(&app->processes[1], &app->processes[0],
+                sizeof(app->processes[0]) * (size_t)(app->process_count - 1));
+    app->processes[0] = row;
+    return 1;
+#else
     UkuDecision *d = &app->decision;
     sqlite3_stmt *stmt = NULL;
     sqlite3_int64 now = (sqlite3_int64)time(NULL);
@@ -1666,11 +1747,15 @@ cleanup:
     if(!ok)
         sqlite3_exec(app->db, "rollback", NULL, NULL, NULL);
     return ok;
+#endif
 }
 
 static void
 db_load_processes(UkuApp *app)
 {
+#if defined(PLATFORM_WEB)
+    (void)app;
+#else
     sqlite3_stmt *stmt = NULL;
     int count = 0;
 
@@ -1705,6 +1790,7 @@ db_load_processes(UkuApp *app)
 
     app->process_count = count;
     sqlite3_finalize(stmt);
+#endif
 }
 
 static void
@@ -1728,7 +1814,7 @@ open_process_row(UkuApp *app, const UkuProcessRow *row)
     d->submitted = 1;
     app->screen = UKU_SCREEN_COLLECT;
     app->active_field = UKU_FIELD_NONE;
-    ui_focus_clear();
+    ClearUIFocus();
 }
 
 static void
@@ -1769,24 +1855,24 @@ draw_button(UkuApp *app, Font font, int x, int y, int w, int h, const char *labe
     Vector2 mouse = GetMousePosition();
     Rectangle bounds = {(float)x, (float)y, (float)w, (float)h};
     int hover = CheckCollisionPointRec(mouse, bounds);
-    int focused = ui_focus_register(focus_id, bounds);
-    Color fill = primary ? flint_theme_get_button() : (Color){255, 255, 255, 255};
-    Color text = primary ? WHITE : flint_theme_get_text();
-    int font_size = flint_clamp_px(16, 16, 20);
+    int focused = RegisterUIFocus(focus_id, bounds);
+    Color fill = primary ? GetThemeButton() : (Color){255, 255, 255, 255};
+    Color text = primary ? WHITE : GetThemeText();
+    int font_size = ClampUIPx(16, 16, 20);
 
     if(hover || focused) {
-        fill = primary ? flint_lighten(flint_theme_get_button(), 18) : (Color){242, 245, 247, 255};
+        fill = primary ? LightenUIColor(GetThemeButton(), 18) : (Color){242, 245, 247, 255};
         if(hover)
             app->cursor_clickable = 1;
     }
 
     DrawRectangleRounded(bounds, 0.12f, 12, fill);
-    DrawRectangleRoundedLinesEx(bounds, 0.12f, 12, flint_px(1), primary ? flint_darken(flint_theme_get_button(), 20) : flint_theme_get_text());
+    DrawRectangleRoundedLinesEx(bounds, 0.12f, 12, ScaleUIPx(1), primary ? DarkenUIColor(GetThemeButton(), 20) : GetThemeText());
     if(focused)
-        ui_focus_draw(bounds);
+        DrawUIFocus(bounds);
     draw_centered_text(font, label, x + w / 2, y + (h - font_size) / 2, font_size, text);
 
-    *clicked = (hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) || ui_focus_activate_pressed(focus_id);
+    *clicked = (hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) || IsUIFocusActivatePressed(focus_id);
 }
 
 static int
@@ -1796,21 +1882,21 @@ draw_readonly_field(UkuApp *app, Font font, const char *text, int x, int y, int 
     Vector2 mouse = GetMousePosition();
     Rectangle box = {(float)x, (float)y, (float)w, (float)h};
     int hover = CheckCollisionPointRec(mouse, box);
-    int focused = ui_focus_register(focus_id, box);
-    int pad = flint_px(12);
-    int text_font = flint_clamp_px(15, 15, 19);
+    int focused = RegisterUIFocus(focus_id, box);
+    int pad = ScaleUIPx(12);
+    int text_font = ClampUIPx(15, 15, 19);
 
     if(hover)
         app->cursor_clickable = 1;
-    DrawRectangleRounded(box, 0.08f, 10, flint_theme_get_surface());
-    DrawRectangleRoundedLinesEx(box, 0.08f, 10, flint_px(focused ? 2 : 1),
-                                focused ? flint_theme_get_button() : flint_theme_get_text());
+    DrawRectangleRounded(box, 0.08f, 10, GetThemeSurface());
+    DrawRectangleRoundedLinesEx(box, 0.08f, 10, ScaleUIPx(focused ? 2 : 1),
+                                focused ? GetThemeButton() : GetThemeText());
     if(focused)
-        ui_focus_draw(box);
+        DrawUIFocus(box);
     draw_text_font(font, fit_tail(font, text, text_font, w - pad * 2),
-                   x + pad, y + (h - text_font) / 2, text_font, flint_theme_get_text());
-    *clicked = (hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) || ui_focus_activate_pressed(focus_id);
-    return y + h + flint_px(16);
+                   x + pad, y + (h - text_font) / 2, text_font, GetThemeText());
+    *clicked = (hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) || IsUIFocusActivatePressed(focus_id);
+    return y + h + ScaleUIPx(16);
 }
 
 static void
@@ -1818,7 +1904,7 @@ load_icons_once(UkuApp *app)
 {
     if(!app->icons_loaded) {
         for(int i = 0; i < UI_ICON_TYPE_COUNT; i++) {
-            app->icons[i] = flint_load_icon_texture(i);
+            app->icons[i] = LoadUIIconTexture(i);
         }
         app->icons_loaded = 1;
     }
@@ -1833,8 +1919,8 @@ draw_icon_button(UkuApp *app, int x, int y, int size, UIIconType icon, int focus
     Vector2 mouse = GetMousePosition();
     int hover = CheckCollisionPointRec(mouse, bounds);
 
-    Color bg = flint_theme_get_button();
-    Color hover_bg = flint_theme_get_button_hover();
+    Color bg = GetThemeButton();
+    Color hover_bg = GetThemeButtonHover();
 
     if(hover) {
         app->cursor_clickable = 1;
@@ -1849,7 +1935,7 @@ draw_icon_button(UkuApp *app, int x, int y, int size, UIIconType icon, int focus
     Rectangle icon_rect = {x + size/2 - icon_texture.width/2, y + size/2 - icon_texture.height/2,
                           (float)icon_texture.width, (float)icon_texture.height};
     DrawTexturePro(icon_texture, (Rectangle){0, 0, icon_texture.width, icon_texture.height},
-                  icon_rect, (Vector2){0}, 0.0f, flint_theme_get_icon());
+                  icon_rect, (Vector2){0}, 0.0f, GetThemeIcon());
 
     return 0;
 }
@@ -1858,42 +1944,42 @@ static void
 draw_top_bar(UkuApp *app, const char *title, int show_back, int back_focus_id, int *back_clicked,
              int show_manual, int *manual_clicked, int show_settings, int *settings_clicked, int show_close, int *close_clicked, int view_w)
 {
-    int h = flint_px(58);
-    int font_size = flint_clamp_px(18, 18, 24);
-    int x = flint_px(18);
+    int h = ScaleUIPx(58);
+    int font_size = ClampUIPx(18, 18, 24);
+    int x = ScaleUIPx(18);
 
-    DrawRectangle(0, 0, view_w, h, flint_theme_get_surface());
-    DrawLine(0, h - 1, view_w, h - 1, flint_theme_get_text());
+    DrawRectangle(0, 0, view_w, h, GetThemeSurface());
+    DrawLine(0, h - 1, view_w, h - 1, GetThemeText());
 
     if(show_back) {
-        int clicked = draw_icon_button(app, x, flint_px(9), flint_px(28),
+        int clicked = draw_icon_button(app, x, ScaleUIPx(9), ScaleUIPx(28),
                                        UI_ICON_TYPE_RETURN, back_focus_id);
         if(back_clicked != NULL && clicked)
             *back_clicked = 1;
-        x += flint_px(36);
+        x += ScaleUIPx(36);
     }
 
-    draw_text_font(app->font, title, x, flint_ui_text_y(title, 0, h, font_size), font_size, flint_theme_get_text());
+    draw_text_font(app->font, title, x, GetUIControlTextY(title, 0, h, font_size), font_size, GetThemeText());
 
-    int button_x = view_w - flint_px(44);
+    int button_x = view_w - ScaleUIPx(44);
     if(show_settings && settings_clicked != NULL) {
-        int clicked = draw_icon_button(app, button_x, flint_px(9), flint_px(28),
-                                       UI_ICON_TYPE_GEAR, UKU_FOCUS_SETTINGS);
+        int clicked = draw_icon_button(app, button_x, ScaleUIPx(9), ScaleUIPx(28),
+                                       UI_ICON_TYPE_PROFILE, UKU_FOCUS_SETTINGS);
         if(clicked)
             *settings_clicked = 1;
-        button_x -= flint_px(36);
+        button_x -= ScaleUIPx(36);
     }
 
     if(show_manual && manual_clicked != NULL) {
-        int clicked = draw_icon_button(app, button_x, flint_px(9), flint_px(28),
+        int clicked = draw_icon_button(app, button_x, ScaleUIPx(9), ScaleUIPx(28),
                                        UI_ICON_TYPE_MANUAL, UKU_FOCUS_DASHBOARD_MANUAL);
         if(clicked)
             *manual_clicked = 1;
-        button_x -= flint_px(36);
+        button_x -= ScaleUIPx(36);
     }
 
     if(show_close && close_clicked != NULL) {
-        int clicked = draw_icon_button(app, button_x, flint_px(9), flint_px(28),
+        int clicked = draw_icon_button(app, button_x, ScaleUIPx(9), ScaleUIPx(28),
                                        UI_ICON_TYPE_RETURN, UKU_FOCUS_DASHBOARD_CLOSE);
         if(clicked)
             *close_clicked = 1;
@@ -1904,17 +1990,17 @@ static int
 draw_text_field(UkuApp *app, Font font, const char *label, const char *placeholder,
                 char *buffer, size_t cap, UkuField field, int focus_id, int x, int y, int w, int h)
 {
-    int label_font = flint_clamp_px(13, 13, 16);
-    int input_font = flint_clamp_px(16, 16, 20);
-    int pad = flint_px(12);
+    int label_font = ClampUIPx(13, 13, 16);
+    int input_font = ClampUIPx(16, 16, 20);
+    int pad = ScaleUIPx(12);
     int label_y = y;
-    int box_y = y + label_font + flint_px(8);
+    int box_y = y + label_font + ScaleUIPx(8);
     Rectangle box = {(float)x, (float)box_y, (float)w, (float)h};
     Vector2 mouse = GetMousePosition();
     int focused;
     int active;
 
-    draw_text_font(font, label, x, label_y, label_font, flint_theme_get_text());
+    draw_text_font(font, label, x, label_y, label_font, GetThemeText());
 
     if(IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
         if(CheckCollisionPointRec(mouse, box))
@@ -1923,7 +2009,7 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
             app->active_field = UKU_FIELD_NONE;
     }
 
-    focused = ui_focus_register(focus_id, box);
+    focused = RegisterUIFocus(focus_id, box);
     if(focused)
         app->active_field = field;
     active = app->active_field == field;
@@ -1940,91 +2026,91 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
             delete_char(buffer);
     }
 
-    DrawRectangleRounded(box, 0.08f, 10, flint_theme_get_surface());
-    DrawRectangleRoundedLinesEx(box, 0.08f, 10, flint_px(active ? 2 : 1),
-                                active ? flint_theme_get_button() : flint_theme_get_text());
+    DrawRectangleRounded(box, 0.08f, 10, GetThemeSurface());
+    DrawRectangleRoundedLinesEx(box, 0.08f, 10, ScaleUIPx(active ? 2 : 1),
+                                active ? GetThemeButton() : GetThemeText());
     if(focused)
-        ui_focus_draw(box);
+        DrawUIFocus(box);
 
     if(buffer[0] == '\0') {
         draw_text_font(font, placeholder, x + pad, box_y + pad, input_font, (Color){142, 149, 160, 255});
-    } else if(h > flint_px(58)) {
+    } else if(h > ScaleUIPx(58)) {
         BeginScissorMode(x + pad, box_y + pad, w - pad * 2, h - pad * 2);
         draw_wrapped_text(font, buffer, x + pad, box_y + pad, w - pad * 2,
-                          input_font, input_font + flint_px(7), flint_theme_get_text());
+                          input_font, input_font + ScaleUIPx(7), GetThemeText());
         EndScissorMode();
     } else {
-        const char *visible = fit_tail(font, buffer, input_font, w - pad * 2 - flint_px(8));
-        draw_text_font(font, visible, x + pad, box_y + (h - input_font) / 2, input_font, flint_theme_get_text());
+        const char *visible = fit_tail(font, buffer, input_font, w - pad * 2 - ScaleUIPx(8));
+        draw_text_font(font, visible, x + pad, box_y + (h - input_font) / 2, input_font, GetThemeText());
     }
 
     if(active && ((int)(GetTime() * 2.0) % 2) == 0) {
         int cursor_x;
-        if(h > flint_px(58))
-            cursor_x = x + pad + UKU_MIN(measure_text_font(font, buffer, input_font), w - pad * 2 - flint_px(4));
+        if(h > ScaleUIPx(58))
+            cursor_x = x + pad + UKU_MIN(measure_text_font(font, buffer, input_font), w - pad * 2 - ScaleUIPx(4));
         else
-            cursor_x = x + pad + measure_text_font(font, fit_tail(font, buffer, input_font, w - pad * 2 - flint_px(8)), input_font);
-        DrawLine(cursor_x, box_y + pad, cursor_x, box_y + h - pad, flint_theme_get_button());
+            cursor_x = x + pad + measure_text_font(font, fit_tail(font, buffer, input_font, w - pad * 2 - ScaleUIPx(8)), input_font);
+        DrawLine(cursor_x, box_y + pad, cursor_x, box_y + h - pad, GetThemeButton());
     }
 
-    return box_y + h + flint_px(16);
+    return box_y + h + ScaleUIPx(16);
 }
 
 static int
 draw_stepper(UkuApp *app, Font font, const char *label, int *value, int min_value, int max_value,
              int x, int y, int w, int minus_focus_id, int plus_focus_id)
 {
-    int label_font = flint_clamp_px(13, 13, 16);
-    int value_font = flint_clamp_px(18, 18, 22);
-    int btn = flint_px(34);
-    int h = flint_px(38);
-    int value_w = w - btn * 2 - flint_px(8);
+    int label_font = ClampUIPx(13, 13, 16);
+    int value_font = ClampUIPx(18, 18, 22);
+    int btn = ScaleUIPx(34);
+    int h = ScaleUIPx(38);
+    int value_w = w - btn * 2 - ScaleUIPx(8);
     int minus_clicked = 0;
     int plus_clicked = 0;
     char value_text[16];
 
-    draw_text_font(font, label, x, y, label_font, flint_theme_get_text());
-    y += label_font + flint_px(7);
+    draw_text_font(font, label, x, y, label_font, GetThemeText());
+    y += label_font + ScaleUIPx(7);
 
     draw_button(app, font, x, y, btn, h, "-", 0, minus_focus_id, &minus_clicked);
-    DrawRectangleRounded((Rectangle){x + btn + flint_px(4), y, value_w, h}, 0.08f, 10, flint_theme_get_surface());
-    DrawRectangleRoundedLinesEx((Rectangle){x + btn + flint_px(4), y, value_w, h}, 0.08f, 10, flint_px(1), flint_theme_get_text());
+    DrawRectangleRounded((Rectangle){x + btn + ScaleUIPx(4), y, value_w, h}, 0.08f, 10, GetThemeSurface());
+    DrawRectangleRoundedLinesEx((Rectangle){x + btn + ScaleUIPx(4), y, value_w, h}, 0.08f, 10, ScaleUIPx(1), GetThemeText());
     snprintf(value_text, sizeof(value_text), "%d", *value);
-    draw_centered_text(font, value_text, x + btn + flint_px(4) + value_w / 2,
-                       y + (h - value_font) / 2, value_font, flint_theme_get_text());
-    draw_button(app, font, x + btn + flint_px(8) + value_w, y, btn, h, "+", 0, plus_focus_id, &plus_clicked);
+    draw_centered_text(font, value_text, x + btn + ScaleUIPx(4) + value_w / 2,
+                       y + (h - value_font) / 2, value_font, GetThemeText());
+    draw_button(app, font, x + btn + ScaleUIPx(8) + value_w, y, btn, h, "+", 0, plus_focus_id, &plus_clicked);
 
     if(minus_clicked)
         *value = clampi(*value - 1, min_value, max_value);
     if(plus_clicked)
         *value = clampi(*value + 1, min_value, max_value);
 
-    return y + h + flint_px(14);
+    return y + h + ScaleUIPx(14);
 }
 
 static int
 draw_negative_weight_dropdown(UkuApp *app, Font font, const UkuText *text, int x, int y, int w, int focus_id)
 {
-    int label_font = flint_clamp_px(13, 13, 16);
-    int input_font = flint_clamp_px(16, 16, 20);
-    int h = flint_px(40);
-    int option_h = flint_px(34);
-    int pad = flint_px(12);
+    int label_font = ClampUIPx(13, 13, 16);
+    int input_font = ClampUIPx(16, 16, 20);
+    int h = ScaleUIPx(40);
+    int option_h = ScaleUIPx(34);
+    int pad = ScaleUIPx(12);
     int box_y;
     Rectangle box;
     Vector2 mouse = GetMousePosition();
     int selected = clampi(app->decision.negative_weight, 0, 9);
     int focused;
 
-    draw_text_font(font, text->negative_weight_label, x, y, label_font, flint_theme_get_text());
-    box_y = y + label_font + flint_px(8);
+    draw_text_font(font, text->negative_weight_label, x, y, label_font, GetThemeText());
+    box_y = y + label_font + ScaleUIPx(8);
     box = (Rectangle){(float)x, (float)box_y, (float)w, (float)h};
-    focused = ui_focus_register(focus_id, box);
+    focused = RegisterUIFocus(focus_id, box);
 
     if(CheckCollisionPointRec(mouse, box))
         app->cursor_clickable = 1;
     if((CheckCollisionPointRec(mouse, box) && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
-       ui_focus_activate_pressed(focus_id)) {
+       IsUIFocusActivatePressed(focus_id)) {
         app->negative_dropdown_open = !app->negative_dropdown_open;
         app->active_field = UKU_FIELD_NONE;
     }
@@ -2035,37 +2121,37 @@ draw_negative_weight_dropdown(UkuApp *app, Font font, const UkuText *text, int x
             app->decision.negative_weight = clampi(app->decision.negative_weight - 1, 0, 9);
     }
 
-    DrawRectangleRounded(box, 0.08f, 10, flint_theme_get_surface());
-    DrawRectangleRoundedLinesEx(box, 0.08f, 10, flint_px(1), app->negative_dropdown_open ? flint_theme_get_button() : flint_theme_get_text());
+    DrawRectangleRounded(box, 0.08f, 10, GetThemeSurface());
+    DrawRectangleRoundedLinesEx(box, 0.08f, 10, ScaleUIPx(1), app->negative_dropdown_open ? GetThemeButton() : GetThemeText());
     if(focused)
-        ui_focus_draw(box);
+        DrawUIFocus(box);
     draw_text_font(font, text->negative_weight_options[selected], x + pad,
-                   box_y + (h - input_font) / 2, input_font, flint_theme_get_text());
-    DrawTriangle((Vector2){(float)(x + w - pad - flint_px(10)), (float)(box_y + h / 2 - flint_px(3))},
-                 (Vector2){(float)(x + w - pad), (float)(box_y + h / 2 - flint_px(3))},
-                 (Vector2){(float)(x + w - pad - flint_px(5)), (float)(box_y + h / 2 + flint_px(4))},
-                 flint_theme_get_text());
+                   box_y + (h - input_font) / 2, input_font, GetThemeText());
+    DrawTriangle((Vector2){(float)(x + w - pad - ScaleUIPx(10)), (float)(box_y + h / 2 - ScaleUIPx(3))},
+                 (Vector2){(float)(x + w - pad), (float)(box_y + h / 2 - ScaleUIPx(3))},
+                 (Vector2){(float)(x + w - pad - ScaleUIPx(5)), (float)(box_y + h / 2 + ScaleUIPx(4))},
+                 GetThemeText());
 
     if(app->negative_dropdown_open) {
-        int menu_y = box_y + h + flint_px(4);
+        int menu_y = box_y + h + ScaleUIPx(4);
         int menu_h = option_h * 10;
         Rectangle menu = {(float)x, (float)menu_y, (float)w, (float)menu_h};
 
-        DrawRectangleRounded(menu, 0.06f, 10, flint_theme_get_surface());
-        DrawRectangleRoundedLinesEx(menu, 0.06f, 10, flint_px(1), flint_theme_get_text());
+        DrawRectangleRounded(menu, 0.06f, 10, GetThemeSurface());
+        DrawRectangleRoundedLinesEx(menu, 0.06f, 10, ScaleUIPx(1), GetThemeText());
         for(int i = 0; i < 10; i++) {
             int oy = menu_y + i * option_h;
             Rectangle option = {(float)x, (float)oy, (float)w, (float)option_h};
             int hover = CheckCollisionPointRec(mouse, option);
 
             if(hover) {
-                DrawRectangle(x + flint_px(2), oy, w - flint_px(4), option_h, (Color){238, 243, 247, 255});
+                DrawRectangle(x + ScaleUIPx(2), oy, w - ScaleUIPx(4), option_h, (Color){238, 243, 247, 255});
                 app->cursor_clickable = 1;
             }
             if(i == selected)
-                DrawRectangle(x + flint_px(5), oy + flint_px(8), flint_px(4), option_h - flint_px(16), flint_theme_get_button());
-            draw_text_font(font, text->negative_weight_options[i], x + pad + flint_px(8),
-                           oy + (option_h - input_font) / 2, input_font, flint_theme_get_text());
+                DrawRectangle(x + ScaleUIPx(5), oy + ScaleUIPx(8), ScaleUIPx(4), option_h - ScaleUIPx(16), GetThemeButton());
+            draw_text_font(font, text->negative_weight_options[i], x + pad + ScaleUIPx(8),
+                           oy + (option_h - input_font) / 2, input_font, GetThemeText());
             if(hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
                 app->decision.negative_weight = i;
                 app->negative_dropdown_open = 0;
@@ -2076,17 +2162,17 @@ draw_negative_weight_dropdown(UkuApp *app, Font font, const UkuText *text, int x
            !CheckCollisionPointRec(mouse, box) && !CheckCollisionPointRec(mouse, menu))
             app->negative_dropdown_open = 0;
 
-        return menu_y + menu_h + flint_px(18);
+        return menu_y + menu_h + ScaleUIPx(18);
     }
 
-    return box_y + h + flint_px(16);
+    return box_y + h + ScaleUIPx(16);
 }
 
 static void
 draw_scrollbar(UkuApp *app, int x, int y, int h, int content_h, int max_scroll,
                int *scroll, int *dragging, int *drag_offset)
 {
-    int track_w = flint_px(8);
+    int track_w = ScaleUIPx(8);
     int thumb_h;
     int thumb_y;
     Rectangle track;
@@ -2099,13 +2185,13 @@ draw_scrollbar(UkuApp *app, int x, int y, int h, int content_h, int max_scroll,
         return;
     }
 
-    thumb_h = UKU_MAX(flint_px(42), (int)((float)h * (float)h / (float)content_h));
+    thumb_h = UKU_MAX(ScaleUIPx(42), (int)((float)h * (float)h / (float)content_h));
     thumb_h = UKU_MIN(thumb_h, h);
     thumb_y = y + (int)((float)(h - thumb_h) * ((float)(*scroll) / (float)max_scroll));
     thumb = (Rectangle){(float)x, (float)thumb_y, (float)track_w, (float)thumb_h};
 
     DrawRectangleRounded(track, 0.5f, 8, (Color){226, 230, 233, 255});
-    DrawRectangleRounded(thumb, 0.5f, 8, flint_theme_get_button());
+    DrawRectangleRounded(thumb, 0.5f, 8, GetThemeButton());
 
     if(CheckCollisionPointRec(mouse, track))
         app->cursor_clickable = 1;
@@ -2130,18 +2216,18 @@ static int
 draw_duration_group(UkuApp *app, Font font, const char *title, const UkuText *text,
                     int *days, int *hours, int *minutes, int x, int y, int w, int focus_base)
 {
-    int title_font = flint_clamp_px(16, 16, 20);
-    int gap = flint_px(10);
+    int title_font = ClampUIPx(16, 16, 20);
+    int gap = ScaleUIPx(10);
     int col_w = (w - gap * 2) / 3;
     int y2;
 
-    draw_text_font(font, title, x, y, title_font, flint_theme_get_text());
-    y += title_font + flint_px(12);
+    draw_text_font(font, title, x, y, title_font, GetThemeText());
+    y += title_font + ScaleUIPx(12);
 
     y2 = draw_stepper(app, font, text->days_label, days, 0, 30, x, y, col_w, focus_base, focus_base + 1);
     draw_stepper(app, font, text->hours_label, hours, 0, 23, x + col_w + gap, y, col_w, focus_base + 2, focus_base + 3);
     draw_stepper(app, font, text->minutes_label, minutes, 0, 59, x + (col_w + gap) * 2, y, col_w, focus_base + 4, focus_base + 5);
-    return y2 + flint_px(6);
+    return y2 + ScaleUIPx(6);
 }
 
 static void
@@ -2283,21 +2369,20 @@ format_process_timer(char *dst, size_t size, const UkuText *text, sqlite3_int64 
 static void
 draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
 {
-    int side = flint_page_side_padding();
+    int side = GetUIPageSidePadding();
     int content_x;
     int content_w;
-    int top_h = flint_px(58);
-    int title_font = flint_clamp_px(22, 22, 30);
-    int body_font = flint_clamp_px(16, 16, 20);
-    int small_font = flint_clamp_px(13, 13, 16);
-    int line_h = body_font + flint_px(8);
+    int top_h = ScaleUIPx(58);
+    int title_font = ClampUIPx(22, 22, 30);
+    int body_font = ClampUIPx(16, 16, 20);
+    int small_font = ClampUIPx(13, 13, 16);
+    int line_h = body_font + ScaleUIPx(8);
     int viewport_y = top_h;
     int viewport_h = view_h - viewport_y;
-    int y = viewport_y + flint_px(20) - app->dashboard_scroll;
+    int y = viewport_y + ScaleUIPx(20) - app->dashboard_scroll;
     int content_bottom;
     int content_h;
-    int manual_clicked = 0;
-    int settings_clicked = 0;
+    int profile_clicked = 0;
     int new_clicked = 0;
     Font font = app->font;
     sqlite3_int64 now = (sqlite3_int64)time(NULL);
@@ -2306,37 +2391,77 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
         db_load_processes(app);
         lyra_fetch_public_processes(app, app->server_url);
     }
-    flint_centered_column(760, side, &content_x, &content_w);
-    app->dashboard_scroll = clampi(app->dashboard_scroll - (int)(GetMouseWheelMove() * flint_px(44)),
+    GetUICenteredColumn(760, side, &content_x, &content_w);
+    app->dashboard_scroll = clampi(app->dashboard_scroll - (int)(GetMouseWheelMove() * ScaleUIPx(44)),
                                    0, app->dashboard_max_scroll);
 
-    draw_top_bar(app, text->home_title, 0, 0, NULL, 1, &manual_clicked, 1, &settings_clicked, 0, NULL, view_w);
-    if(manual_clicked) {
-        app->screen = UKU_SCREEN_MANUAL;
-        app->manual_scroll = 0;
-        ui_focus_clear();
-    }
-    if(settings_clicked) {
+    draw_top_bar(app, text->app_title, 0, 0, NULL, 0, NULL, 1, &profile_clicked, 0, NULL, view_w);
+    if(profile_clicked) {
         app->screen = UKU_SCREEN_ACCOUNT;
-        ui_focus_clear();
+        ClearUIFocus();
     }
 
     BeginScissorMode(0, viewport_y, view_w, viewport_h);
-    draw_text_font(font, text->dashboard_recent_label, content_x, y, title_font, flint_theme_get_text());
-    y += title_font + flint_px(18);
+    draw_text_font(font, text->home_subtitle, content_x, y, title_font, GetThemeText());
+    y += title_font + ScaleUIPx(12);
+    y = draw_wrapped_text(font, text->home_summary, content_x, y, content_w, body_font, line_h, GetThemeText());
+    y += ScaleUIPx(20);
+
+    {
+        int card_h = ScaleUIPx(86);
+        Rectangle card = {(float)content_x, (float)y, (float)content_w, (float)card_h};
+        Vector2 mouse = GetMousePosition();
+        int hovered = CheckCollisionPointRec(mouse, card);
+        int focused = RegisterUIFocus(UKU_FOCUS_DASHBOARD_NEW, card);
+        int icon_size = ScaleUIPx(34);
+        Texture2D icon_texture;
+
+        if(hovered)
+            app->cursor_clickable = 1;
+        DrawRectangleRounded(card, 0.07f, 10, GetThemeSurface());
+        DrawRectangleRoundedLinesEx(card, 0.07f, 10, ScaleUIPx(focused ? 2 : 1),
+                                    focused ? GetThemeButton() : GetThemeText());
+        if(focused)
+            DrawUIFocus(card);
+
+        icon_texture = app->icons[UI_ICON_TYPE_PLUS];
+        if(icon_texture.id != 0) {
+            Rectangle icon_rect = {(float)(content_x + ScaleUIPx(16)),
+                                   (float)(y + (card_h - icon_size) / 2),
+                                   (float)icon_size, (float)icon_size};
+            DrawTexturePro(icon_texture, (Rectangle){0, 0, (float)icon_texture.width, (float)icon_texture.height},
+                           icon_rect, (Vector2){0}, 0.0f, GetThemeIcon());
+        }
+        draw_text_font(font, text->start_process_button, content_x + ScaleUIPx(64),
+                       y + ScaleUIPx(18), body_font, GetThemeText());
+        draw_text_font(font, text->topic_question_placeholder, content_x + ScaleUIPx(64),
+                       y + ScaleUIPx(46), small_font, GetThemeButton());
+
+        new_clicked = (hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
+                      IsUIFocusActivatePressed(UKU_FOCUS_DASHBOARD_NEW);
+        if(new_clicked) {
+            reset_decision(app, text);
+            app->screen = UKU_SCREEN_CREATE;
+            ClearUIFocus();
+        }
+        y += card_h + ScaleUIPx(24);
+    }
+
+    draw_text_font(font, text->dashboard_recent_label, content_x, y, title_font, GetThemeText());
+    y += title_font + ScaleUIPx(18);
 
     if(app->process_count <= 0) {
-        y = draw_wrapped_text(font, text->dashboard_empty, content_x, y, content_w, body_font, line_h, flint_theme_get_text());
+        y = draw_wrapped_text(font, text->dashboard_empty, content_x, y, content_w, body_font, line_h, GetThemeText());
     } else {
-        int card_h = flint_px(118);
-        int gap = flint_px(12);
+        int card_h = ScaleUIPx(118);
+        int gap = ScaleUIPx(12);
         for(int i = 0; i < app->process_count; i++) {
             UkuProcessRow *row = &app->processes[i];
             Rectangle card = {(float)content_x, (float)y, (float)content_w, (float)card_h};
             Vector2 mouse = GetMousePosition();
             int focus_id = UKU_FOCUS_DASHBOARD_PROCESS_BASE + i;
             int hovered = CheckCollisionPointRec(mouse, card);
-            int focused = ui_focus_register(focus_id, card);
+            int focused = RegisterUIFocus(focus_id, card);
             char meta[160];
             char created[32];
             char timer[128];
@@ -2349,27 +2474,27 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
 
             if(hovered)
                 app->cursor_clickable = 1;
-            DrawRectangleRounded(card, 0.07f, 10, hovered || focused ? flint_theme_get_surface() : flint_theme_get_surface());
-            DrawRectangleRoundedLinesEx(card, 0.07f, 10, flint_px(1), focused ? flint_theme_get_button() : flint_theme_get_text());
+            DrawRectangleRounded(card, 0.07f, 10, hovered || focused ? GetThemeSurface() : GetThemeSurface());
+            DrawRectangleRoundedLinesEx(card, 0.07f, 10, ScaleUIPx(1), focused ? GetThemeButton() : GetThemeText());
             if(focused)
-                ui_focus_draw(card);
+                DrawUIFocus(card);
 
-            draw_text_font(font, fit_tail(font, row->topic, body_font, content_w - flint_px(28)),
-                           content_x + flint_px(14), y + flint_px(12), body_font, flint_theme_get_text());
+            draw_text_font(font, fit_tail(font, row->topic, body_font, content_w - ScaleUIPx(28)),
+                           content_x + ScaleUIPx(14), y + ScaleUIPx(12), body_font, GetThemeText());
             format_process_timer(timer, sizeof(timer), text, row->created_at,
                                  row->proposal_minutes, row->voting_minutes, now);
-            draw_text_font(font, fit_tail(font, timer, small_font, content_w - flint_px(28)),
-                           content_x + flint_px(14), y + flint_px(40), small_font,
-                           process_phase(row->created_at, row->proposal_minutes, row->voting_minutes, now, NULL) == UKU_PROCESS_RESULTS ? flint_theme_get_text() : flint_theme_get_button());
+            draw_text_font(font, fit_tail(font, timer, small_font, content_w - ScaleUIPx(28)),
+                           content_x + ScaleUIPx(14), y + ScaleUIPx(40), small_font,
+                           process_phase(row->created_at, row->proposal_minutes, row->voting_minutes, now, NULL) == UKU_PROCESS_RESULTS ? GetThemeText() : GetThemeButton());
             format_created_at(created, sizeof(created), row->created_at);
             snprintf(meta, sizeof(meta), "%s  |  %s", row->local_address, created);
-            draw_text_font(font, fit_tail(font, meta, small_font, content_w - flint_px(28)),
-                           content_x + flint_px(14), y + flint_px(66), small_font, flint_theme_get_button());
+            draw_text_font(font, fit_tail(font, meta, small_font, content_w - ScaleUIPx(28)),
+                           content_x + ScaleUIPx(14), y + ScaleUIPx(66), small_font, GetThemeButton());
             if(row->description[0] != '\0')
-                draw_text_font(font, fit_tail(font, row->description, small_font, content_w - flint_px(28)),
-                               content_x + flint_px(14), y + flint_px(90), small_font, flint_theme_get_text());
+                draw_text_font(font, fit_tail(font, row->description, small_font, content_w - ScaleUIPx(28)),
+                               content_x + ScaleUIPx(14), y + ScaleUIPx(90), small_font, GetThemeText());
 
-            open = (hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) || ui_focus_activate_pressed(focus_id);
+            open = (hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) || IsUIFocusActivatePressed(focus_id);
             if(open)
                 open_process_row(app, row);
             y += card_h + gap;
@@ -2377,36 +2502,24 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
     }
     EndScissorMode();
 
-    content_bottom = y + app->dashboard_scroll + flint_px(24);
+    content_bottom = y + app->dashboard_scroll + ScaleUIPx(24);
     content_h = content_bottom - viewport_y;
     app->dashboard_max_scroll = UKU_MAX(0, content_h - viewport_h);
     app->dashboard_scroll = clampi(app->dashboard_scroll, 0, app->dashboard_max_scroll);
-    draw_scrollbar(app, view_w - side - flint_px(8), viewport_y + flint_px(8),
-                   viewport_h - flint_px(16), content_h, app->dashboard_max_scroll,
+    draw_scrollbar(app, view_w - side - ScaleUIPx(8), viewport_y + ScaleUIPx(8),
+                   viewport_h - ScaleUIPx(16), content_h, app->dashboard_max_scroll,
                    &app->dashboard_scroll, &app->dashboard_drag_scrollbar, &app->dashboard_scroll_drag_offset);
-
-    new_clicked = draw_icon_button(app, view_w - flint_px(44), view_h - flint_px(44),
-                                   flint_px(36), UI_ICON_TYPE_PLUS, UKU_FOCUS_DASHBOARD_NEW);
-    if(new_clicked) {
-        if(app->account.loaded) {
-            reset_decision(app, text);
-            app->screen = UKU_SCREEN_CREATE;
-        } else {
-            app->screen = UKU_SCREEN_ACCOUNT;
-        }
-        ui_focus_clear();
-    }
 }
 
 static void
 draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h)
 {
-    int side = flint_page_side_padding();
+    int side = GetUIPageSidePadding();
     int content_x;
     int content_w;
-    int small_font = flint_clamp_px(13, 13, 16);
-    int top_h = flint_px(58);
-    int y = top_h + flint_px(20) - app->create_scroll;
+    int small_font = ClampUIPx(13, 13, 16);
+    int top_h = ScaleUIPx(58);
+    int y = top_h + ScaleUIPx(20) - app->create_scroll;
     int start_y = y;
     int clicked = 0;
     int back_clicked = 0;
@@ -2419,33 +2532,33 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
     int viewport_h = view_h - viewport_y;
     int reserve_scrollbar = app->create_scrollbar_visible;
 
-    app->create_scroll = clampi(app->create_scroll - (int)(GetMouseWheelMove() * flint_px(44)),
+    app->create_scroll = clampi(app->create_scroll - (int)(GetMouseWheelMove() * ScaleUIPx(44)),
                                 0, app->create_max_scroll);
-    flint_centered_column(680, side, &content_x, &content_w);
+    GetUICenteredColumn(680, side, &content_x, &content_w);
     if(reserve_scrollbar)
-        content_w = UKU_MAX(flint_px(220), ui_scrollbar_content_width(content_w, 1));
+        content_w = UKU_MAX(ScaleUIPx(220), GetUIScrollbarContentWidth(content_w, 1));
 
     draw_top_bar(app, text->create_title, 1, UKU_FOCUS_CREATE_BACK, &back_clicked, 0, NULL, 0, NULL, 0, NULL, view_w);
     if(back_clicked) {
         app->screen = UKU_SCREEN_HOME;
         app->active_field = UKU_FIELD_NONE;
-        ui_focus_clear();
+        ClearUIFocus();
     }
 
     BeginScissorMode(0, viewport_y, view_w, viewport_h);
     y = draw_text_field(app, font, text->topic_question_label, text->topic_question_placeholder,
                         d->topic, sizeof(d->topic), UKU_FIELD_TOPIC, UKU_FOCUS_TOPIC,
-                        content_x, y, content_w, flint_px(46));
+                        content_x, y, content_w, ScaleUIPx(46));
     if(d->topic_error) {
-        draw_text_font(font, text->topic_error, content_x, y - flint_px(8), small_font, flint_theme_get_button());
-        y += small_font + flint_px(8);
+        draw_text_font(font, text->topic_error, content_x, y - ScaleUIPx(8), small_font, GetThemeButton());
+        y += small_font + ScaleUIPx(8);
     }
     y = draw_text_field(app, font, text->description_label, text->description_placeholder,
                         d->description, sizeof(d->description), UKU_FIELD_DESCRIPTION, UKU_FOCUS_DESCRIPTION,
-                        content_x, y, content_w, flint_px(82));
-    y = draw_negative_weight_dropdown(app, font, text, content_x, y, UKU_MIN(content_w, flint_px(310)),
+                        content_x, y, content_w, ScaleUIPx(82));
+    y = draw_negative_weight_dropdown(app, font, text, content_x, y, UKU_MIN(content_w, ScaleUIPx(310)),
                                       UKU_FOCUS_NEGATIVE_WEIGHT);
-    y += flint_px(6);
+    y += ScaleUIPx(6);
     y = draw_duration_group(app, font, text->proposal_time_label, text,
                             &d->proposal_days, &d->proposal_hours, &d->proposal_minutes,
                             content_x, y, content_w, UKU_FOCUS_PROPOSAL_DAYS_MINUS);
@@ -2453,7 +2566,7 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
                             &d->voting_days, &d->voting_hours, &d->voting_minutes,
                             content_x, y, content_w, UKU_FOCUS_VOTING_DAYS_MINUS);
 
-    draw_button(app, font, content_x, y, content_w, flint_px(48), text->create_process_button, 1,
+    draw_button(app, font, content_x, y, content_w, ScaleUIPx(48), text->create_process_button, 1,
                 UKU_FOCUS_CREATE_SUBMIT, &clicked);
     if(clicked) {
         d->topic_error = !has_non_space(d->topic);
@@ -2467,27 +2580,27 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
                 app->remote_processes_loaded = 0;
                 app->screen = UKU_SCREEN_COLLECT;
                 app->active_field = UKU_FIELD_NONE;
-                ui_focus_clear();
+                ClearUIFocus();
             }
         }
     }
-    y += flint_px(62);
+    y += ScaleUIPx(62);
     if(d->submitted)
-        draw_centered_text(font, text->setup_ready, content_x + content_w / 2, y, small_font, flint_theme_get_button());
+        draw_centered_text(font, text->setup_ready, content_x + content_w / 2, y, small_font, GetThemeButton());
     if(d->db_error)
-        draw_centered_text(font, text->db_error, content_x + content_w / 2, y, small_font, flint_theme_get_button());
+        draw_centered_text(font, text->db_error, content_x + content_w / 2, y, small_font, GetThemeButton());
     if(d->remote_error)
-        draw_centered_text(font, "Saved locally, but Lyra upload failed.", content_x + content_w / 2, y + flint_px(20), small_font, flint_theme_get_button());
+        draw_centered_text(font, "Saved locally, but Lyra upload failed.", content_x + content_w / 2, y + ScaleUIPx(20), small_font, GetThemeButton());
     EndScissorMode();
 
-    content_bottom = y + app->create_scroll + flint_px(24);
+    content_bottom = y + app->create_scroll + ScaleUIPx(24);
     content_h = content_bottom - viewport_y;
     max_scroll = UKU_MAX(0, content_h - viewport_h);
     app->create_max_scroll = max_scroll;
     app->create_scrollbar_visible = max_scroll > 0;
     app->create_scroll = clampi(app->create_scroll, 0, max_scroll);
-    draw_scrollbar(app, view_w - side - flint_px(8), viewport_y + flint_px(8),
-                   viewport_h - flint_px(16), content_h, max_scroll,
+    draw_scrollbar(app, view_w - side - ScaleUIPx(8), viewport_y + ScaleUIPx(8),
+                   viewport_h - ScaleUIPx(16), content_h, max_scroll,
                    &app->create_scroll, &app->create_scroll_dragging, &app->create_scroll_drag_offset);
     (void)start_y;
 }
@@ -2495,13 +2608,13 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
 static void
 draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
 {
-    int side = flint_page_side_padding();
+    int side = GetUIPageSidePadding();
     int content_x;
     int content_w;
-    int body_font = flint_clamp_px(16, 16, 20);
-    int small_font = flint_clamp_px(13, 13, 16);
-    int line_h = body_font + flint_px(8);
-    int y = flint_px(78);
+    int body_font = ClampUIPx(16, 16, 20);
+    int small_font = ClampUIPx(13, 13, 16);
+    int line_h = body_font + ScaleUIPx(8);
+    int y = ScaleUIPx(78);
     int back_clicked = 0;
     Font font = app->font;
     UkuDecision *d = &app->decision;
@@ -2510,61 +2623,61 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     int voting_total = duration_minutes(d->voting_days, d->voting_hours, d->voting_minutes);
     sqlite3_int64 now = (sqlite3_int64)time(NULL);
 
-    flint_centered_column(680, side, &content_x, &content_w);
+    GetUICenteredColumn(680, side, &content_x, &content_w);
 
     draw_top_bar(app, text->collect_title, 1, UKU_FOCUS_COLLECT_BACK, &back_clicked, 0, NULL, 0, NULL, 0, NULL, view_w);
     if(back_clicked) {
         app->screen = UKU_SCREEN_HOME;
         db_load_processes(app);
-        ui_focus_clear();
+        ClearUIFocus();
     }
 
-    draw_text_font(font, d->topic, content_x, y, body_font, flint_theme_get_text());
-    y += body_font + flint_px(18);
+    draw_text_font(font, d->topic, content_x, y, body_font, GetThemeText());
+    y += body_font + ScaleUIPx(18);
 
     format_process_timer(timer, sizeof(timer), text, d->created_at, proposal_total, voting_total, now);
-    DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)content_w, (float)flint_px(44)}, 0.08f, 10,
+    DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)content_w, (float)ScaleUIPx(44)}, 0.08f, 10,
                          (Color){255, 255, 255, 255});
-    DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)content_w, (float)flint_px(44)}, 0.08f, 10,
-                                flint_px(1), flint_theme_get_text());
-    draw_text_font(font, fit_tail(font, timer, body_font, content_w - flint_px(24)),
-                   content_x + flint_px(12), y + flint_px(12), body_font,
-                   process_phase(d->created_at, proposal_total, voting_total, now, NULL) == UKU_PROCESS_RESULTS ? flint_theme_get_text() : flint_theme_get_button());
-    y += flint_px(62);
+    DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)content_w, (float)ScaleUIPx(44)}, 0.08f, 10,
+                                ScaleUIPx(1), GetThemeText());
+    draw_text_font(font, fit_tail(font, timer, body_font, content_w - ScaleUIPx(24)),
+                   content_x + ScaleUIPx(12), y + ScaleUIPx(12), body_font,
+                   process_phase(d->created_at, proposal_total, voting_total, now, NULL) == UKU_PROCESS_RESULTS ? GetThemeText() : GetThemeButton());
+    y += ScaleUIPx(62);
 
-    y = draw_wrapped_text(font, text->collect_intro, content_x, y, content_w, body_font, line_h, flint_theme_get_text());
-    y += flint_px(20);
+    y = draw_wrapped_text(font, text->collect_intro, content_x, y, content_w, body_font, line_h, GetThemeText());
+    y += ScaleUIPx(20);
 
     if(d->remote_error) {
-        y = draw_wrapped_text(font, "Saved locally, but Lyra upload failed. Check your connection and account.", content_x, y, content_w, small_font, line_h, flint_theme_get_button());
-        y += flint_px(16);
+        y = draw_wrapped_text(font, "Saved locally, but Lyra upload failed. Check your connection and account.", content_x, y, content_w, small_font, line_h, GetThemeButton());
+        y += ScaleUIPx(16);
     }
 
-    draw_text_font(font, text->local_address_label, content_x, y, small_font, flint_theme_get_button());
-    y += small_font + flint_px(8);
-    DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)content_w, (float)flint_px(46)}, 0.08f, 10, WHITE);
-    DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)content_w, (float)flint_px(46)}, 0.08f, 10,
-                                flint_px(1), flint_theme_get_text());
-    draw_text_font(font, d->local_address, content_x + flint_px(12), y + flint_px(13), body_font, flint_theme_get_text());
-    y += flint_px(70);
+    draw_text_font(font, text->local_address_label, content_x, y, small_font, GetThemeButton());
+    y += small_font + ScaleUIPx(8);
+    DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)content_w, (float)ScaleUIPx(46)}, 0.08f, 10, WHITE);
+    DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)content_w, (float)ScaleUIPx(46)}, 0.08f, 10,
+                                ScaleUIPx(1), GetThemeText());
+    draw_text_font(font, d->local_address, content_x + ScaleUIPx(12), y + ScaleUIPx(13), body_font, GetThemeText());
+    y += ScaleUIPx(70);
 
-    draw_text_font(font, text->default_proposals_label, content_x, y, small_font, flint_theme_get_button());
-    y += small_font + flint_px(12);
+    draw_text_font(font, text->default_proposals_label, content_x, y, small_font, GetThemeButton());
+    y += small_font + ScaleUIPx(12);
 
-    DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)content_w, (float)flint_px(72)}, 0.08f, 10,
+    DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)content_w, (float)ScaleUIPx(72)}, 0.08f, 10,
                          (Color){255, 255, 255, 255});
-    DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)content_w, (float)flint_px(72)}, 0.08f, 10,
-                                flint_px(1), flint_theme_get_text());
-    draw_text_font(font, text->status_quo_title, content_x + flint_px(12), y + flint_px(10), body_font, flint_theme_get_text());
-    draw_text_font(font, text->status_quo_description, content_x + flint_px(12), y + flint_px(38), small_font, flint_theme_get_text());
-    y += flint_px(84);
+    DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)content_w, (float)ScaleUIPx(72)}, 0.08f, 10,
+                                ScaleUIPx(1), GetThemeText());
+    draw_text_font(font, text->status_quo_title, content_x + ScaleUIPx(12), y + ScaleUIPx(10), body_font, GetThemeText());
+    draw_text_font(font, text->status_quo_description, content_x + ScaleUIPx(12), y + ScaleUIPx(38), small_font, GetThemeText());
+    y += ScaleUIPx(84);
 
-    DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)content_w, (float)flint_px(72)}, 0.08f, 10,
+    DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)content_w, (float)ScaleUIPx(72)}, 0.08f, 10,
                          (Color){255, 255, 255, 255});
-    DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)content_w, (float)flint_px(72)}, 0.08f, 10,
-                                flint_px(1), flint_theme_get_text());
-    draw_text_font(font, text->repeat_process_title, content_x + flint_px(12), y + flint_px(10), body_font, flint_theme_get_text());
-    draw_text_font(font, text->repeat_process_description, content_x + flint_px(12), y + flint_px(38), small_font, flint_theme_get_text());
+    DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)content_w, (float)ScaleUIPx(72)}, 0.08f, 10,
+                                ScaleUIPx(1), GetThemeText());
+    draw_text_font(font, text->repeat_process_title, content_x + ScaleUIPx(12), y + ScaleUIPx(10), body_font, GetThemeText());
+    draw_text_font(font, text->repeat_process_description, content_x + ScaleUIPx(12), y + ScaleUIPx(38), small_font, GetThemeText());
 
     (void)view_w;
     (void)view_h;
@@ -2573,19 +2686,19 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
 static void
 draw_public_id_modal(UkuApp *app, int view_w, int view_h)
 {
-    int panel_w = UKU_MIN(view_w - flint_px(32), flint_px(380));
-    int panel_h = flint_px(274);
+    int panel_w = UKU_MIN(view_w - ScaleUIPx(32), ScaleUIPx(380));
+    int panel_h = ScaleUIPx(274);
     int x = (view_w - panel_w) / 2;
     int y = (view_h - panel_h) / 2;
-    int pad = flint_px(18);
-    int body_font = flint_clamp_px(15, 15, 19);
-    int small_font = flint_clamp_px(13, 13, 16);
-    int line_h = body_font + flint_px(7);
+    int pad = ScaleUIPx(18);
+    int body_font = ClampUIPx(15, 15, 19);
+    int small_font = ClampUIPx(13, 13, 16);
+    int line_h = body_font + ScaleUIPx(7);
     int copy_clicked = 0;
     int close_clicked = 0;
     int alias_clicked = 0;
     int content_y;
-    int half_w = (panel_w - pad * 2 - flint_px(10)) / 2;
+    int half_w = (panel_w - pad * 2 - ScaleUIPx(10)) / 2;
     Rectangle overlay = {0, 0, (float)view_w, (float)view_h};
     Rectangle panel = {(float)x, (float)y, (float)panel_w, (float)panel_h};
     Font font = app->font;
@@ -2594,26 +2707,26 @@ draw_public_id_modal(UkuApp *app, int view_w, int view_h)
         return;
 
     DrawRectangleRec(overlay, (Color){0, 0, 0, 96});
-    DrawRectangleRounded(panel, 0.08f, 12, flint_theme_get_surface());
-    DrawRectangleRoundedLinesEx(panel, 0.08f, 12, flint_px(1), flint_theme_get_text());
-    draw_text_font(font, "Full Public ID", x + pad, y + pad, body_font, flint_theme_get_text());
-    content_y = y + pad + body_font + flint_px(14);
+    DrawRectangleRounded(panel, 0.08f, 12, GetThemeSurface());
+    DrawRectangleRoundedLinesEx(panel, 0.08f, 12, ScaleUIPx(1), GetThemeText());
+    draw_text_font(font, "Full Public ID", x + pad, y + pad, body_font, GetThemeText());
+    content_y = y + pad + body_font + ScaleUIPx(14);
     content_y = draw_wrapped_text(font, "This is the full account ID used by the server.",
                                   x + pad, content_y, panel_w - pad * 2, small_font, line_h,
-                                  flint_theme_get_text());
-    content_y += flint_px(10);
+                                  GetThemeText());
+    content_y += ScaleUIPx(10);
     content_y = draw_readonly_field(app, font, app->account.public_id,
-                                    x + pad, content_y, panel_w - pad * 2, flint_px(46),
+                                    x + pad, content_y, panel_w - pad * 2, ScaleUIPx(46),
                                     UKU_FOCUS_ACCOUNT_ID, &copy_clicked);
     if(copy_clicked) {
         SetClipboardText(app->account.public_id);
         copy_text(app->account_status, sizeof(app->account_status),
                   "Public ID copied.", strlen("Public ID copied."));
     }
-    content_y += flint_px(4);
-    draw_button(app, font, x + pad, content_y, half_w, flint_px(40), "Copy", 1,
+    content_y += ScaleUIPx(4);
+    draw_button(app, font, x + pad, content_y, half_w, ScaleUIPx(40), "Copy", 1,
                 UKU_FOCUS_PUBLIC_ID_COPY, &copy_clicked);
-    draw_button(app, font, x + pad + half_w + flint_px(10), content_y, half_w, flint_px(40),
+    draw_button(app, font, x + pad + half_w + ScaleUIPx(10), content_y, half_w, ScaleUIPx(40),
                 "Close", 0, UKU_FOCUS_PUBLIC_ID_CLOSE, &close_clicked);
     if(copy_clicked) {
         SetClipboardText(app->account.public_id);
@@ -2623,8 +2736,8 @@ draw_public_id_modal(UkuApp *app, int view_w, int view_h)
     if(close_clicked)
         app->account_public_id_modal_open = 0;
 
-    draw_button(app, font, x + pad, y + panel_h - pad - flint_px(40),
-                panel_w - pad * 2, flint_px(40), "Alias", 0,
+    draw_button(app, font, x + pad, y + panel_h - pad - ScaleUIPx(40),
+                panel_w - pad * 2, ScaleUIPx(40), "Alias", 0,
                 UKU_FOCUS_PUBLIC_ID_ALIAS, &alias_clicked);
     if(alias_clicked)
         account_open_alias_modal(app);
@@ -2633,14 +2746,14 @@ draw_public_id_modal(UkuApp *app, int view_w, int view_h)
 static void
 draw_alias_modal(UkuApp *app, int view_w, int view_h)
 {
-    int panel_w = UKU_MIN(view_w - flint_px(32), flint_px(360));
-    int panel_h = flint_px(248);
+    int panel_w = UKU_MIN(view_w - ScaleUIPx(32), ScaleUIPx(360));
+    int panel_h = ScaleUIPx(248);
     int x = (view_w - panel_w) / 2;
     int y = (view_h - panel_h) / 2;
-    int pad = flint_px(18);
-    int body_font = flint_clamp_px(15, 15, 19);
-    int small_font = flint_clamp_px(13, 13, 16);
-    int line_h = body_font + flint_px(7);
+    int pad = ScaleUIPx(18);
+    int body_font = ClampUIPx(15, 15, 19);
+    int small_font = ClampUIPx(13, 13, 16);
+    int line_h = body_font + ScaleUIPx(7);
     int close_clicked = 0;
     int save_clicked = 0;
     int input_x;
@@ -2654,29 +2767,29 @@ draw_alias_modal(UkuApp *app, int view_w, int view_h)
         return;
 
     DrawRectangleRec(overlay, (Color){0, 0, 0, 96});
-    DrawRectangleRounded(panel, 0.08f, 12, flint_theme_get_surface());
-    DrawRectangleRoundedLinesEx(panel, 0.08f, 12, flint_px(1), flint_theme_get_text());
-    draw_text_font(font, "Account alias", x + pad, y + pad, body_font, flint_theme_get_text());
-    content_y = y + pad + body_font + flint_px(14);
+    DrawRectangleRounded(panel, 0.08f, 12, GetThemeSurface());
+    DrawRectangleRoundedLinesEx(panel, 0.08f, 12, ScaleUIPx(1), GetThemeText());
+    draw_text_font(font, "Account alias", x + pad, y + pad, body_font, GetThemeText());
+    content_y = y + pad + body_font + ScaleUIPx(14);
     content_y = draw_wrapped_text(font, "Choose a short alias for this account on the current server.",
                                   x + pad, content_y, panel_w - pad * 2, small_font, line_h,
-                                  flint_theme_get_text());
-    content_y += flint_px(8);
-    draw_text_font(font, "@", x + pad, content_y + flint_px(30), body_font, flint_theme_get_text());
-    input_x = x + pad + flint_px(24);
-    input_w = panel_w - pad * 2 - flint_px(24);
+                                  GetThemeText());
+    content_y += ScaleUIPx(8);
+    draw_text_font(font, "@", x + pad, content_y + ScaleUIPx(30), body_font, GetThemeText());
+    input_x = x + pad + ScaleUIPx(24);
+    input_w = panel_w - pad * 2 - ScaleUIPx(24);
     draw_text_field(app, font, "Alias", "name",
                     app->alias_input, sizeof(app->alias_input), UKU_FIELD_ALIAS,
-                    UKU_FOCUS_ALIAS_FIELD, input_x, content_y, input_w, flint_px(42));
+                    UKU_FOCUS_ALIAS_FIELD, input_x, content_y, input_w, ScaleUIPx(42));
     alias_normalize(app->alias_input);
-    content_y += flint_px(74);
+    content_y += ScaleUIPx(74);
     draw_text_font(font, "4-32 letters, numbers, or underscore.", x + pad, content_y,
-                   small_font, flint_theme_get_button());
-    content_y += flint_px(28);
-    draw_button(app, font, x + pad, content_y, (panel_w - pad * 2 - flint_px(10)) / 2,
-                flint_px(40), "Close", 0, UKU_FOCUS_ALIAS_CLOSE, &close_clicked);
-    draw_button(app, font, x + pad + (panel_w - pad * 2 + flint_px(10)) / 2, content_y,
-                (panel_w - pad * 2 - flint_px(10)) / 2, flint_px(40), "Save", 1,
+                   small_font, GetThemeButton());
+    content_y += ScaleUIPx(28);
+    draw_button(app, font, x + pad, content_y, (panel_w - pad * 2 - ScaleUIPx(10)) / 2,
+                ScaleUIPx(40), "Close", 0, UKU_FOCUS_ALIAS_CLOSE, &close_clicked);
+    draw_button(app, font, x + pad + (panel_w - pad * 2 + ScaleUIPx(10)) / 2, content_y,
+                (panel_w - pad * 2 - ScaleUIPx(10)) / 2, ScaleUIPx(40), "Save", 1,
                 UKU_FOCUS_ALIAS_SAVE, &save_clicked);
 
     if(close_clicked) {
@@ -2700,14 +2813,14 @@ draw_alias_modal(UkuApp *app, int view_w, int view_h)
 static void
 draw_account(UkuApp *app, const UkuText *text, int view_w, int view_h)
 {
-    int side = flint_page_side_padding();
+    int side = GetUIPageSidePadding();
     int content_x;
     int content_w;
-    int top_h = flint_px(58);
-    int y = top_h + flint_px(24);
-    int body_font = flint_clamp_px(15, 15, 19);
-    int small_font = flint_clamp_px(13, 13, 16);
-    int line_h = body_font + flint_px(8);
+    int top_h = ScaleUIPx(58);
+    int y = top_h + ScaleUIPx(24);
+    int body_font = ClampUIPx(15, 15, 19);
+    int small_font = ClampUIPx(13, 13, 16);
+    int line_h = body_font + ScaleUIPx(8);
     int back_clicked = 0;
     int create_clicked = 0;
     int import_clicked = 0;
@@ -2718,24 +2831,24 @@ draw_account(UkuApp *app, const UkuText *text, int view_w, int view_h)
     char display_id[96];
     Font font = app->font;
 
-    flint_centered_column(680, side, &content_x, &content_w);
+    GetUICenteredColumn(680, side, &content_x, &content_w);
     draw_top_bar(app, "Account", 1, UKU_FOCUS_MANUAL_BACK, &back_clicked, 0, NULL, 0, NULL, 0, NULL, view_w);
     if(back_clicked) {
         app->screen = UKU_SCREEN_HOME;
-        ui_focus_clear();
+        ClearUIFocus();
     }
 
     y = draw_text_field(app, font, "Lyra server", "https://api.waozi.xyz",
                         app->server_url, sizeof(app->server_url), UKU_FIELD_SERVER_URL,
-                        UKU_FOCUS_TOPIC, content_x, y, content_w, flint_px(46));
-    draw_button(app, font, content_x, y, content_w, flint_px(42), "Save server URL", 0,
+                        UKU_FOCUS_TOPIC, content_x, y, content_w, ScaleUIPx(46));
+    draw_button(app, font, content_x, y, content_w, ScaleUIPx(42), "Save server URL", 0,
                 UKU_FOCUS_DESCRIPTION, &save_server_clicked);
     if(save_server_clicked)
         sync_server_save(app);
-    y += flint_px(54);
+    y += ScaleUIPx(54);
     if(app->server_url_error) {
-        y = draw_wrapped_text(font, "Use HTTPS for remote servers, or localhost/127.0.0.1/10.0.2.2 for HTTP development.", content_x, y, content_w, small_font, line_h, flint_theme_get_button());
-        y += flint_px(12);
+        y = draw_wrapped_text(font, "Use HTTPS for remote servers, or localhost/127.0.0.1/10.0.2.2 for HTTP development.", content_x, y, content_w, small_font, line_h, GetThemeButton());
+        y += ScaleUIPx(12);
     }
 
     if(app->account.loaded) {
@@ -2745,39 +2858,39 @@ draw_account(UkuApp *app, const UkuText *text, int view_w, int view_h)
             snprintf(display_id, sizeof(display_id), "@%s", alias);
         else
             compact_public_id(app->account.public_id, display_id, sizeof(display_id));
-        draw_text_font(font, "Public ID", content_x, y, small_font, flint_theme_get_button());
-        y += small_font + flint_px(8);
-        y = draw_readonly_field(app, font, display_id, content_x, y, content_w, flint_px(46),
+        draw_text_font(font, "Public ID", content_x, y, small_font, GetThemeButton());
+        y += small_font + ScaleUIPx(8);
+        y = draw_readonly_field(app, font, display_id, content_x, y, content_w, ScaleUIPx(46),
                                 UKU_FOCUS_ACCOUNT_ID, &account_id_clicked);
         if(account_id_clicked)
             account_open_public_id_modal(app);
-        y += flint_px(6);
-        draw_button(app, font, content_x, y, content_w, flint_px(46), "Export account.key", 0,
+        y += ScaleUIPx(6);
+        draw_button(app, font, content_x, y, content_w, ScaleUIPx(46), "Export account.key", 0,
                     UKU_FOCUS_SETTINGS, &export_clicked);
         if(export_clicked)
             account_start_export_dialog(app);
-        y += flint_px(58);
+        y += ScaleUIPx(58);
     } else {
-        if(flint_lyra_account_available()) {
-            y = draw_wrapped_text(font, "Create an account or import an account key to start processes, add proposals, or vote.", content_x, y, content_w, body_font, line_h, flint_theme_get_text());
-            y += flint_px(18);
-            draw_button(app, font, content_x, y, content_w, flint_px(46), "Create account", 1,
+        if(IsLyraAccountAvailable()) {
+            y = draw_wrapped_text(font, "Create an account or import an account key to start processes, add proposals, or vote.", content_x, y, content_w, body_font, line_h, GetThemeText());
+            y += ScaleUIPx(18);
+            draw_button(app, font, content_x, y, content_w, ScaleUIPx(46), "Create account", 1,
                         UKU_FOCUS_CREATE_SUBMIT, &create_clicked);
-            y += flint_px(58);
-            draw_button(app, font, content_x, y, content_w, flint_px(46), "Import account.key", 0,
+            y += ScaleUIPx(58);
+            draw_button(app, font, content_x, y, content_w, ScaleUIPx(46), "Import account.key", 0,
                         UKU_FOCUS_SETTINGS, &import_clicked);
-            y += flint_px(58);
+            y += ScaleUIPx(58);
             if(create_clicked)
                 account_create(app);
             if(import_clicked)
                 account_start_import_dialog(app);
         } else {
-            y = draw_wrapped_text(font, "This build does not include liboqs, so account creation and signing are unavailable.", content_x, y, content_w, body_font, line_h, flint_theme_get_button());
+            y = draw_wrapped_text(font, "This build does not include liboqs, so account creation and signing are unavailable.", content_x, y, content_w, body_font, line_h, GetThemeButton());
         }
     }
     if(app->account_status[0] != '\0')
         draw_wrapped_text(font, app->account_status, content_x, y, content_w, small_font, line_h,
-                          app->account.import_failed ? flint_theme_get_button() : flint_theme_get_text());
+                          app->account.import_failed ? GetThemeButton() : GetThemeText());
 
     (void)text;
     (void)view_h;
@@ -2786,40 +2899,40 @@ draw_account(UkuApp *app, const UkuText *text, int view_w, int view_h)
 static void
 draw_manual(UkuApp *app, const UkuText *text, int view_w, int view_h)
 {
-    int side = flint_page_side_padding();
+    int side = GetUIPageSidePadding();
     int content_x;
     int content_w;
-    int top_h = flint_px(58);
+    int top_h = ScaleUIPx(58);
     int viewport_y = top_h;
     int viewport_h = view_h - viewport_y;
-    int body_font = flint_clamp_px(15, 15, 19);
-    int line_h = body_font + flint_px(7);
-    int y = viewport_y + flint_px(24) - app->manual_scroll;
+    int body_font = ClampUIPx(15, 15, 19);
+    int line_h = body_font + ScaleUIPx(7);
+    int y = viewport_y + ScaleUIPx(24) - app->manual_scroll;
     int back_clicked = 0;
     int content_bottom;
     int content_h;
     Font font = app->font;
 
-    app->manual_scroll = clampi(app->manual_scroll - (int)(GetMouseWheelMove() * flint_px(44)),
+    app->manual_scroll = clampi(app->manual_scroll - (int)(GetMouseWheelMove() * ScaleUIPx(44)),
                                 0, app->manual_max_scroll);
-    flint_centered_column(760, side, &content_x, &content_w);
+    GetUICenteredColumn(760, side, &content_x, &content_w);
 
     draw_top_bar(app, text->manual_title, 1, UKU_FOCUS_MANUAL_BACK, &back_clicked, 0, NULL, 0, NULL, 0, NULL, view_w);
     if(back_clicked) {
         app->screen = UKU_SCREEN_HOME;
-        ui_focus_clear();
+        ClearUIFocus();
     }
 
     BeginScissorMode(0, viewport_y, view_w, viewport_h);
-    y = draw_wrapped_text(font, text->manual_body, content_x, y, content_w, body_font, line_h, flint_theme_get_text());
+    y = draw_wrapped_text(font, text->manual_body, content_x, y, content_w, body_font, line_h, GetThemeText());
     EndScissorMode();
 
-    content_bottom = y + app->manual_scroll + flint_px(24);
+    content_bottom = y + app->manual_scroll + ScaleUIPx(24);
     content_h = content_bottom - viewport_y;
     app->manual_max_scroll = UKU_MAX(0, content_h - viewport_h);
     app->manual_scroll = clampi(app->manual_scroll, 0, app->manual_max_scroll);
-    draw_scrollbar(app, view_w - side - flint_px(8), viewport_y + flint_px(8),
-                   viewport_h - flint_px(16), content_h, app->manual_max_scroll,
+    draw_scrollbar(app, view_w - side - ScaleUIPx(8), viewport_y + ScaleUIPx(8),
+                   viewport_h - ScaleUIPx(16), content_h, app->manual_max_scroll,
                    &app->manual_scroll, &app->manual_drag_scrollbar, &app->manual_scroll_drag_offset);
 }
 
@@ -2842,33 +2955,40 @@ main(void)
             snprintf(app.server_url, sizeof(app.server_url), "%s", UKU_SYNC_SERVER_URL_DEFAULT);
     }
     account_load(&app);
+#if !defined(PLATFORM_WEB)
+    InitFileDialog(&app.account_import_dialog);
+    InitFileDialog(&app.account_export_dialog);
+#endif
 
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(520, 760, text.app_title);
     SetTargetFPS(60);
-    flint_dpi_init();
-    flint_theme_set_current(FLINT_THEME_SUNSET, 0);
+    InitUIDPI();
+    SetCurrentTheme(THEME_SUNSET, 0);
     app_load_font(&app);
     load_icons_once(&app);
 
     while(!WindowShouldClose()) {
+#if defined(PLATFORM_WEB)
+        SyncWebWindowSize();
+#endif
         int view_w = GetScreenWidth();
         int view_h = GetScreenHeight();
 
-        flint_dpi_update(view_w, view_h);
-        flint_set_dpi_scale(flint_dpi_state.ui_scale_clamped);
-        flint_set_view_size(view_w, view_h);
-        ui_init(view_w, view_h, flint_get_dpi_scale());
-        ui_set_frame((Camera2D){0});
-        ui_set_cursor_clickable(&app.cursor_clickable);
-        ui_set_colors(flint_theme_get_text(), flint_theme_get_bg(), flint_theme_get_surface(), flint_theme_get_circle(), flint_theme_get_button(), flint_theme_get_button_hover(), flint_theme_get_icon());
+        UpdateUIDPI(view_w, view_h);
+        SetUIScale(ui_dpi_state.ui_scale_clamped);
+        SetUIViewSize(view_w, view_h);
+        InitUI(view_w, view_h, GetUIScale());
+        SetUIFrame((Camera2D){0});
+        SetUICursorClickable(&app.cursor_clickable);
+        SetUIColors(GetThemeText(), GetThemeBackground(), GetThemeSurface(), GetThemeCircle(), GetThemeButton(), GetThemeButtonHover(), GetThemeIcon());
 
         app.cursor_clickable = 0;
 
         BeginDrawing();
-        ClearBackground(flint_theme_get_bg());
-        ui_focus_begin();
-        ui_focus_set_text_input_active(app.active_field != UKU_FIELD_NONE);
+        ClearBackground(GetThemeBackground());
+        BeginUIFocus();
+        SetUIFocusTextInputActive(app.active_field != UKU_FIELD_NONE);
         if(app.screen == UKU_SCREEN_HOME)
             draw_home(&app, &text, view_w, view_h);
         else if(app.screen == UKU_SCREEN_CREATE)
@@ -2881,18 +3001,19 @@ main(void)
             draw_manual(&app, &text, view_w, view_h);
         draw_public_id_modal(&app, view_w, view_h);
         draw_alias_modal(&app, view_w, view_h);
-        account_draw_pending_file_dialog(&app);
-        ui_focus_end();
+        EndUIFocus();
         EndDrawing();
 
         SetMouseCursor(app.cursor_clickable ? MOUSE_CURSOR_POINTING_HAND : MOUSE_CURSOR_DEFAULT);
     }
 
     app_unload_font(&app);
-    flint_file_dialog_cleanup(&app.account_import_dialog);
-    flint_file_dialog_cleanup(&app.account_export_dialog);
+#if !defined(PLATFORM_WEB)
+    CloseFileDialog(&app.account_import_dialog);
+    CloseFileDialog(&app.account_export_dialog);
     if(app.db != NULL)
         sqlite3_close(app.db);
+#endif
     CloseWindow();
     return 0;
 }

@@ -2,19 +2,19 @@
 Ukuvota
 ---
 [home_title]
-Dashboard
+Ukuvota
 ---
 [home_subtitle]
-Active Processes
+Collective decisions without hidden resistance
 ---
 [home_summary]
 Ukuvota helps groups make collective decisions with score voting. Participants can support or oppose every option, so the result favors choices people can accept and still act on.
 ---
 [start_process_button]
-Start Process
+Make New Process
 ---
 [dashboard_empty]
-No active processes yet. Press the plus button to start a new decision process.
+No active processes yet.
 ---
 [dashboard_recent_label]
 Active Processes
