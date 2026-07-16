@@ -11,7 +11,7 @@ app = ["src/main.c"]
 
 [assets]
 locales = "locales/*.txt"
-fonts = ["assets/fonts/locales.png", "assets/fonts/locales.dat"]
+fonts = ["assets/fonts/ui.png", "assets/fonts/ui.dat"]
 
 [raylib]
 audio = false

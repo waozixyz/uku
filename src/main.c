@@ -217,8 +217,9 @@ typedef struct ChoppedGlyph {
 } ChoppedGlyph;
 
 
-#define LOCALE_FONT_PNG "assets/fonts/locales.png"
-#define LOCALE_FONT_DAT "assets/fonts/locales.dat"
+#define LOCALE_FONT_NAME "ui"
+#define LOCALE_FONT_PNG "assets/fonts/ui.png"
+#define LOCALE_FONT_DAT "assets/fonts/ui.dat"
 #define LOCALE_TEXT_PATH "locales/en.txt"
 #define LOCALE_FONT_BASE_SIZE 16
 #define UKU_PACKAGE_ID "xyz.waozi.uku"
@@ -489,22 +490,31 @@ app_load_font(UkuApp *app)
         app->locale_font_ready = 0;
         return;
     }
+    if(!RegisterUIFont(LOCALE_FONT_NAME, app->font) ||
+       !RegisterUISmallFont(LOCALE_FONT_NAME, app->font) ||
+       !UseUIFont(LOCALE_FONT_NAME)) {
+        if(app->font.texture.id != 0) {
+            UnloadTexture(app->font.texture);
+            free(app->font.glyphs);
+            free(app->font.recs);
+        }
+        app->font = GetFontDefault();
+        app->locale_font_ready = 0;
+        return;
+    }
 
     white = GenImageColor(1, 1, WHITE);
     app->font_shapes_texture = LoadTextureFromImage(white);
     UnloadImage(white);
     if(app->font_shapes_texture.id != 0)
         SetShapesTexture(app->font_shapes_texture, (Rectangle){0, 0, 1, 1});
-    SetUIFont(app->font);
-    SetUISmallFont(app->font);
     app->locale_font_ready = 1;
 }
 
 static void
 app_unload_font(UkuApp *app)
 {
-    SetUIFont((Font){0});
-    SetUISmallFont((Font){0});
+    ClearUIFonts();
     if(app->locale_font_ready) {
         UnloadTexture(app->font.texture);
         free(app->font.glyphs);
