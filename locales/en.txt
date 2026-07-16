@@ -13,6 +13,18 @@ Ukuvota helps groups make collective decisions with score voting. Participants c
 [start_process_button]
 Make New Process
 ---
+[join_process_label]
+Join Process
+---
+[join_process_placeholder]
+Paste process ID or share link
+---
+[join_process_button]
+Open Process
+---
+[join_process_error]
+Could not open that process. Check the ID, link, or server.
+---
 [dashboard_empty]
 No active processes yet.
 ---
