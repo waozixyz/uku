@@ -57,7 +57,7 @@ WEB_LIBOQS_INCLUDE = -I$(WEB_LIBOQS_BUILD_DIR)/include
 WEB_FLINT_SRCS = $(filter-out $(FLINT_DIR)/src/file_dialog/file_dialog.c,$(FLINT_SRCS))
 WEB_PUBLIC_FILES = $(wildcard manifest.json) $(shell find web-assets -type f 2>/dev/null)
 WEB_CFLAGS = -Wall -Wextra -Wno-unused-function -Wno-typedef-redefinition -std=gnu99 -O0 -DPLATFORM_WEB -DGRAPHICS_API_OPENGL_ES2 -D_DEFAULT_SOURCE -DSUPPORT_MODULE_RAUDIO=0 -DSUPPORT_FILEFORMAT_JPG=1 -DUI_EMBEDDED_ONLY=1 -DHAS_LIBOQS=1 -DFLINT_HAS_LIBOQS=1
-WEB_LDFLAGS = -sUSE_GLFW=3 -sFETCH=1 -sASYNCIFY -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=134217728 -sSTACK_SIZE=8388608 -sGLOBAL_BASE=16777216 -lidbfs.js
+WEB_LDFLAGS = -sUSE_GLFW=3 -sFETCH=1 -sASYNCIFY -sINITIAL_MEMORY=134217728 -sSTACK_SIZE=8388608 -sGLOBAL_BASE=16777216 -lidbfs.js
 
 $(eval $(call FLINT_RAYLIB_WEB_RULE,$(WEB_RAYLIB_A),$(or $(WEB_RAYLIB_SOURCE_BUILD_DIR),$(dir $(WEB_RAYLIB_BUILD_DIR))raylib-src),$(WEB_RAYLIB_BUILD_DIR),$(WEB_CC),$(WEB_AR)))
 
@@ -74,8 +74,9 @@ $(WEB_JS_TARGET): $(BUILD_MAKEFILES) $(SRC) $(WEB_FLINT_SRCS) $(CORE_SRCS) $(WEB
 		$(CORE_SRCS) \
 		$(WEB_RAYLIB_A) \
 		$(WEB_LIBOQS_A) \
-		$(WEB_LDFLAGS)
+	$(WEB_LDFLAGS)
 	@if [ -d web-assets ]; then rsync -a web-assets/ $(WEB_BUILD_DIR)/web-assets/; fi
+	@if [ -f web-assets/uku-logo.svg ]; then cp web-assets/uku-logo.svg $(WEB_BUILD_DIR)/favicon.ico; fi
 	@if [ -f manifest.json ]; then cp manifest.json $(WEB_BUILD_DIR)/; fi
 
 $(WEB_BUILD_DIR)/index.html: $(WEB_SHELL) $(WEB_JS_TARGET) | $(WEB_BUILD_DIR)

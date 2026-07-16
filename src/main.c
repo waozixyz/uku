@@ -1,5 +1,6 @@
 #include "raylib.h"
 #include "flint.h"
+#include "embedded_assets.h"
 #include "file_dialog.h"
 
 #if defined(PLATFORM_WEB)
@@ -341,12 +342,17 @@ assign_text(UkuText *text, const char *key, const char *value, size_t len)
 static void
 load_text_file(UkuText *text, const char *path)
 {
-    char *data = LoadFileText(path);
+    int embedded = 0;
+    char *data = LoadEmbeddedAssetText(path);
     char key[96] = {0};
     char *line;
     char *value_start = NULL;
 
     set_default_text(text);
+    if(data != NULL)
+        embedded = 1;
+    else
+        data = LoadFileText(path);
     if(data == NULL)
         return;
 
@@ -378,7 +384,10 @@ load_text_file(UkuText *text, const char *path)
     if(key[0] != '\0' && value_start != NULL)
         assign_text(text, key, value_start, strlen(value_start));
 
-    UnloadFileText(data);
+    if(embedded)
+        free(data);
+    else
+        UnloadFileText(data);
 }
 
 static Font
@@ -463,9 +472,18 @@ cleanup:
 static void
 app_load_font(UkuApp *app)
 {
+    const EmbeddedAsset *png;
+    const EmbeddedAsset *dat;
     Image white;
 
-    app->font = load_chopped_font(LOCALE_FONT_PNG, LOCALE_FONT_DAT);
+    png = GetEmbeddedAsset(LOCALE_FONT_PNG);
+    dat = GetEmbeddedAsset(LOCALE_FONT_DAT);
+    if(png != NULL && dat != NULL) {
+        app->font = LoadUIChoppedFontFromMemory(
+            png->data, png->size, dat->data, dat->size, LOCALE_FONT_BASE_SIZE);
+    }
+    if(app->font.texture.id == 0)
+        app->font = load_chopped_font(LOCALE_FONT_PNG, LOCALE_FONT_DAT);
     if(app->font.texture.id == 0) {
         app->font = GetFontDefault();
         app->locale_font_ready = 0;
