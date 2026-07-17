@@ -167,6 +167,7 @@ typedef struct UkuApp {
     int account_public_id_modal_open;
     int account_alias_modal_open;
     int process_type_modal_open;
+    int process_type_launch_create;
     char account_status[160];
     char process_status[180];
     char server_url[256];
@@ -290,6 +291,7 @@ typedef struct UkuProcessTemplate {
     const char *type;
     const char *title;
     const char *description;
+    UIIconType icon;
     int proposal_days;
     int proposal_hours;
     int proposal_minutes;
@@ -303,29 +305,33 @@ typedef struct UkuProcessTemplate {
 
 static const UkuProcessTemplate process_templates[] = {
     {
-        "consent", "Consent decision",
-        "Find an option without serious unresolved resistance.",
+        "consent", "Agreement",
+        "Work toward an option people can live with.",
+        UI_ICON_TYPE_CHECK,
         2, 0, 0,
         1, 0, 0,
         3, 0, 1
     },
     {
-        "majority", "Majority vote",
-        "Choose the option with the strongest overall support.",
+        "majority", "Vote",
+        "Pick the option with the clearest support.",
+        UI_ICON_TYPE_STAT,
         1, 0, 0,
         1, 0, 0,
         1, 0, 0
     },
     {
-        "advice", "Advice process",
-        "Gather input before one owner makes the call.",
+        "advice", "Advice",
+        "Collect input before one person makes the call.",
+        UI_ICON_TYPE_QUEST,
         3, 0, 0,
         0, 12, 0,
         2, 0, 1
     },
     {
-        "dot_vote", "Dot vote",
-        "Prioritize many options quickly with lightweight scoring.",
+        "dot_vote", "Prioritize",
+        "Sort many options quickly with lightweight scoring.",
+        UI_ICON_TYPE_STACK,
         1, 0, 0,
         0, 12, 0,
         0, 0, 0
@@ -3014,104 +3020,6 @@ process_template_selected(const UkuDecision *d, const UkuProcessTemplate *tmpl)
     return strcmp(type, tmpl->type) == 0;
 }
 
-static const UkuProcessTemplate *
-selected_process_template(const UkuDecision *d)
-{
-    int count = (int)(sizeof(process_templates) / sizeof(process_templates[0]));
-
-    for(int i = 0; i < count; i++) {
-        if(process_template_selected(d, &process_templates[i]))
-            return &process_templates[i];
-    }
-    return &process_templates[0];
-}
-
-static int
-template_total_minutes(int days, int hours, int minutes)
-{
-    return days * 24 * 60 + hours * 60 + minutes;
-}
-
-static void
-format_template_duration(char *dst, size_t size, int days, int hours, int minutes)
-{
-    if(days > 0 && hours > 0)
-        snprintf(dst, size, "%dd %dh", days, hours);
-    else if(days > 0)
-        snprintf(dst, size, "%dd", days);
-    else if(hours > 0 && minutes > 0)
-        snprintf(dst, size, "%dh %dm", hours, minutes);
-    else if(hours > 0)
-        snprintf(dst, size, "%dh", hours);
-    else
-        snprintf(dst, size, "%dm", minutes);
-}
-
-static void
-format_process_template_meta(char *dst, size_t size, const UkuProcessTemplate *tmpl)
-{
-    char proposal[24];
-    char voting[24];
-
-    format_template_duration(proposal, sizeof(proposal), tmpl->proposal_days,
-                             tmpl->proposal_hours, tmpl->proposal_minutes);
-    format_template_duration(voting, sizeof(voting), tmpl->voting_days,
-                             tmpl->voting_hours, tmpl->voting_minutes);
-    if(template_total_minutes(tmpl->voting_days, tmpl->voting_hours, tmpl->voting_minutes) > 0)
-        snprintf(dst, size, "Propose %s | Vote %s | Reasons %s",
-                 proposal, voting, tmpl->require_vote_reason ? "required" : "optional");
-    else
-        snprintf(dst, size, "Propose %s | No vote window | Reasons %s",
-                 proposal, tmpl->require_vote_reason ? "required" : "optional");
-}
-
-static int
-draw_process_type_selector(UkuApp *app, Font font, int x, int y, int w)
-{
-    int label_font = ClampUIPx(13, 13, 16);
-    int input_font = ClampUIPx(16, 16, 20);
-    int h = ScaleUIPx(42);
-    int pad = ScaleUIPx(12);
-    int box_y;
-    const UkuProcessTemplate *selected = selected_process_template(&app->decision);
-    Rectangle box;
-    Vector2 mouse = GetMousePosition();
-    int focused;
-    int open;
-
-    draw_text_font(font, "Process type", x, y, label_font, GetThemeText());
-    box_y = y + label_font + ScaleUIPx(8);
-    box = (Rectangle){(float)x, (float)box_y, (float)w, (float)h};
-
-    focused = RegisterUIFocus(UKU_FOCUS_PROCESS_TYPE_BASE, box);
-    if(CheckCollisionPointRec(mouse, box))
-        app->cursor_clickable = 1;
-
-    DrawRectangleRounded(box, 0.08f, 10, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(box, 0.08f, 10, ScaleUIPx(focused ? 2 : 1),
-                                focused ? GetThemeButton() : GetThemeText());
-    if(focused)
-        DrawUIFocus(box);
-    draw_text_font(font, fit_tail(font, selected->title, input_font,
-                                  w - pad * 2 - ScaleUIPx(22)),
-                   x + pad, GetUIControlTextY(selected->title, box_y, h, input_font),
-                   input_font, GetThemeText());
-    DrawTriangle((Vector2){(float)(x + w - pad - ScaleUIPx(10)), (float)(box_y + h / 2 - ScaleUIPx(3))},
-                 (Vector2){(float)(x + w - pad), (float)(box_y + h / 2 - ScaleUIPx(3))},
-                 (Vector2){(float)(x + w - pad - ScaleUIPx(5)), (float)(box_y + h / 2 + ScaleUIPx(4))},
-                 GetThemeText());
-
-    open = (CheckCollisionPointRec(mouse, box) && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
-           IsUIFocusActivatePressed(UKU_FOCUS_PROCESS_TYPE_BASE);
-    if(open) {
-        app->process_type_modal_open = 1;
-        app->negative_dropdown_open = 0;
-        app->active_field = UKU_FIELD_NONE;
-    }
-
-    return box_y + h + ScaleUIPx(16);
-}
-
 static void
 draw_scrollbar(UkuApp *app, int x, int y, int h, int content_h, int max_scroll,
                int *scroll, int *dragging, int *drag_offset)
@@ -3390,7 +3298,9 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                       IsUIFocusActivatePressed(UKU_FOCUS_DASHBOARD_NEW);
         if(new_clicked) {
             reset_decision(app, text);
-            app->screen = UKU_SCREEN_CREATE;
+            app->process_type_modal_open = 1;
+            app->process_type_launch_create = 1;
+            app->process_type_scroll = 0;
             ClearUIFocus();
         }
         y += card_h + ScaleUIPx(24);
@@ -3516,7 +3426,6 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
     }
 
     BeginScissorMode(0, viewport_y, view_w, viewport_h);
-    y = draw_process_type_selector(app, font, content_x, y, content_w);
     y = draw_text_field(app, font, text->topic_question_label, text->topic_question_placeholder,
                         d->topic, sizeof(d->topic), UKU_FIELD_TOPIC, UKU_FOCUS_TOPIC,
                         content_x, y, content_w, ScaleUIPx(46));
@@ -4085,7 +3994,7 @@ draw_process_type_modal(UkuApp *app, int view_w, int view_h)
     int count = (int)(sizeof(process_templates) / sizeof(process_templates[0]));
     int screen_pad = ScaleUIPx(14);
     int panel_w = UKU_MIN(view_w - screen_pad * 2, ScaleUIPx(520));
-    int row_h = ScaleUIPx(92);
+    int row_h = ScaleUIPx(76);
     int header_h = ScaleUIPx(64);
     int footer_h = ScaleUIPx(58);
     int panel_h = header_h + row_h * count + footer_h + ScaleUIPx(14);
@@ -4099,10 +4008,14 @@ draw_process_type_modal(UkuApp *app, int view_w, int view_h)
     int title_font = ClampUIPx(18, 18, 22);
     int item_font = ClampUIPx(16, 16, 20);
     int body_font = ClampUIPx(13, 13, 16);
-    int meta_font = ClampUIPx(12, 12, 15);
     int close_clicked = 0;
     Rectangle overlay = {0, 0, (float)view_w, (float)view_h};
     Rectangle panel;
+    Color overlay_color = (Color){37, 52, 47, 42};
+    Color panel_color = (Color){255, 255, 255, 255};
+    Color line_color = (Color){220, 226, 222, 255};
+    Color selected_color = (Color){247, 251, 249, 255};
+    Color hover_color = (Color){249, 250, 248, 255};
     Font font = app->font;
     Vector2 mouse = GetMousePosition();
 
@@ -4124,20 +4037,22 @@ draw_process_type_modal(UkuApp *app, int view_w, int view_h)
     if(IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && CheckCollisionPointRec(mouse, overlay) &&
        !CheckCollisionPointRec(mouse, panel))
         app->process_type_modal_open = 0;
-    if(!app->process_type_modal_open)
+    if(!app->process_type_modal_open) {
+        app->process_type_launch_create = 0;
         return;
+    }
 
     app->process_type_scroll = clampi(app->process_type_scroll -
                                       (int)(GetMouseWheelMove() * ScaleUIPx(44)),
                                       0, app->process_type_max_scroll);
 
-    DrawRectangleRec(overlay, (Color){0, 0, 0, 96});
-    DrawRectangleRounded(panel, 0.08f, 12, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(panel, 0.08f, 12, ScaleUIPx(1), GetThemeText());
+    DrawRectangleRec(overlay, overlay_color);
+    DrawRectangleRounded(panel, 0.06f, 12, panel_color);
+    DrawRectangleRoundedLinesEx(panel, 0.06f, 12, ScaleUIPx(1), line_color);
 
-    draw_text_font(font, "Choose process type", x + pad, y + pad, title_font, GetThemeText());
+    draw_text_font(font, "Start a process", x + pad, y + pad, title_font, GetThemeText());
     DrawLine(x, y + header_h - ScaleUIPx(1), x + panel_w,
-             y + header_h - ScaleUIPx(1), GetThemeText());
+             y + header_h - ScaleUIPx(1), line_color);
 
     BeginScissorMode(x, list_y, panel_w, list_h);
     for(int i = 0; i < count; i++) {
@@ -4148,7 +4063,8 @@ draw_process_type_modal(UkuApp *app, int view_w, int view_h)
         int selected = process_template_selected(&app->decision, tmpl);
         int hovered;
         int focused;
-        char meta[128];
+        int icon_size = ScaleUIPx(28);
+        int text_x;
 
         if(row_y + row_h < list_y || row_y > list_y + list_h)
             continue;
@@ -4159,28 +4075,34 @@ draw_process_type_modal(UkuApp *app, int view_w, int view_h)
         if(hovered)
             app->cursor_clickable = 1;
         DrawRectangleRounded(row, 0.08f, 10,
-                             selected ? (Color){232, 241, 247, 255} : GetThemeSurface());
+                             selected ? selected_color : (hovered ? hover_color : panel_color));
         DrawRectangleRoundedLinesEx(row, 0.08f, 10, ScaleUIPx(selected || focused ? 2 : 1),
-                                    selected || focused ? GetThemeButton() : GetThemeText());
+                                    selected || focused ? GetThemeButton() : line_color);
         if(focused)
             DrawUIFocus(row);
         if(selected)
             DrawRectangle((int)row.x + ScaleUIPx(7), (int)row.y + ScaleUIPx(12),
                           ScaleUIPx(4), (int)row.height - ScaleUIPx(24), GetThemeButton());
+        if(tmpl->icon > UI_ICON_TYPE_NONE && tmpl->icon < UI_ICON_TYPE_COUNT &&
+           app->icons[tmpl->icon].id != 0) {
+            Texture2D icon_texture = app->icons[tmpl->icon];
+            Rectangle icon_rect = {(float)((int)row.x + ScaleUIPx(20)),
+                                   (float)((int)row.y + ScaleUIPx(18)),
+                                   (float)icon_size, (float)icon_size};
+            DrawTexturePro(icon_texture,
+                           (Rectangle){0, 0, (float)icon_texture.width, (float)icon_texture.height},
+                           icon_rect, (Vector2){0}, 0.0f, GetThemeButton());
+        }
+        text_x = (int)row.x + ScaleUIPx(62);
 
         draw_text_font(font, fit_tail(font, tmpl->title, item_font,
-                                      (int)row.width - ScaleUIPx(30)),
-                       (int)row.x + ScaleUIPx(18), (int)row.y + ScaleUIPx(11),
+                                      (int)row.width - ScaleUIPx(80)),
+                       text_x, (int)row.y + ScaleUIPx(11),
                        item_font, GetThemeText());
         draw_text_font(font, fit_tail(font, tmpl->description, body_font,
-                                      (int)row.width - ScaleUIPx(30)),
-                       (int)row.x + ScaleUIPx(18), (int)row.y + ScaleUIPx(42),
+                                      (int)row.width - ScaleUIPx(80)),
+                       text_x, (int)row.y + ScaleUIPx(42),
                        body_font, GetThemeText());
-        format_process_template_meta(meta, sizeof(meta), tmpl);
-        draw_text_font(font, fit_tail(font, meta, meta_font,
-                                      (int)row.width - ScaleUIPx(30)),
-                       (int)row.x + ScaleUIPx(18), (int)row.y + ScaleUIPx(65),
-                       meta_font, GetThemeButton());
 
         if((hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
            IsUIFocusActivatePressed(UKU_FOCUS_PROCESS_TYPE_BASE + 1 + i)) {
@@ -4188,6 +4110,11 @@ draw_process_type_modal(UkuApp *app, int view_w, int view_h)
             app->process_type_modal_open = 0;
             app->active_field = UKU_FIELD_NONE;
             app->process_type_scroll = 0;
+            if(app->process_type_launch_create) {
+                app->screen = UKU_SCREEN_CREATE;
+                app->process_type_launch_create = 0;
+                ClearUIFocus();
+            }
         }
     }
     EndScissorMode();
@@ -4200,12 +4127,14 @@ draw_process_type_modal(UkuApp *app, int view_w, int view_h)
                    &app->process_type_scroll_drag_offset);
 
     DrawLine(x, y + panel_h - footer_h, x + panel_w,
-             y + panel_h - footer_h, GetThemeText());
+             y + panel_h - footer_h, line_color);
     draw_button(app, font, x + pad, y + panel_h - footer_h + ScaleUIPx(10),
                 panel_w - pad * 2, ScaleUIPx(40), "Close", 0,
                 UKU_FOCUS_PROCESS_TYPE_CLOSE, &close_clicked);
-    if(close_clicked)
+    if(close_clicked) {
         app->process_type_modal_open = 0;
+        app->process_type_launch_create = 0;
+    }
 }
 
 static void
