@@ -100,25 +100,27 @@ def latest_mtime():
     return latest
 
 
-def build(state):
+def build(state, url):
     state.begin_build()
     print("Building Uku web...")
     result = subprocess.run(["make", "web"], cwd=ROOT)
     ok = result.returncode == 0
     state.finish_build(ok)
     print("Build {}.".format("finished" if ok else "failed"))
+    if ok:
+        print("Open {}".format(url))
     return ok
 
 
-def watch(state, interval):
+def watch(state, interval, url):
     stamp = latest_mtime()
-    build(state)
+    build(state, url)
     while True:
         time.sleep(interval)
         current = latest_mtime()
         if current > stamp:
             stamp = current
-            build(state)
+            build(state, url)
 
 
 def open_browser(browser, url):
@@ -141,14 +143,13 @@ def main():
 
     os.makedirs(DIST_DIR, exist_ok=True)
     state = State()
-    watcher = threading.Thread(target=watch, args=(state, args.interval), daemon=True)
-    watcher.start()
-
     handler = functools.partial(Handler, directory=DIST_DIR)
     Handler.state = state
     server = ThreadingHTTPServer((args.host, args.port), handler)
     url = "http://{}:{}/".format(args.host, args.port)
     print("Serving Uku web at {}".format(url))
+    watcher = threading.Thread(target=watch, args=(state, args.interval, url), daemon=True)
+    watcher.start()
     if not args.no_browser:
         open_browser(args.browser, url)
     try:
