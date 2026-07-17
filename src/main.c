@@ -323,7 +323,7 @@ static const UkuProcessTemplate process_templates[] = {
     {
         "advice", "Advice",
         "Collect input before one person makes the call.",
-        UI_ICON_TYPE_QUEST,
+        UI_ICON_TYPE_PENCIL,
         3, 0, 0,
         0, 12, 0,
         2, 0, 1
