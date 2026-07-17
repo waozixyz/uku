@@ -3992,74 +3992,54 @@ static void
 draw_process_type_modal(UkuApp *app, int view_w, int view_h)
 {
     int count = (int)(sizeof(process_templates) / sizeof(process_templates[0]));
-    int screen_pad = ScaleUIPx(14);
-    int panel_w = UKU_MIN(view_w - screen_pad * 2, ScaleUIPx(520));
+    int panel_w = UKU_MIN(view_w - ScaleUIPx(24), ScaleUIPx(520));
     int row_h = ScaleUIPx(76);
-    int header_h = ScaleUIPx(64);
     int footer_h = ScaleUIPx(58);
-    int panel_h = header_h + row_h * count + footer_h + ScaleUIPx(14);
-    int max_h = view_h - screen_pad * 2;
+    int panel_h = ScaleUIPx(58) + row_h * count + footer_h + ScaleUIPx(14);
+    int max_h = view_h - ScaleUIPx(24);
     int list_y;
     int list_h;
     int content_h = row_h * count;
-    int x;
-    int y;
-    int pad = ScaleUIPx(18);
-    int title_font = ClampUIPx(18, 18, 22);
     int item_font = ClampUIPx(16, 16, 20);
     int body_font = ClampUIPx(13, 13, 16);
     int close_clicked = 0;
-    Rectangle overlay = {0, 0, (float)view_w, (float)view_h};
-    Rectangle panel;
-    Color overlay_color = (Color){37, 52, 47, 42};
-    Color panel_color = (Color){255, 255, 255, 255};
     Color line_color = (Color){220, 226, 222, 255};
     Color selected_color = (Color){247, 251, 249, 255};
     Color hover_color = (Color){249, 250, 248, 255};
     Font font = app->font;
     Vector2 mouse = GetMousePosition();
+    UIPanelFrame frame;
 
     if(!app->process_type_modal_open)
         return;
 
     if(panel_h > max_h)
         panel_h = max_h;
-    x = (view_w - panel_w) / 2;
-    y = (view_h - panel_h) / 2;
-    list_y = y + header_h;
-    list_h = panel_h - header_h - footer_h;
-    if(list_h < 1)
-        list_h = 1;
-    panel = (Rectangle){(float)x, (float)y, (float)panel_w, (float)panel_h};
 
-    if(IsKeyPressed(KEY_ESCAPE))
-        app->process_type_modal_open = 0;
-    if(IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && CheckCollisionPointRec(mouse, overlay) &&
-       !CheckCollisionPointRec(mouse, panel))
+    frame = DrawUIModalFrame(panel_w, panel_h, "Start a process",
+                             (Texture2D){0}, app->icons[UI_ICON_TYPE_X]);
+    if(frame.right_clicked || IsKeyPressed(KEY_ESCAPE))
         app->process_type_modal_open = 0;
     if(!app->process_type_modal_open) {
         app->process_type_launch_create = 0;
         return;
     }
 
+    list_y = frame.content_y;
+    list_h = frame.content_h - footer_h;
+    if(list_h < 1)
+        list_h = 1;
+
     app->process_type_scroll = clampi(app->process_type_scroll -
                                       (int)(GetMouseWheelMove() * ScaleUIPx(44)),
                                       0, app->process_type_max_scroll);
 
-    DrawRectangleRec(overlay, overlay_color);
-    DrawRectangleRounded(panel, 0.06f, 12, panel_color);
-    DrawRectangleRoundedLinesEx(panel, 0.06f, 12, ScaleUIPx(1), line_color);
-
-    draw_text_font(font, "Start a process", x + pad, y + pad, title_font, GetThemeText());
-    DrawLine(x, y + header_h - ScaleUIPx(1), x + panel_w,
-             y + header_h - ScaleUIPx(1), line_color);
-
-    BeginScissorMode(x, list_y, panel_w, list_h);
+    BeginScissorMode(frame.content_x, list_y, frame.content_w, list_h);
     for(int i = 0; i < count; i++) {
         const UkuProcessTemplate *tmpl = &process_templates[i];
         int row_y = list_y + i * row_h - app->process_type_scroll;
-        Rectangle row = {(float)(x + pad), (float)row_y,
-                         (float)(panel_w - pad * 2), (float)(row_h - ScaleUIPx(8))};
+        Rectangle row = {(float)frame.content_x, (float)row_y,
+                         (float)frame.content_w, (float)(row_h - ScaleUIPx(8))};
         int selected = process_template_selected(&app->decision, tmpl);
         int hovered;
         int focused;
@@ -4075,7 +4055,7 @@ draw_process_type_modal(UkuApp *app, int view_w, int view_h)
         if(hovered)
             app->cursor_clickable = 1;
         DrawRectangleRounded(row, 0.08f, 10,
-                             selected ? selected_color : (hovered ? hover_color : panel_color));
+                             selected ? selected_color : (hovered ? hover_color : GetThemeSurface()));
         DrawRectangleRoundedLinesEx(row, 0.08f, 10, ScaleUIPx(selected || focused ? 2 : 1),
                                     selected || focused ? GetThemeButton() : line_color);
         if(focused)
@@ -4121,15 +4101,15 @@ draw_process_type_modal(UkuApp *app, int view_w, int view_h)
 
     app->process_type_max_scroll = UKU_MAX(0, content_h - list_h);
     app->process_type_scroll = clampi(app->process_type_scroll, 0, app->process_type_max_scroll);
-    draw_scrollbar(app, x + panel_w - ScaleUIPx(12), list_y + ScaleUIPx(8),
+    draw_scrollbar(app, frame.x + frame.w - ScaleUIPx(12), list_y + ScaleUIPx(8),
                    list_h - ScaleUIPx(16), content_h, app->process_type_max_scroll,
                    &app->process_type_scroll, &app->process_type_drag_scrollbar,
                    &app->process_type_scroll_drag_offset);
 
-    DrawLine(x, y + panel_h - footer_h, x + panel_w,
-             y + panel_h - footer_h, line_color);
-    draw_button(app, font, x + pad, y + panel_h - footer_h + ScaleUIPx(10),
-                panel_w - pad * 2, ScaleUIPx(40), "Close", 0,
+    DrawLine(frame.x, frame.y + frame.h - footer_h, frame.x + frame.w,
+             frame.y + frame.h - footer_h, line_color);
+    draw_button(app, font, frame.content_x, frame.y + frame.h - footer_h + ScaleUIPx(10),
+                frame.content_w, ScaleUIPx(40), "Close", 0,
                 UKU_FOCUS_PROCESS_TYPE_CLOSE, &close_clicked);
     if(close_clicked) {
         app->process_type_modal_open = 0;
