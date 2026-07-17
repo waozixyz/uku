@@ -1131,7 +1131,7 @@ static void
 account_apply_file_dialog_theme(void)
 {
 #if !defined(PLATFORM_WEB)
-    SetFileDialogThemeScope(GetThemeScopeName(THEME_SUNSET, GetThemeDarkMode()));
+    SetFileDialogThemeScope(GetThemeScopeName(THEME_MONO, GetEffectiveThemeDarkMode()));
 #endif
 }
 
@@ -1221,15 +1221,16 @@ account_create(UkuApp *app)
 }
 
 static int
-ensure_process_account(UkuApp *app)
+process_account_ready(UkuApp *app)
 {
     if(app == NULL)
         return 0;
     if(app->account.loaded)
         return 1;
-    if(account_create(app))
-        return 1;
     copy_text(app->process_status, sizeof(app->process_status),
+              "Create or import an account before starting a process.",
+              strlen("Create or import an account before starting a process."));
+    copy_text(app->account_status, sizeof(app->account_status),
               "Create or import an account before starting a process.",
               strlen("Create or import an account before starting a process."));
     return 0;
@@ -2693,36 +2694,24 @@ fit_tail(Font font, const char *text, int font_size, int w)
 static void
 draw_button(UkuApp *app, Font font, int x, int y, int w, int h, const char *label, int primary, int focus_id, int *clicked)
 {
-    Vector2 mouse = GetMousePosition();
     Rectangle bounds = {(float)x, (float)y, (float)w, (float)h};
-    int hover = CheckCollisionPointRec(mouse, bounds) &&
-                !UIInputCapturesClick(mouse);
-    int focused = RegisterUIFocus(focus_id, bounds);
-    Color fill = primary ? GetThemeButton() : (Color){255, 255, 255, 255};
-    Color text = primary ? WHITE : GetThemeText();
-    int font_size = ClampUIPx(16, 16, 20);
+    int font_size = ClampUIPx(h <= ScaleUIPx(34) ? 13 : 15, 13, 18);
 
-    if(hover || focused) {
-        fill = primary ? LightenUIColor(GetThemeButton(), 18) : (Color){242, 245, 247, 255};
-        if(hover)
-            app->cursor_clickable = 1;
-    }
-
-    DrawRectangleRounded(bounds, 0.12f, 12, fill);
-    DrawRectangleRoundedLinesEx(bounds, 0.12f, 12, ScaleUIPx(1), primary ? DarkenUIColor(GetThemeButton(), 20) : GetThemeText());
-    if(focused)
-        DrawUIFocus(bounds);
-    draw_centered_text(font, label, x + w / 2,
-                       GetUIControlTextY(label, y, h, font_size),
-                       font_size, text);
-
+    (void)app;
+    (void)font;
     *clicked = 0;
-    if(hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
-        UIConsumeRelease();
+    if(DrawUIButton((UIButton){
+        .bounds = bounds,
+        .label = label,
+        .font = font_size,
+        .focus_id = focus_id,
+        .background = primary ? GetThemeButton() : GetThemeSurface(),
+        .hover_background = primary ? GetThemeButtonHover() : LightenUIColor(GetThemeSurface(), 14),
+        .text = primary ? WHITE : GetThemeText(),
+        .border = primary ? DarkenUIColor(GetThemeButton(), 22) : DarkenUIColor(GetThemeSurface(), 28),
+        .radius = 0.08f
+    }))
         *clicked = 1;
-    } else if(IsUIFocusActivatePressed(focus_id)) {
-        *clicked = 1;
-    }
 }
 
 static int
@@ -2920,9 +2909,9 @@ draw_stepper(UkuApp *app, Font font, const char *label, int *value, int min_valu
              int x, int y, int w, int minus_focus_id, int plus_focus_id)
 {
     int label_font = ClampUIPx(13, 13, 16);
-    int value_font = ClampUIPx(18, 18, 22);
-    int btn = ScaleUIPx(34);
-    int h = ScaleUIPx(38);
+    int value_font = ClampUIPx(16, 16, 19);
+    int btn = ScaleUIPx(30);
+    int h = ScaleUIPx(32);
     int value_w = w - btn * 2 - ScaleUIPx(8);
     int minus_clicked = 0;
     int plus_clicked = 0;
@@ -2935,8 +2924,10 @@ draw_stepper(UkuApp *app, Font font, const char *label, int *value, int min_valu
     DrawRectangleRounded((Rectangle){x + btn + ScaleUIPx(4), y, value_w, h}, 0.08f, 10, GetThemeSurface());
     DrawRectangleRoundedLinesEx((Rectangle){x + btn + ScaleUIPx(4), y, value_w, h}, 0.08f, 10, ScaleUIPx(1), GetThemeText());
     snprintf(value_text, sizeof(value_text), "%d", *value);
-    draw_centered_text(font, value_text, x + btn + ScaleUIPx(4) + value_w / 2,
-                       y + (h - value_font) / 2, value_font, GetThemeText());
+    DrawFittedUITextInRect(value_text,
+                           (Rectangle){(float)(x + btn + ScaleUIPx(4)), (float)y,
+                                       (float)value_w, (float)h},
+                           value_font, UI_TEXT_12, GetThemeText());
     draw_button(app, font, x + btn + ScaleUIPx(8) + value_w, y, btn, h, "+", 0, plus_focus_id, &plus_clicked);
 
     if(minus_clicked)
@@ -3330,7 +3321,7 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
         if(new_clicked) {
             if(hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON))
                 UIConsumeRelease();
-            if(!ensure_process_account(app)) {
+            if(!process_account_ready(app)) {
                 app->screen = UKU_SCREEN_ACCOUNT;
                 ClearUIFocus();
                 EndScissorMode();
@@ -3467,10 +3458,12 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
     BeginScissorMode(0, viewport_y, view_w, viewport_h);
     y = draw_text_field(app, font, text->topic_question_label, text->topic_question_placeholder,
                         d->topic, sizeof(d->topic), UKU_FIELD_TOPIC, UKU_FOCUS_TOPIC,
-                        content_x, y, content_w, ScaleUIPx(46));
+                        content_x, y, content_w, ScaleUIPx(40));
     if(d->topic_error) {
-        draw_text_font(font, text->topic_error, content_x, y - ScaleUIPx(8), small_font, GetThemeButton());
-        y += small_font + ScaleUIPx(8);
+        y = draw_wrapped_text(font, text->topic_error, content_x, y - ScaleUIPx(8),
+                              content_w, small_font, small_font + ScaleUIPx(5),
+                              GetThemeButton());
+        y += ScaleUIPx(8);
     }
     y = draw_text_field(app, font, text->description_label, text->description_placeholder,
                         d->description, sizeof(d->description), UKU_FIELD_DESCRIPTION, UKU_FOCUS_DESCRIPTION,
@@ -3485,13 +3478,13 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
                             &d->voting_days, &d->voting_hours, &d->voting_minutes,
                             content_x, y, content_w, UKU_FOCUS_VOTING_DAYS_MINUS);
 
-    draw_button(app, font, content_x, y, content_w, ScaleUIPx(48), text->create_process_button, 1,
+    draw_button(app, font, content_x, y, content_w, ScaleUIPx(40), text->create_process_button, 1,
                 UKU_FOCUS_CREATE_SUBMIT, &clicked);
     if(clicked) {
         d->topic_error = !has_non_space(d->topic);
         d->db_error = 0;
         d->remote_error = 0;
-        if(!ensure_process_account(app)) {
+        if(!process_account_ready(app)) {
             d->db_error = 1;
         } else if(!d->topic_error) {
             d->submitted = db_save_process(app, text);
@@ -4393,7 +4386,9 @@ main(void)
     InitWindow(window_w, window_h, text.app_title);
     SetTargetFPS(60);
     InitUIDPI();
-    SetCurrentTheme(THEME_SUNSET, 0);
+    SetThemeSource(THEME_SOURCE_APP);
+    SetThemeMode(THEME_MODE_SYSTEM);
+    SetCurrentTheme(THEME_MONO, 0);
     app_load_font(&app);
     load_icons_once(&app);
 
