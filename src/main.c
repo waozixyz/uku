@@ -1221,6 +1221,21 @@ account_create(UkuApp *app)
 }
 
 static int
+ensure_process_account(UkuApp *app)
+{
+    if(app == NULL)
+        return 0;
+    if(app->account.loaded)
+        return 1;
+    if(account_create(app))
+        return 1;
+    copy_text(app->process_status, sizeof(app->process_status),
+              "Create or import an account before starting a process.",
+              strlen("Create or import an account before starting a process."));
+    return 0;
+}
+
+static int
 account_sign_hex(UkuApp *app, const uint8_t *message, size_t message_len,
                  char *out_signature_hex, size_t out_size)
 {
@@ -1778,7 +1793,7 @@ lyra_http_request(const char *method, const char *url, UkuHttpHeaders *headers,
             });
             xhr.send((method === "GET" || method === "DELETE") ? null : body);
         } catch(err) {
-            console.error("Uku Lyra request failed:", err);
+            console.error("Uku server request failed:", err);
             setValue($4, 0, "i32");
             return 0;
         }
@@ -2402,12 +2417,14 @@ db_save_process(UkuApp *app, const UkuText *text)
     UkuProcessRow row = {0};
 
     (void)text;
-    if(app->db == NULL)
+    if(app->db == NULL || !app->account.loaded)
         return 0;
     generate_process_id(d->id, sizeof(d->id));
     snprintf(d->local_address, sizeof(d->local_address), "/app/%s/collect", d->id);
     d->created_at = now;
     copy_text(d->visibility, sizeof(d->visibility), "public", strlen("public"));
+    copy_text(d->owner_user_id, sizeof(d->owner_user_id),
+              app->account.public_id, strlen(app->account.public_id));
 
     copy_text(row.id, sizeof(row.id), d->id, strlen(d->id));
     copy_text(row.local_address, sizeof(row.local_address), d->local_address, strlen(d->local_address));
@@ -2431,13 +2448,15 @@ db_save_process(UkuApp *app, const UkuText *text)
     sqlite3_int64 now = (sqlite3_int64)time(NULL);
     int ok = 0;
 
-    if(app->db == NULL)
+    if(app->db == NULL || !app->account.loaded)
         return 0;
 
     generate_process_id(d->id, sizeof(d->id));
     snprintf(d->local_address, sizeof(d->local_address), "/app/%s/collect", d->id);
     d->created_at = now;
     copy_text(d->visibility, sizeof(d->visibility), "public", strlen("public"));
+    copy_text(d->owner_user_id, sizeof(d->owner_user_id),
+              app->account.public_id, strlen(app->account.public_id));
 
     if(sqlite3_exec(app->db, "begin immediate", NULL, NULL, NULL) != SQLITE_OK)
         return 0;
@@ -2827,6 +2846,12 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
     int pad = ScaleUIPx(12);
     int label_y = y;
     int box_y = y + label_font + ScaleUIPx(8);
+    int tall = h > ScaleUIPx(58);
+    int text_h = input_font + ScaleUIPx(8);
+    int text_y = tall ? GetUIControlTextY("Hg", box_y + pad, text_h, input_font)
+                      : GetUIControlTextY("Hg", box_y, h, input_font);
+    int cursor_h = input_font + ScaleUIPx(2);
+    int cursor_y = tall ? text_y : box_y + (h - cursor_h) / 2;
     Rectangle box = {(float)x, (float)box_y, (float)w, (float)h};
     Vector2 mouse = GetMousePosition();
     int focused;
@@ -2865,28 +2890,26 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
         DrawUIFocus(box);
 
     if(buffer[0] == '\0') {
-        draw_text_font(font, placeholder, x + pad,
-                       GetUIControlTextY(placeholder, box_y, h, input_font),
+        draw_text_font(font, placeholder, x + pad, text_y,
                        input_font, GetThemeText());
-    } else if(h > ScaleUIPx(58)) {
+    } else if(tall) {
         BeginScissorMode(x + pad, box_y + pad, w - pad * 2, h - pad * 2);
-        draw_wrapped_text(font, buffer, x + pad, box_y + pad, w - pad * 2,
+        draw_wrapped_text(font, buffer, x + pad, text_y, w - pad * 2,
                           input_font, input_font + ScaleUIPx(7), GetThemeText());
         EndScissorMode();
     } else {
         const char *visible = fit_tail(font, buffer, input_font, w - pad * 2 - ScaleUIPx(8));
-        draw_text_font(font, visible, x + pad,
-                       GetUIControlTextY(visible, box_y, h, input_font),
+        draw_text_font(font, visible, x + pad, text_y,
                        input_font, GetThemeText());
     }
 
     if(active && ((int)(GetTime() * 2.0) % 2) == 0) {
         int cursor_x;
-        if(h > ScaleUIPx(58))
+        if(tall)
             cursor_x = x + pad + UKU_MIN(measure_text_font(font, buffer, input_font), w - pad * 2 - ScaleUIPx(4));
         else
             cursor_x = x + pad + measure_text_font(font, fit_tail(font, buffer, input_font, w - pad * 2 - ScaleUIPx(8)), input_font);
-        DrawLine(cursor_x, box_y + pad, cursor_x, box_y + h - pad, GetThemeButton());
+        DrawLine(cursor_x, cursor_y, cursor_x, cursor_y + cursor_h, GetThemeButton());
     }
 
     return box_y + h + ScaleUIPx(16);
@@ -3307,6 +3330,12 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
         if(new_clicked) {
             if(hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON))
                 UIConsumeRelease();
+            if(!ensure_process_account(app)) {
+                app->screen = UKU_SCREEN_ACCOUNT;
+                ClearUIFocus();
+                EndScissorMode();
+                return;
+            }
             reset_decision(app, text);
             app->process_type_modal_open = 1;
             app->process_type_launch_create = 1;
@@ -3462,7 +3491,9 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
         d->topic_error = !has_non_space(d->topic);
         d->db_error = 0;
         d->remote_error = 0;
-        if(!d->topic_error) {
+        if(!ensure_process_account(app)) {
+            d->db_error = 1;
+        } else if(!d->topic_error) {
             d->submitted = db_save_process(app, text);
             d->db_error = !d->submitted;
             if(d->submitted) {
@@ -3492,7 +3523,10 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
     if(d->db_error)
         draw_centered_text(font, text->db_error, content_x + content_w / 2, y, small_font, GetThemeButton());
     if(d->remote_error)
-        draw_centered_text(font, "Saved locally, but Lyra upload failed.", content_x + content_w / 2, y + ScaleUIPx(20), small_font, GetThemeButton());
+        draw_centered_text(font, "Saved locally, but server upload failed.", content_x + content_w / 2, y + ScaleUIPx(20), small_font, GetThemeButton());
+    if(app->process_status[0] != '\0')
+        draw_centered_text(font, app->process_status, content_x + content_w / 2,
+                           y + ScaleUIPx(40), small_font, GetThemeButton());
     EndScissorMode();
 
     content_bottom = y + app->create_scroll + ScaleUIPx(24);
@@ -3766,11 +3800,11 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     y += ScaleUIPx(14);
 
     if(d->remote_error) {
-        y = draw_wrapped_text(font, "Saved locally, but Lyra upload failed. Check your connection and account.", content_x, y, content_w, small_font, line_h, GetThemeButton());
+        y = draw_wrapped_text(font, "Saved locally, but server upload failed. Check your connection and account.", content_x, y, content_w, small_font, line_h, GetThemeButton());
         y += ScaleUIPx(16);
     }
     if(app->process_detail_loading_failed) {
-        y = draw_wrapped_text(font, "Could not refresh this process from Lyra. Showing local details.", content_x, y, content_w, small_font, line_h, GetThemeButton());
+        y = draw_wrapped_text(font, "Could not refresh this process from the server. Showing local details.", content_x, y, content_w, small_font, line_h, GetThemeButton());
         y += ScaleUIPx(16);
     }
 
@@ -4225,7 +4259,7 @@ draw_account(UkuApp *app, const UkuText *text, int view_w, int view_h)
         ClearUIFocus();
     }
 
-    y = draw_text_field(app, font, "Lyra server", "https://api.waozi.xyz",
+    y = draw_text_field(app, font, "Server", "https://api.waozi.xyz",
                         app->server_url, sizeof(app->server_url), UKU_FIELD_SERVER_URL,
                         UKU_FOCUS_TOPIC, content_x, y, content_w, ScaleUIPx(46));
     draw_button(app, font, content_x, y, content_w, ScaleUIPx(42), "Save server URL", 0,
