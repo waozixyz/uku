@@ -162,6 +162,7 @@ typedef struct UkuApp {
     int account_alias_lookup_attempted;
     int account_public_id_modal_open;
     int account_alias_modal_open;
+    int process_type_modal_open;
     char account_status[160];
     char process_status[180];
     char server_url[256];
@@ -277,7 +278,8 @@ typedef enum UkuFocusId {
     UKU_FOCUS_SCORE_BASE = 1000,
     UKU_FOCUS_PROPOSAL_DELETE_BASE = 3000,
     UKU_FOCUS_DASHBOARD_PROCESS_BASE = 100,
-    UKU_FOCUS_PROCESS_TYPE_BASE = 4200
+    UKU_FOCUS_PROCESS_TYPE_BASE = 4200,
+    UKU_FOCUS_PROCESS_TYPE_CLOSE = 4290
 } UkuFocusId;
 
 typedef struct UkuProcessTemplate {
@@ -3012,56 +3014,53 @@ static int
 draw_process_type_selector(UkuApp *app, Font font, int x, int y, int w)
 {
     int label_font = ClampUIPx(13, 13, 16);
-    int title_font = ClampUIPx(16, 16, 20);
-    int body_font = ClampUIPx(13, 13, 16);
-    int gap = ScaleUIPx(10);
-    int card_h = ScaleUIPx(76);
-    int two_col = w >= ScaleUIPx(560);
-    int card_w = two_col ? (w - gap) / 2 : w;
+    int input_font = ClampUIPx(16, 16, 20);
+    int h = ScaleUIPx(42);
+    int pad = ScaleUIPx(12);
+    int box_y;
+    const UkuProcessTemplate *selected = &process_templates[0];
     int count = (int)(sizeof(process_templates) / sizeof(process_templates[0]));
+    Rectangle box;
     Vector2 mouse = GetMousePosition();
+    int focused;
+    int open;
 
     draw_text_font(font, "Process type", x, y, label_font, GetThemeText());
-    y += label_font + ScaleUIPx(8);
+    box_y = y + label_font + ScaleUIPx(8);
+    box = (Rectangle){(float)x, (float)box_y, (float)w, (float)h};
 
     for(int i = 0; i < count; i++) {
-        const UkuProcessTemplate *tmpl = &process_templates[i];
-        int col = two_col ? i % 2 : 0;
-        int row = two_col ? i / 2 : i;
-        int card_x = x + col * (card_w + gap);
-        int card_y = y + row * (card_h + gap);
-        Rectangle card = {(float)card_x, (float)card_y, (float)card_w, (float)card_h};
-        int selected = process_template_selected(&app->decision, tmpl);
-        int hovered = CheckCollisionPointRec(mouse, card);
-        int focused = RegisterUIFocus(UKU_FOCUS_PROCESS_TYPE_BASE + i, card);
-
-        if(hovered)
-            app->cursor_clickable = 1;
-
-        DrawRectangleRounded(card, 0.08f, 10,
-                             selected ? (Color){232, 241, 247, 255} : GetThemeSurface());
-        DrawRectangleRoundedLinesEx(card, 0.08f, 10, ScaleUIPx(selected || focused ? 2 : 1),
-                                    selected || focused ? GetThemeButton() : GetThemeText());
-        if(focused)
-            DrawUIFocus(card);
-        if(selected)
-            DrawRectangle(card_x + ScaleUIPx(7), card_y + ScaleUIPx(12),
-                          ScaleUIPx(4), card_h - ScaleUIPx(24), GetThemeButton());
-
-        draw_text_font(font, fit_tail(font, tmpl->title, title_font, card_w - ScaleUIPx(30)),
-                       card_x + ScaleUIPx(18), card_y + ScaleUIPx(12), title_font, GetThemeText());
-        draw_text_font(font, fit_tail(font, tmpl->description, body_font, card_w - ScaleUIPx(30)),
-                       card_x + ScaleUIPx(18), card_y + ScaleUIPx(42), body_font, GetThemeButton());
-
-        if((hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
-           IsUIFocusActivatePressed(UKU_FOCUS_PROCESS_TYPE_BASE + i)) {
-            apply_process_template(&app->decision, tmpl);
-            app->negative_dropdown_open = 0;
-            app->active_field = UKU_FIELD_NONE;
-        }
+        if(process_template_selected(&app->decision, &process_templates[i]))
+            selected = &process_templates[i];
     }
 
-    return y + ((count + (two_col ? 1 : 0)) / (two_col ? 2 : 1)) * (card_h + gap) + ScaleUIPx(8);
+    focused = RegisterUIFocus(UKU_FOCUS_PROCESS_TYPE_BASE, box);
+    if(CheckCollisionPointRec(mouse, box))
+        app->cursor_clickable = 1;
+
+    DrawRectangleRounded(box, 0.08f, 10, GetThemeSurface());
+    DrawRectangleRoundedLinesEx(box, 0.08f, 10, ScaleUIPx(focused ? 2 : 1),
+                                focused ? GetThemeButton() : GetThemeText());
+    if(focused)
+        DrawUIFocus(box);
+    draw_text_font(font, fit_tail(font, selected->title, input_font,
+                                  w - pad * 2 - ScaleUIPx(22)),
+                   x + pad, GetUIControlTextY(selected->title, box_y, h, input_font),
+                   input_font, GetThemeText());
+    DrawTriangle((Vector2){(float)(x + w - pad - ScaleUIPx(10)), (float)(box_y + h / 2 - ScaleUIPx(3))},
+                 (Vector2){(float)(x + w - pad), (float)(box_y + h / 2 - ScaleUIPx(3))},
+                 (Vector2){(float)(x + w - pad - ScaleUIPx(5)), (float)(box_y + h / 2 + ScaleUIPx(4))},
+                 GetThemeText());
+
+    open = (CheckCollisionPointRec(mouse, box) && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
+           IsUIFocusActivatePressed(UKU_FOCUS_PROCESS_TYPE_BASE);
+    if(open) {
+        app->process_type_modal_open = 1;
+        app->negative_dropdown_open = 0;
+        app->active_field = UKU_FIELD_NONE;
+    }
+
+    return box_y + h + ScaleUIPx(16);
 }
 
 static void
@@ -4032,6 +4031,88 @@ draw_public_id_modal(UkuApp *app, int view_w, int view_h)
 }
 
 static void
+draw_process_type_modal(UkuApp *app, int view_w, int view_h)
+{
+    int count = (int)(sizeof(process_templates) / sizeof(process_templates[0]));
+    int panel_w = UKU_MIN(view_w - ScaleUIPx(28), ScaleUIPx(520));
+    int row_h = ScaleUIPx(82);
+    int panel_h = ScaleUIPx(88) + row_h * count + ScaleUIPx(18);
+    int max_h = view_h - ScaleUIPx(28);
+    int x;
+    int y;
+    int pad = ScaleUIPx(18);
+    int title_font = ClampUIPx(18, 18, 22);
+    int item_font = ClampUIPx(16, 16, 20);
+    int body_font = ClampUIPx(13, 13, 16);
+    int close_clicked = 0;
+    Rectangle overlay = {0, 0, (float)view_w, (float)view_h};
+    Rectangle panel;
+    Font font = app->font;
+    Vector2 mouse = GetMousePosition();
+
+    if(!app->process_type_modal_open)
+        return;
+
+    if(panel_h > max_h)
+        panel_h = max_h;
+    x = (view_w - panel_w) / 2;
+    y = (view_h - panel_h) / 2;
+    panel = (Rectangle){(float)x, (float)y, (float)panel_w, (float)panel_h};
+
+    DrawRectangleRec(overlay, (Color){0, 0, 0, 96});
+    DrawRectangleRounded(panel, 0.08f, 12, GetThemeSurface());
+    DrawRectangleRoundedLinesEx(panel, 0.08f, 12, ScaleUIPx(1), GetThemeText());
+
+    draw_text_font(font, "Choose process type", x + pad, y + pad, title_font, GetThemeText());
+    draw_button(app, font, x + panel_w - pad - ScaleUIPx(92), y + ScaleUIPx(12),
+                ScaleUIPx(92), ScaleUIPx(36), "Close", 0,
+                UKU_FOCUS_PROCESS_TYPE_CLOSE, &close_clicked);
+    if(close_clicked)
+        app->process_type_modal_open = 0;
+
+    y += ScaleUIPx(62);
+    BeginScissorMode(x, y, panel_w, panel_h - ScaleUIPx(76));
+    for(int i = 0; i < count; i++) {
+        const UkuProcessTemplate *tmpl = &process_templates[i];
+        int row_y = y + i * row_h;
+        Rectangle row = {(float)(x + pad), (float)row_y,
+                         (float)(panel_w - pad * 2), (float)(row_h - ScaleUIPx(8))};
+        int selected = process_template_selected(&app->decision, tmpl);
+        int hovered = CheckCollisionPointRec(mouse, row);
+        int focused = RegisterUIFocus(UKU_FOCUS_PROCESS_TYPE_BASE + 1 + i, row);
+
+        if(hovered)
+            app->cursor_clickable = 1;
+        DrawRectangleRounded(row, 0.08f, 10,
+                             selected ? (Color){232, 241, 247, 255} : GetThemeSurface());
+        DrawRectangleRoundedLinesEx(row, 0.08f, 10, ScaleUIPx(selected || focused ? 2 : 1),
+                                    selected || focused ? GetThemeButton() : GetThemeText());
+        if(focused)
+            DrawUIFocus(row);
+        if(selected)
+            DrawRectangle((int)row.x + ScaleUIPx(7), (int)row.y + ScaleUIPx(12),
+                          ScaleUIPx(4), (int)row.height - ScaleUIPx(24), GetThemeButton());
+
+        draw_text_font(font, fit_tail(font, tmpl->title, item_font,
+                                      (int)row.width - ScaleUIPx(30)),
+                       (int)row.x + ScaleUIPx(18), (int)row.y + ScaleUIPx(11),
+                       item_font, GetThemeText());
+        draw_text_font(font, fit_tail(font, tmpl->description, body_font,
+                                      (int)row.width - ScaleUIPx(30)),
+                       (int)row.x + ScaleUIPx(18), (int)row.y + ScaleUIPx(42),
+                       body_font, GetThemeButton());
+
+        if((hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
+           IsUIFocusActivatePressed(UKU_FOCUS_PROCESS_TYPE_BASE + 1 + i)) {
+            apply_process_template(&app->decision, tmpl);
+            app->process_type_modal_open = 0;
+            app->active_field = UKU_FIELD_NONE;
+        }
+    }
+    EndScissorMode();
+}
+
+static void
 draw_alias_modal(UkuApp *app, int view_w, int view_h)
 {
     int panel_w = UKU_MIN(view_w - ScaleUIPx(32), ScaleUIPx(360));
@@ -4295,6 +4376,7 @@ main(void)
             draw_account(&app, &text, view_w, view_h);
         else
             draw_manual(&app, &text, view_w, view_h);
+        draw_process_type_modal(&app, view_w, view_h);
         draw_public_id_modal(&app, view_w, view_h);
         draw_alias_modal(&app, view_w, view_h);
         EndUIFocus();
