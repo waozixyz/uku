@@ -11,3 +11,4 @@ uku.sqlite3
 *.exe
 .direnv/
 *.core
+__pycache__/
