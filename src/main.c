@@ -2676,7 +2676,8 @@ draw_button(UkuApp *app, Font font, int x, int y, int w, int h, const char *labe
 {
     Vector2 mouse = GetMousePosition();
     Rectangle bounds = {(float)x, (float)y, (float)w, (float)h};
-    int hover = CheckCollisionPointRec(mouse, bounds);
+    int hover = CheckCollisionPointRec(mouse, bounds) &&
+                !UIInputCapturesClick(mouse);
     int focused = RegisterUIFocus(focus_id, bounds);
     Color fill = primary ? GetThemeButton() : (Color){255, 255, 255, 255};
     Color text = primary ? WHITE : GetThemeText();
@@ -2696,7 +2697,13 @@ draw_button(UkuApp *app, Font font, int x, int y, int w, int h, const char *labe
                        GetUIControlTextY(label, y, h, font_size),
                        font_size, text);
 
-    *clicked = (hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) || IsUIFocusActivatePressed(focus_id);
+    *clicked = 0;
+    if(hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
+        UIConsumeRelease();
+        *clicked = 1;
+    } else if(IsUIFocusActivatePressed(focus_id)) {
+        *clicked = 1;
+    }
 }
 
 static int
@@ -3268,7 +3275,8 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
         int card_h = ScaleUIPx(86);
         Rectangle card = {(float)content_x, (float)y, (float)content_w, (float)card_h};
         Vector2 mouse = GetMousePosition();
-        int hovered = CheckCollisionPointRec(mouse, card);
+        int hovered = CheckCollisionPointRec(mouse, card) &&
+                      !UIInputCapturesClick(mouse);
         int focused = RegisterUIFocus(UKU_FOCUS_DASHBOARD_NEW, card);
         int icon_size = ScaleUIPx(34);
         Texture2D icon_texture;
@@ -3297,6 +3305,8 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
         new_clicked = (hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
                       IsUIFocusActivatePressed(UKU_FOCUS_DASHBOARD_NEW);
         if(new_clicked) {
+            if(hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON))
+                UIConsumeRelease();
             reset_decision(app, text);
             app->process_type_modal_open = 1;
             app->process_type_launch_create = 1;
@@ -4049,7 +4059,8 @@ draw_process_type_modal(UkuApp *app, int view_w, int view_h)
         if(row_y + row_h < list_y || row_y > list_y + list_h)
             continue;
 
-        hovered = CheckCollisionPointRec(mouse, row);
+        hovered = CheckCollisionPointRec(mouse, row) &&
+                  !UIInputCapturesClick(mouse);
         focused = RegisterUIFocus(UKU_FOCUS_PROCESS_TYPE_BASE + 1 + i, row);
 
         if(hovered)
@@ -4086,6 +4097,8 @@ draw_process_type_modal(UkuApp *app, int view_w, int view_h)
 
         if((hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
            IsUIFocusActivatePressed(UKU_FOCUS_PROCESS_TYPE_BASE + 1 + i)) {
+            if(hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON))
+                UIConsumeRelease();
             apply_process_template(&app->decision, tmpl);
             app->process_type_modal_open = 0;
             app->active_field = UKU_FIELD_NONE;
@@ -4371,6 +4384,9 @@ main(void)
         ClearBackground(GetThemeBackground());
         BeginUIFocus();
         SetUIFocusTextInputActive(app.active_field != UKU_FIELD_NONE);
+        if(app.process_type_modal_open || app.account_public_id_modal_open ||
+           app.account_alias_modal_open)
+            BeginUIModalLayer();
         if(app.screen == UKU_SCREEN_HOME)
             draw_home(&app, &text, view_w, view_h);
         else if(app.screen == UKU_SCREEN_CREATE)
