@@ -1,12 +1,37 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" shape-rendering="crispEdges" role="img" aria-label="Uku">
-  <rect width="64" height="64" rx="10" fill="#25342f"/>
-  <rect x="8" y="8" width="48" height="48" fill="#f6f1e8"/>
-  <rect x="12" y="12" width="40" height="40" fill="#25342f"/>
-  <rect x="18" y="16" width="8" height="28" fill="#d94f3d"/>
-  <rect x="26" y="36" width="12" height="8" fill="#d94f3d"/>
-  <rect x="38" y="16" width="8" height="28" fill="#d94f3d"/>
-  <rect x="18" y="48" width="8" height="4" fill="#e8b75b"/>
-  <rect x="38" y="48" width="8" height="4" fill="#e8b75b"/>
-  <rect x="28" y="20" width="8" height="8" fill="#7ab7a5"/>
-  <rect x="28" y="28" width="8" height="8" fill="#f6f1e8"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">Uku</title>
+  <desc id="desc">A warm orange pinwheel mark with orbiting dots.</desc>
+  <defs>
+    <linearGradient id="blade" x1="22" y1="47" x2="49" y2="14" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#d94f3d"/>
+      <stop offset="1" stop-color="#f25a18"/>
+    </linearGradient>
+  </defs>
+  <g fill="url(#blade)">
+    <g>
+      <path d="M31.8 31.9c4.4-3.6 6.7-8.7 9-12.9 2.5-4.6 5.9-7.8 12.3-8.8.9-.1 1.4 1 .6 1.5-6.6 3.5-10 8-12.4 12.7-2.6 5-5.1 8.3-9.5 7.5z"/>
+      <circle cx="42.7" cy="17.9" r="3.7"/>
+    </g>
+    <g transform="rotate(60 32 32)">
+      <path d="M31.8 31.9c4.4-3.6 6.7-8.7 9-12.9 2.5-4.6 5.9-7.8 12.3-8.8.9-.1 1.4 1 .6 1.5-6.6 3.5-10 8-12.4 12.7-2.6 5-5.1 8.3-9.5 7.5z"/>
+      <circle cx="42.7" cy="17.9" r="3.7"/>
+    </g>
+    <g transform="rotate(120 32 32)">
+      <path d="M31.8 31.9c4.4-3.6 6.7-8.7 9-12.9 2.5-4.6 5.9-7.8 12.3-8.8.9-.1 1.4 1 .6 1.5-6.6 3.5-10 8-12.4 12.7-2.6 5-5.1 8.3-9.5 7.5z"/>
+      <circle cx="42.7" cy="17.9" r="3.7"/>
+    </g>
+    <g transform="rotate(180 32 32)">
+      <path d="M31.8 31.9c4.4-3.6 6.7-8.7 9-12.9 2.5-4.6 5.9-7.8 12.3-8.8.9-.1 1.4 1 .6 1.5-6.6 3.5-10 8-12.4 12.7-2.6 5-5.1 8.3-9.5 7.5z"/>
+      <circle cx="42.7" cy="17.9" r="3.7"/>
+    </g>
+    <g transform="rotate(240 32 32)">
+      <path d="M31.8 31.9c4.4-3.6 6.7-8.7 9-12.9 2.5-4.6 5.9-7.8 12.3-8.8.9-.1 1.4 1 .6 1.5-6.6 3.5-10 8-12.4 12.7-2.6 5-5.1 8.3-9.5 7.5z"/>
+      <circle cx="42.7" cy="17.9" r="3.7"/>
+    </g>
+    <g transform="rotate(300 32 32)">
+      <path d="M31.8 31.9c4.4-3.6 6.7-8.7 9-12.9 2.5-4.6 5.9-7.8 12.3-8.8.9-.1 1.4 1 .6 1.5-6.6 3.5-10 8-12.4 12.7-2.6 5-5.1 8.3-9.5 7.5z"/>
+      <circle cx="42.7" cy="17.9" r="3.7"/>
+    </g>
+  </g>
+  <circle cx="32" cy="32" r="2.2" fill="#f25a18"/>
 </svg>

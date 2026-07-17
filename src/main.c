@@ -276,8 +276,55 @@ typedef enum UkuFocusId {
     UKU_FOCUS_JOIN_PROCESS_OPEN,
     UKU_FOCUS_SCORE_BASE = 1000,
     UKU_FOCUS_PROPOSAL_DELETE_BASE = 3000,
-    UKU_FOCUS_DASHBOARD_PROCESS_BASE = 100
+    UKU_FOCUS_DASHBOARD_PROCESS_BASE = 100,
+    UKU_FOCUS_PROCESS_TYPE_BASE = 4200
 } UkuFocusId;
+
+typedef struct UkuProcessTemplate {
+    const char *type;
+    const char *title;
+    const char *description;
+    int proposal_days;
+    int proposal_hours;
+    int proposal_minutes;
+    int voting_days;
+    int voting_hours;
+    int voting_minutes;
+    int negative_weight;
+    int quorum_percent;
+    int require_vote_reason;
+} UkuProcessTemplate;
+
+static const UkuProcessTemplate process_templates[] = {
+    {
+        "consent", "Consent decision",
+        "Find an option without serious unresolved resistance.",
+        2, 0, 0,
+        1, 0, 0,
+        3, 0, 1
+    },
+    {
+        "majority", "Majority vote",
+        "Choose the option with the strongest overall support.",
+        1, 0, 0,
+        1, 0, 0,
+        1, 0, 0
+    },
+    {
+        "advice", "Advice process",
+        "Gather input before one owner makes the call.",
+        3, 0, 0,
+        0, 12, 0,
+        2, 0, 1
+    },
+    {
+        "dot_vote", "Dot vote",
+        "Prioritize many options quickly with lightweight scoring.",
+        1, 0, 0,
+        0, 12, 0,
+        0, 0, 0
+    }
+};
 
 #define LOCALE_FONT_NAME "ui"
 #define LOCALE_FONT_TTF "assets/fonts/ui.ttf"
@@ -2939,17 +2986,101 @@ draw_negative_weight_dropdown(UkuApp *app, Font font, const UkuText *text, int x
 }
 
 static void
+apply_process_template(UkuDecision *d, const UkuProcessTemplate *tmpl)
+{
+    copy_text(d->decision_type, sizeof(d->decision_type), tmpl->type, strlen(tmpl->type));
+    d->proposal_days = tmpl->proposal_days;
+    d->proposal_hours = tmpl->proposal_hours;
+    d->proposal_minutes = tmpl->proposal_minutes;
+    d->voting_days = tmpl->voting_days;
+    d->voting_hours = tmpl->voting_hours;
+    d->voting_minutes = tmpl->voting_minutes;
+    d->negative_weight = tmpl->negative_weight;
+    d->quorum_percent = tmpl->quorum_percent;
+    d->require_vote_reason = tmpl->require_vote_reason;
+}
+
+static int
+process_template_selected(const UkuDecision *d, const UkuProcessTemplate *tmpl)
+{
+    const char *type = d->decision_type[0] != '\0' ? d->decision_type : "consent";
+
+    return strcmp(type, tmpl->type) == 0;
+}
+
+static int
+draw_process_type_selector(UkuApp *app, Font font, int x, int y, int w)
+{
+    int label_font = ClampUIPx(13, 13, 16);
+    int title_font = ClampUIPx(16, 16, 20);
+    int body_font = ClampUIPx(13, 13, 16);
+    int gap = ScaleUIPx(10);
+    int card_h = ScaleUIPx(76);
+    int two_col = w >= ScaleUIPx(560);
+    int card_w = two_col ? (w - gap) / 2 : w;
+    int count = (int)(sizeof(process_templates) / sizeof(process_templates[0]));
+    Vector2 mouse = GetMousePosition();
+
+    draw_text_font(font, "Process type", x, y, label_font, GetThemeText());
+    y += label_font + ScaleUIPx(8);
+
+    for(int i = 0; i < count; i++) {
+        const UkuProcessTemplate *tmpl = &process_templates[i];
+        int col = two_col ? i % 2 : 0;
+        int row = two_col ? i / 2 : i;
+        int card_x = x + col * (card_w + gap);
+        int card_y = y + row * (card_h + gap);
+        Rectangle card = {(float)card_x, (float)card_y, (float)card_w, (float)card_h};
+        int selected = process_template_selected(&app->decision, tmpl);
+        int hovered = CheckCollisionPointRec(mouse, card);
+        int focused = RegisterUIFocus(UKU_FOCUS_PROCESS_TYPE_BASE + i, card);
+
+        if(hovered)
+            app->cursor_clickable = 1;
+
+        DrawRectangleRounded(card, 0.08f, 10,
+                             selected ? (Color){232, 241, 247, 255} : GetThemeSurface());
+        DrawRectangleRoundedLinesEx(card, 0.08f, 10, ScaleUIPx(selected || focused ? 2 : 1),
+                                    selected || focused ? GetThemeButton() : GetThemeText());
+        if(focused)
+            DrawUIFocus(card);
+        if(selected)
+            DrawRectangle(card_x + ScaleUIPx(7), card_y + ScaleUIPx(12),
+                          ScaleUIPx(4), card_h - ScaleUIPx(24), GetThemeButton());
+
+        draw_text_font(font, fit_tail(font, tmpl->title, title_font, card_w - ScaleUIPx(30)),
+                       card_x + ScaleUIPx(18), card_y + ScaleUIPx(12), title_font, GetThemeText());
+        draw_text_font(font, fit_tail(font, tmpl->description, body_font, card_w - ScaleUIPx(30)),
+                       card_x + ScaleUIPx(18), card_y + ScaleUIPx(42), body_font, GetThemeButton());
+
+        if((hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
+           IsUIFocusActivatePressed(UKU_FOCUS_PROCESS_TYPE_BASE + i)) {
+            apply_process_template(&app->decision, tmpl);
+            app->negative_dropdown_open = 0;
+            app->active_field = UKU_FIELD_NONE;
+        }
+    }
+
+    return y + ((count + (two_col ? 1 : 0)) / (two_col ? 2 : 1)) * (card_h + gap) + ScaleUIPx(8);
+}
+
+static void
 draw_scrollbar(UkuApp *app, int x, int y, int h, int content_h, int max_scroll,
                int *scroll, int *dragging, int *drag_offset)
 {
     int track_w = ScaleUIPx(8);
+    int hit_w = ScaleUIPx(30);
+    int hit_x = x - (hit_w - track_w) / 2;
     int thumb_h;
     int thumb_y;
     Rectangle track;
+    Rectangle hit_track;
     Rectangle thumb;
+    Rectangle hit_thumb;
     Vector2 mouse = GetMousePosition();
 
     track = (Rectangle){(float)x, (float)y, (float)track_w, (float)h};
+    hit_track = (Rectangle){(float)hit_x, (float)y, (float)hit_w, (float)h};
     if(max_scroll <= 0) {
         *dragging = 0;
         return;
@@ -2959,16 +3090,20 @@ draw_scrollbar(UkuApp *app, int x, int y, int h, int content_h, int max_scroll,
     thumb_h = UKU_MIN(thumb_h, h);
     thumb_y = y + (int)((float)(h - thumb_h) * ((float)(*scroll) / (float)max_scroll));
     thumb = (Rectangle){(float)x, (float)thumb_y, (float)track_w, (float)thumb_h};
+    hit_thumb = (Rectangle){(float)hit_x, (float)thumb_y, (float)hit_w, (float)thumb_h};
 
     DrawRectangleRounded(track, 0.5f, 8, (Color){226, 230, 233, 255});
     DrawRectangleRounded(thumb, 0.5f, 8, GetThemeButton());
 
-    if(CheckCollisionPointRec(mouse, track))
+    if(CheckCollisionPointRec(mouse, hit_track))
         app->cursor_clickable = 1;
 
-    if(IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && CheckCollisionPointRec(mouse, thumb)) {
+    if(IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && CheckCollisionPointRec(mouse, hit_thumb)) {
         *dragging = 1;
         *drag_offset = (int)mouse.y - thumb_y;
+    } else if(IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && CheckCollisionPointRec(mouse, hit_track)) {
+        *dragging = 1;
+        *drag_offset = thumb_h / 2;
     }
 
     if(!IsMouseButtonDown(MOUSE_LEFT_BUTTON))
@@ -3005,17 +3140,8 @@ init_decision(UkuApp *app, const UkuText *text)
 {
     UkuDecision *d = &app->decision;
 
-    d->proposal_days = 2;
-    d->proposal_hours = 0;
-    d->proposal_minutes = 1;
-    d->voting_days = 1;
-    d->voting_hours = 0;
-    d->voting_minutes = 1;
-    d->negative_weight = 3;
-    d->quorum_percent = 0;
-    d->require_vote_reason = 1;
     copy_text(d->visibility, sizeof(d->visibility), "public", strlen("public"));
-    copy_text(d->decision_type, sizeof(d->decision_type), "consent", strlen("consent"));
+    apply_process_template(d, &process_templates[0]);
     (void)text;
 }
 
@@ -3342,6 +3468,7 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
     }
 
     BeginScissorMode(0, viewport_y, view_w, viewport_h);
+    y = draw_process_type_selector(app, font, content_x, y, content_w);
     y = draw_text_field(app, font, text->topic_question_label, text->topic_question_placeholder,
                         d->topic, sizeof(d->topic), UKU_FIELD_TOPIC, UKU_FOCUS_TOPIC,
                         content_x, y, content_w, ScaleUIPx(46));
@@ -4102,6 +4229,8 @@ main(void)
 {
     UkuApp app = {0};
     UkuText text = {0};
+    int window_w = 520;
+    int window_h = 760;
 
     load_text_file(&text, LOCALE_TEXT_PATH);
     init_decision(&app, &text);
@@ -4119,10 +4248,16 @@ main(void)
 #if !defined(PLATFORM_WEB)
     InitFileDialog(&app.account_import_dialog);
     InitFileDialog(&app.account_export_dialog);
+#else
+    GetWebViewportSize(window_w, window_h, &window_w, &window_h);
 #endif
 
+#if defined(PLATFORM_WEB)
+    SetConfigFlags(GetWebWindowFlags());
+#else
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-    InitWindow(520, 760, text.app_title);
+#endif
+    InitWindow(window_w, window_h, text.app_title);
     SetTargetFPS(60);
     InitUIDPI();
     SetCurrentTheme(THEME_SUNSET, 0);
