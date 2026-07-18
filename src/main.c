@@ -92,6 +92,7 @@ typedef struct UkuProcessRow {
     int proposal_minutes;
     int voting_minutes;
     int negative_weight;
+    char visibility[16];
     sqlite3_int64 created_at;
 } UkuProcessRow;
 
@@ -144,10 +145,6 @@ typedef struct UkuApp {
     int collect_max_scroll;
     int collect_drag_scrollbar;
     int collect_scroll_drag_offset;
-    int process_type_scroll;
-    int process_type_max_scroll;
-    int process_type_drag_scrollbar;
-    int process_type_scroll_drag_offset;
     int negative_dropdown_open;
     int process_count;
     int proposal_count;
@@ -179,8 +176,6 @@ typedef struct UkuApp {
     int theme_mode;
     int theme_id;
     int theme_dark_mode;
-    int process_type_modal_open;
-    int process_type_launch_create;
     char account_status[160];
     char process_status[180];
     char server_url[256];
@@ -291,67 +286,17 @@ typedef enum UkuFocusId {
     UKU_FOCUS_VOTE_SUBMIT,
     UKU_FOCUS_PROCESS_PUBLIC,
     UKU_FOCUS_PROCESS_PRIVATE,
+    UKU_FOCUS_PROCESS_UNLISTED,
     UKU_FOCUS_PROCESS_DELETE,
     UKU_FOCUS_PROCESS_EXPORT,
     UKU_FOCUS_JOIN_PROCESS,
     UKU_FOCUS_JOIN_PROCESS_OPEN,
+    UKU_FOCUS_DASHBOARD_BRAND,
     UKU_FOCUS_SCORE_BASE = 1000,
     UKU_FOCUS_PROPOSAL_DELETE_BASE = 3000,
     UKU_FOCUS_DASHBOARD_PROCESS_BASE = 100,
-    UKU_FOCUS_PROCESS_TYPE_BASE = 4200,
-    UKU_FOCUS_PROCESS_TYPE_CLOSE = 4290
+    UKU_FOCUS_PROCESS_TYPE_BASE = 4200
 } UkuFocusId;
-
-typedef struct UkuProcessTemplate {
-    const char *type;
-    const char *title;
-    const char *description;
-    UIIconType icon;
-    int proposal_days;
-    int proposal_hours;
-    int proposal_minutes;
-    int voting_days;
-    int voting_hours;
-    int voting_minutes;
-    int negative_weight;
-    int quorum_percent;
-    int require_vote_reason;
-} UkuProcessTemplate;
-
-static const UkuProcessTemplate process_templates[] = {
-    {
-        "consent", "Agreement",
-        "Work toward an option people can live with.",
-        UI_ICON_TYPE_CHECK,
-        2, 0, 0,
-        1, 0, 0,
-        3, 0, 1
-    },
-    {
-        "majority", "Vote",
-        "Pick the option with the clearest support.",
-        UI_ICON_TYPE_STAT,
-        1, 0, 0,
-        1, 0, 0,
-        1, 0, 0
-    },
-    {
-        "advice", "Advice",
-        "Collect input before one person makes the call.",
-        UI_ICON_TYPE_PENCIL,
-        3, 0, 0,
-        0, 12, 0,
-        2, 0, 1
-    },
-    {
-        "dot_vote", "Prioritize",
-        "Sort many options quickly with lightweight scoring.",
-        UI_ICON_TYPE_STACK,
-        1, 0, 0,
-        0, 12, 0,
-        0, 0, 0
-    }
-};
 
 #define LOCALE_FONT_NAME "ui"
 #define LOCALE_FONT_TTF "assets/fonts/ui.ttf"
@@ -726,6 +671,7 @@ db_init(UkuApp *app)
                  "proposal_minutes integer not null,"
                  "voting_minutes integer not null,"
                  "negative_weight integer not null,"
+                 "visibility text not null default 'public',"
                  "local_address text not null,"
                  "created_at integer not null,"
                  "synced integer not null default 0"
@@ -764,6 +710,7 @@ db_init(UkuApp *app)
                  ");"))
         return 0;
     sqlite3_exec(app->db, "alter table processes add column synced integer not null default 0", NULL, NULL, NULL);
+    sqlite3_exec(app->db, "alter table processes add column visibility text not null default 'public'", NULL, NULL, NULL);
     sqlite3_exec(app->db, "alter table proposals add column author_user_id text not null default ''", NULL, NULL, NULL);
     sqlite3_exec(app->db, "alter table proposals add column remote_id text not null default ''", NULL, NULL, NULL);
     sqlite3_exec(app->db, "alter table proposals add column synced integer not null default 0", NULL, NULL, NULL);
@@ -2454,6 +2401,7 @@ lyra_fetch_public_processes(UkuApp *app, const char *base_url)
         extract_json_int(p, "proposal_minutes", &row.proposal_minutes);
         extract_json_int(p, "voting_minutes", &row.voting_minutes);
         extract_json_int(p, "negative_weight", &row.negative_weight);
+        copy_text(row.visibility, sizeof(row.visibility), "public", strlen("public"));
         snprintf(row.local_address, sizeof(row.local_address), "/app/%s/collect", row.id);
         if(extract_json_string(p, "created_at", created_at, sizeof(created_at)))
             row.created_at = parse_lyra_time(created_at);
@@ -2567,7 +2515,8 @@ db_save_process(UkuApp *app, const UkuText *text)
     generate_process_id(d->id, sizeof(d->id));
     snprintf(d->local_address, sizeof(d->local_address), "/app/%s/collect", d->id);
     d->created_at = now;
-    copy_text(d->visibility, sizeof(d->visibility), "public", strlen("public"));
+    if(d->visibility[0] == '\0')
+        copy_text(d->visibility, sizeof(d->visibility), "public", strlen("public"));
     copy_text(d->owner_user_id, sizeof(d->owner_user_id),
               app->account.public_id, strlen(app->account.public_id));
 
@@ -2578,6 +2527,7 @@ db_save_process(UkuApp *app, const UkuText *text)
     row.proposal_minutes = duration_minutes(d->proposal_days, d->proposal_hours, d->proposal_minutes);
     row.voting_minutes = duration_minutes(d->voting_days, d->voting_hours, d->voting_minutes);
     row.negative_weight = d->negative_weight;
+    copy_text(row.visibility, sizeof(row.visibility), d->visibility, strlen(d->visibility));
     row.created_at = now;
 
     if(app->process_count < UKU_MAX_PROCESSES)
@@ -2599,7 +2549,8 @@ db_save_process(UkuApp *app, const UkuText *text)
     generate_process_id(d->id, sizeof(d->id));
     snprintf(d->local_address, sizeof(d->local_address), "/app/%s/collect", d->id);
     d->created_at = now;
-    copy_text(d->visibility, sizeof(d->visibility), "public", strlen("public"));
+    if(d->visibility[0] == '\0')
+        copy_text(d->visibility, sizeof(d->visibility), "public", strlen("public"));
     copy_text(d->owner_user_id, sizeof(d->owner_user_id),
               app->account.public_id, strlen(app->account.public_id));
 
@@ -2607,8 +2558,8 @@ db_save_process(UkuApp *app, const UkuText *text)
         return 0;
 
     if(sqlite3_prepare_v2(app->db,
-                          "insert into processes(id, topic, description, proposal_minutes, voting_minutes, negative_weight, local_address, created_at, synced)"
-                          " values(?, ?, ?, ?, ?, ?, ?, ?, 0)",
+                          "insert into processes(id, topic, description, proposal_minutes, voting_minutes, negative_weight, visibility, local_address, created_at, synced)"
+                          " values(?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
                           -1, &stmt, NULL) != SQLITE_OK)
         goto cleanup;
 
@@ -2618,8 +2569,9 @@ db_save_process(UkuApp *app, const UkuText *text)
     sqlite3_bind_int(stmt, 4, duration_minutes(d->proposal_days, d->proposal_hours, d->proposal_minutes));
     sqlite3_bind_int(stmt, 5, duration_minutes(d->voting_days, d->voting_hours, d->voting_minutes));
     sqlite3_bind_int(stmt, 6, d->negative_weight);
-    sqlite3_bind_text(stmt, 7, d->local_address, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int64(stmt, 8, now);
+    sqlite3_bind_text(stmt, 7, d->visibility, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 8, d->local_address, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(stmt, 9, now);
 
     if(sqlite3_step(stmt) != SQLITE_DONE)
         goto cleanup;
@@ -2658,7 +2610,7 @@ db_load_processes(UkuApp *app)
         return;
 
     if(sqlite3_prepare_v2(app->db,
-                          "select id, topic, description, proposal_minutes, voting_minutes, negative_weight, local_address, created_at "
+                          "select id, topic, description, proposal_minutes, voting_minutes, negative_weight, visibility, local_address, created_at "
                           "from processes order by created_at desc limit ?",
                           -1, &stmt, NULL) != SQLITE_OK)
         return;
@@ -2669,16 +2621,18 @@ db_load_processes(UkuApp *app)
         const unsigned char *id = sqlite3_column_text(stmt, 0);
         const unsigned char *topic = sqlite3_column_text(stmt, 1);
         const unsigned char *description = sqlite3_column_text(stmt, 2);
-        const unsigned char *address = sqlite3_column_text(stmt, 6);
+        const unsigned char *visibility = sqlite3_column_text(stmt, 6);
+        const unsigned char *address = sqlite3_column_text(stmt, 7);
 
         copy_text(row->id, sizeof(row->id), (const char *)(id != NULL ? id : (const unsigned char *)""), strlen((const char *)(id != NULL ? id : (const unsigned char *)"")));
         copy_text(row->topic, sizeof(row->topic), (const char *)(topic != NULL ? topic : (const unsigned char *)""), strlen((const char *)(topic != NULL ? topic : (const unsigned char *)"")));
         copy_text(row->description, sizeof(row->description), (const char *)(description != NULL ? description : (const unsigned char *)""), strlen((const char *)(description != NULL ? description : (const unsigned char *)"")));
+        copy_text(row->visibility, sizeof(row->visibility), (const char *)(visibility != NULL ? visibility : (const unsigned char *)"public"), strlen((const char *)(visibility != NULL ? visibility : (const unsigned char *)"public")));
         copy_text(row->local_address, sizeof(row->local_address), (const char *)(address != NULL ? address : (const unsigned char *)""), strlen((const char *)(address != NULL ? address : (const unsigned char *)"")));
         row->proposal_minutes = sqlite3_column_int(stmt, 3);
         row->voting_minutes = sqlite3_column_int(stmt, 4);
         row->negative_weight = sqlite3_column_int(stmt, 5);
-        row->created_at = sqlite3_column_int64(stmt, 7);
+        row->created_at = sqlite3_column_int64(stmt, 8);
         count++;
     }
 
@@ -3243,7 +3197,9 @@ open_process_row(UkuApp *app, const UkuProcessRow *row)
     d->require_vote_reason = 1;
     d->created_at = row->created_at;
     d->submitted = 1;
-    copy_text(d->visibility, sizeof(d->visibility), "public", strlen("public"));
+    copy_text(d->visibility, sizeof(d->visibility),
+              row->visibility[0] != '\0' ? row->visibility : "public",
+              strlen(row->visibility[0] != '\0' ? row->visibility : "public"));
     copy_text(d->decision_type, sizeof(d->decision_type), "consent", strlen("consent"));
     proposals_clear(app);
     db_load_process_detail(app, NULL);
@@ -3397,6 +3353,26 @@ draw_compact_button(UkuApp *app, Font font, int x, int y, int w, int max_w, int 
     draw_button(app, font, x, y, button_w, h, label, primary, focus_id, clicked);
 }
 
+static void
+draw_visibility_button(UkuApp *app, int x, int y, int w, const char *label,
+                       int selected, int focus_id, int *clicked)
+{
+    *clicked = 0;
+    if(DrawUIButton((UIButton){
+        .bounds = {(float)x, (float)y, (float)w, (float)ScaleUIPx(20)},
+        .label = label,
+        .font = ClampUIPx(9, 9, 10),
+        .focus_id = focus_id,
+        .background = selected ? GetThemeButton() : GetThemeSurface(),
+        .hover_background = selected ? GetThemeButtonHover() : LightenUIColor(GetThemeSurface(), 12),
+        .text = selected ? WHITE : GetThemeText(),
+        .border = selected ? DarkenUIColor(GetThemeButton(), 22) : DarkenUIColor(GetThemeSurface(), 28),
+        .radius = 0.07f
+    }))
+        *clicked = 1;
+    (void)app;
+}
+
 static int
 draw_readonly_field(UkuApp *app, Font font, const char *text, int x, int y, int w, int h,
                     int focus_id, int *clicked)
@@ -3496,6 +3472,119 @@ draw_pfp_account_button(UkuApp *app, int x, int y, int size, int focus_id)
     if(clicked && hover)
         UIConsumeRelease();
     return clicked;
+}
+
+static int
+draw_dashboard_brand(UkuApp *app, const char *title, int x, int y, int w, int h)
+{
+    int font_size = ClampUIPx(15, 15, 18);
+    int text_w = measure_text_font(app->font, title, font_size);
+    Rectangle bounds = {(float)x, (float)y, (float)UKU_MIN(w, text_w), (float)h};
+    Vector2 mouse = GetMousePosition();
+    int hover = CheckCollisionPointRec(mouse, bounds);
+    int focused = RegisterUIFocus(UKU_FOCUS_DASHBOARD_BRAND, bounds);
+    int clicked;
+
+    if(hover)
+        app->cursor_clickable = 1;
+    if(focused)
+        DrawUIFocus(bounds);
+    draw_text_font(app->font, fit_tail(app->font, title, font_size, w),
+                   x, y + (h - font_size) / 2,
+                   font_size, GetThemeText());
+    clicked = (hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
+              IsUIFocusActivatePressed(UKU_FOCUS_DASHBOARD_BRAND);
+    if(clicked) {
+        app->screen = UKU_SCREEN_HOME;
+        app->dashboard_scroll = 0;
+        app->active_field = UKU_FIELD_NONE;
+        ClearUIFocus();
+    }
+    return clicked;
+}
+
+static void
+draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
+                       int *join_clicked, int *new_clicked,
+                       int *settings_clicked, int *account_clicked)
+{
+    int h = ScaleUIPx(46);
+    int pad = ScaleUIPx(10);
+    int icon = ScaleUIPx(24);
+    int gap = ScaleUIPx(8);
+    int brand_w = UKU_MIN(ScaleUIPx(112),
+                          measure_text_font(app->font, text->app_title,
+                                            ClampUIPx(15, 15, 18)));
+    int button_x = view_w - pad - icon;
+    int search_x;
+    int search_w;
+    int field_h = ScaleUIPx(30);
+    int field_y = (h - field_h) / 2;
+    int focused = app->active_field == UKU_FIELD_JOIN_PROCESS;
+    int cursor = (int)strlen(app->join_process_input);
+
+    DrawRectangle(0, 0, view_w, h, GetThemeSurface());
+    DrawLine(0, h - 1, view_w, h - 1, GetThemeText());
+
+    draw_dashboard_brand(app, text->app_title, pad, 0, brand_w, h);
+
+    if(account_clicked != NULL) {
+        if(draw_pfp_account_button(app, button_x, ScaleUIPx(8), icon,
+                                   UKU_FOCUS_ACCOUNT_ID))
+            *account_clicked = 1;
+        button_x -= icon + gap;
+    }
+    if(settings_clicked != NULL) {
+        if(draw_icon_button(app, button_x, ScaleUIPx(8), icon,
+                            UI_ICON_TYPE_GEAR, UKU_FOCUS_SETTINGS))
+            *settings_clicked = 1;
+        button_x -= icon + gap;
+    }
+    if(new_clicked != NULL) {
+        if(draw_icon_button(app, button_x, ScaleUIPx(8), icon,
+                            UI_ICON_TYPE_PLUS, UKU_FOCUS_DASHBOARD_NEW))
+            *new_clicked = 1;
+        button_x -= icon + gap;
+    }
+
+    search_x = pad + brand_w + gap;
+    search_w = button_x - gap - search_x;
+    if(search_w >= ScaleUIPx(120)) {
+        DrawUITextField((UITextField){
+            .bounds = {(float)search_x, (float)field_y, (float)search_w, (float)field_h},
+            .text = app->join_process_input,
+            .text_size = sizeof(app->join_process_input),
+            .cursor_position = &cursor,
+            .focused = &focused,
+            .font = ClampUIPx(12, 12, 14),
+            .focus_id = UKU_FOCUS_JOIN_PROCESS,
+            .style = {
+                .background = GetThemeBackground(),
+                .border = GetThemeText(),
+                .focus_border = GetThemeButton(),
+                .text = GetThemeText(),
+                .cursor = GetThemeButton(),
+                .radius = 0.08f,
+                .padding_x = ScaleUIPx(9)
+            }
+        });
+        if(focused)
+            app->active_field = UKU_FIELD_JOIN_PROCESS;
+        else if(app->active_field == UKU_FIELD_JOIN_PROCESS)
+            app->active_field = UKU_FIELD_NONE;
+        if(app->join_process_input[0] == '\0' && !focused)
+            DrawUIText("Search or paste link", search_x + ScaleUIPx(9),
+                       GetUIControlTextY("Search or paste link", field_y, field_h,
+                                         ClampUIPx(12, 12, 14)),
+                       ClampUIPx(12, 12, 14), DarkenUIColor(GetThemeText(), 40));
+        button_x = search_x + search_w + gap;
+    }
+
+    if(join_clicked != NULL) {
+        if(draw_icon_button(app, button_x, ScaleUIPx(8), icon,
+                            UI_ICON_TYPE_LINK, UKU_FOCUS_JOIN_PROCESS_OPEN))
+            *join_clicked = 1;
+    }
 }
 
 static void
@@ -3711,29 +3800,6 @@ draw_negative_weight_dropdown(UkuApp *app, Font font, const UkuText *text, int x
 }
 
 static void
-apply_process_template(UkuDecision *d, const UkuProcessTemplate *tmpl)
-{
-    copy_text(d->decision_type, sizeof(d->decision_type), tmpl->type, strlen(tmpl->type));
-    d->proposal_days = tmpl->proposal_days;
-    d->proposal_hours = tmpl->proposal_hours;
-    d->proposal_minutes = tmpl->proposal_minutes;
-    d->voting_days = tmpl->voting_days;
-    d->voting_hours = tmpl->voting_hours;
-    d->voting_minutes = tmpl->voting_minutes;
-    d->negative_weight = tmpl->negative_weight;
-    d->quorum_percent = tmpl->quorum_percent;
-    d->require_vote_reason = tmpl->require_vote_reason;
-}
-
-static int
-process_template_selected(const UkuDecision *d, const UkuProcessTemplate *tmpl)
-{
-    const char *type = d->decision_type[0] != '\0' ? d->decision_type : "consent";
-
-    return strcmp(type, tmpl->type) == 0;
-}
-
-static void
 draw_scrollbar(UkuApp *app, int x, int y, int h, int content_h, int max_scroll,
                int *scroll, int *dragging, int *drag_offset)
 {
@@ -3810,7 +3876,11 @@ init_decision(UkuApp *app, const UkuText *text)
     UkuDecision *d = &app->decision;
 
     copy_text(d->visibility, sizeof(d->visibility), "public", strlen("public"));
-    apply_process_template(d, &process_templates[0]);
+    copy_text(d->decision_type, sizeof(d->decision_type), "consent", strlen("consent"));
+    d->proposal_days = 2;
+    d->voting_days = 1;
+    d->negative_weight = 3;
+    d->require_vote_reason = 1;
     (void)text;
 }
 
@@ -3827,18 +3897,6 @@ reset_decision(UkuApp *app, const UkuText *text)
 }
 
 static void
-open_process_type_picker(UkuApp *app, const UkuText *text)
-{
-    if(app == NULL)
-        return;
-    reset_decision(app, text);
-    app->process_type_modal_open = 1;
-    app->process_type_launch_create = 1;
-    app->process_type_scroll = 0;
-    ClearUIFocus();
-}
-
-static void
 start_new_process_flow(UkuApp *app, const UkuText *text)
 {
     if(app == NULL)
@@ -3849,7 +3907,10 @@ start_new_process_flow(UkuApp *app, const UkuText *text)
         ClearUIFocus();
         return;
     }
-    open_process_type_picker(app, text);
+    reset_decision(app, text);
+    app->screen = UKU_SCREEN_CREATE;
+    app->active_field = UKU_FIELD_NONE;
+    ClearUIFocus();
 }
 
 static void
@@ -3968,7 +4029,7 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
     int content_x;
     int content_w;
     int top_h = ScaleUIPx(46);
-    int title_font = ClampUIPx(18, 18, 23);
+    int title_font = ClampUIPx(17, 17, 21);
     int body_font = ClampUIPx(14, 14, 17);
     int small_font = ClampUIPx(12, 12, 14);
     int line_h = body_font + ScaleUIPx(5);
@@ -3992,8 +4053,8 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
     app->dashboard_scroll = clampi(app->dashboard_scroll - (int)(GetMouseWheelMove() * ScaleUIPx(44)),
                                    0, app->dashboard_max_scroll);
 
-    draw_top_bar(app, text->app_title, 0, 0, NULL, 0, NULL, 1, &settings_clicked,
-                 1, &account_clicked, 0, NULL, view_w);
+    draw_dashboard_top_bar(app, text, view_w, &join_clicked, &new_clicked,
+                           &settings_clicked, &account_clicked);
     if(settings_clicked) {
         app->screen = UKU_SCREEN_THEME;
         ClearUIFocus();
@@ -4002,19 +4063,8 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
         app->screen = UKU_SCREEN_ACCOUNT;
         ClearUIFocus();
     }
-
-    BeginScissorMode(0, viewport_y, view_w, viewport_h);
-    draw_text_font(font, text->home_subtitle, content_x, y, title_font, GetThemeText());
-    y += title_font + ScaleUIPx(8);
-    y = draw_wrapped_text(font, text->home_summary, content_x, y, content_w, body_font, line_h, GetThemeText());
-    y += ScaleUIPx(14);
-
-    y = draw_text_field(app, font, text->join_process_label, text->join_process_placeholder,
-                        app->join_process_input, sizeof(app->join_process_input),
-                        UKU_FIELD_JOIN_PROCESS, UKU_FOCUS_JOIN_PROCESS,
-                        content_x, y, content_w, ScaleUIPx(36));
-    draw_compact_button(app, font, content_x, y, content_w, ScaleUIPx(220), ScaleUIPx(34),
-                        text->join_process_button, 0, UKU_FOCUS_JOIN_PROCESS_OPEN, &join_clicked);
+    if(new_clicked)
+        start_new_process_flow(app, text);
     if(join_clicked) {
         char process_id[40];
 
@@ -4022,14 +4072,11 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                                                        process_id, sizeof(process_id));
         if(!app->join_process_failed)
             open_process_id(app, process_id);
-    }
-    y += ScaleUIPx(44);
-    if(app->join_process_failed) {
-        y = draw_wrapped_text(font, text->join_process_error, content_x, y, content_w,
-                              small_font, line_h, GetThemeButton());
-        y += ScaleUIPx(10);
+        else
+            ShowUIToast(text->join_process_error);
     }
 
+    BeginScissorMode(0, viewport_y, view_w, viewport_h);
     draw_text_font(font, text->dashboard_recent_label, content_x, y, title_font, GetThemeText());
     y += title_font + ScaleUIPx(12);
 
@@ -4038,6 +4085,17 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
     } else {
         int card_h = ScaleUIPx(92);
         int gap = ScaleUIPx(8);
+        int active_count = 0;
+
+        for(int i = 0; i < app->process_count; i++) {
+            UkuProcessRow *row = &app->processes[i];
+            if(process_phase(row->created_at, row->proposal_minutes,
+                             row->voting_minutes, now, NULL) != UKU_PROCESS_RESULTS)
+                active_count++;
+        }
+        if(active_count <= 0)
+            y = draw_wrapped_text(font, text->dashboard_empty, content_x, y,
+                                  content_w, body_font, line_h, GetThemeText());
         for(int i = 0; i < app->process_count; i++) {
             UkuProcessRow *row = &app->processes[i];
             Rectangle card = {(float)content_x, (float)y, (float)content_w, (float)card_h};
@@ -4050,6 +4108,9 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
             char timer[128];
             int open = 0;
 
+            if(process_phase(row->created_at, row->proposal_minutes,
+                             row->voting_minutes, now, NULL) == UKU_PROCESS_RESULTS)
+                continue;
             if(y + card_h < viewport_y || y > viewport_y + viewport_h) {
                 y += card_h + gap;
                 continue;
@@ -4084,43 +4145,6 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
         }
     }
     EndScissorMode();
-
-    {
-        int size = ScaleUIPx(46);
-        int margin = ScaleUIPx(18);
-        int x = view_w - margin - size;
-        int button_y = view_h - margin - size;
-        Rectangle bounds = {(float)x, (float)button_y, (float)size, (float)size};
-        Vector2 mouse = GetMousePosition();
-        int hover = CheckCollisionPointRec(mouse, bounds) &&
-                    !UIInputCapturesClick(mouse);
-        int focused = RegisterUIFocus(UKU_FOCUS_DASHBOARD_NEW, bounds);
-        Texture2D icon = app->icons[UI_ICON_TYPE_PLUS];
-
-        if(hover)
-            app->cursor_clickable = 1;
-        DrawCircle(x + size / 2, button_y + size / 2, size / 2,
-                   hover || focused ? GetThemeButtonHover() : GetThemeButton());
-        DrawCircleLines(x + size / 2, button_y + size / 2, size / 2,
-                        DarkenUIColor(GetThemeButton(), 24));
-        if(focused)
-            DrawUIFocus(bounds);
-        if(icon.id != 0) {
-            int icon_size = ScaleUIPx(22);
-            DrawTexturePro(icon, (Rectangle){0, 0, (float)icon.width, (float)icon.height},
-                           (Rectangle){(float)(x + (size - icon_size) / 2),
-                                       (float)(button_y + (size - icon_size) / 2),
-                                       (float)icon_size, (float)icon_size},
-                           (Vector2){0}, 0.0f, WHITE);
-        }
-        new_clicked = (hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
-                      IsUIFocusActivatePressed(UKU_FOCUS_DASHBOARD_NEW);
-        if(new_clicked) {
-            if(hover)
-                UIConsumeRelease();
-            start_new_process_flow(app, text);
-        }
-    }
 
     content_bottom = y + app->dashboard_scroll + ScaleUIPx(24);
     content_h = content_bottom - viewport_y;
@@ -4185,20 +4209,29 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
     {
         int public_clicked = 0;
         int private_clicked = 0;
+        int unlisted_clicked = 0;
+        int option_w = UKU_MIN(ScaleUIPx(72), (content_w - ScaleUIPx(12)) / 3);
 
         draw_text_font(font, "Visibility", content_x, y, small_font, GetThemeText());
         y += small_font + ScaleUIPx(5);
-        draw_button(app, font, content_x, y, ScaleUIPx(82), ScaleUIPx(24),
-                    "Public", strcmp(d->visibility, "unlisted") != 0,
-                    UKU_FOCUS_PROCESS_PUBLIC, &public_clicked);
-        draw_button(app, font, content_x + ScaleUIPx(90), y, ScaleUIPx(90), ScaleUIPx(24),
-                    "Private", strcmp(d->visibility, "unlisted") == 0,
-                    UKU_FOCUS_PROCESS_PRIVATE, &private_clicked);
+        draw_visibility_button(app, content_x, y, option_w, "Public",
+                               strcmp(d->visibility, "public") == 0,
+                               UKU_FOCUS_PROCESS_PUBLIC, &public_clicked);
+        draw_visibility_button(app, content_x + option_w + ScaleUIPx(6), y,
+                               option_w, "Private",
+                               strcmp(d->visibility, "private") == 0,
+                               UKU_FOCUS_PROCESS_PRIVATE, &private_clicked);
+        draw_visibility_button(app, content_x + (option_w + ScaleUIPx(6)) * 2,
+                               y, option_w, "Unlisted",
+                               strcmp(d->visibility, "unlisted") == 0,
+                               UKU_FOCUS_PROCESS_UNLISTED, &unlisted_clicked);
         if(public_clicked)
             copy_text(d->visibility, sizeof(d->visibility), "public", strlen("public"));
         if(private_clicked)
+            copy_text(d->visibility, sizeof(d->visibility), "private", strlen("private"));
+        if(unlisted_clicked)
             copy_text(d->visibility, sizeof(d->visibility), "unlisted", strlen("unlisted"));
-        y += ScaleUIPx(34);
+        y += ScaleUIPx(30);
     }
     y = draw_duration_group(app, font, text->proposal_time_label, text,
                             &d->proposal_days, &d->proposal_hours, &d->proposal_minutes,
@@ -4562,6 +4595,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
         SetClipboardText(d->local_address);
         copy_text(app->process_status, sizeof(app->process_status),
                   "Share address copied.", strlen("Share address copied."));
+        ShowUIToast(app->process_status);
     }
     y += ScaleUIPx(86);
 
@@ -4573,6 +4607,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
             copy_text(app->process_status, sizeof(app->process_status),
                       app->process_export_failed ? "Could not export decision packet." : "Decision packet copied.",
                       strlen(app->process_export_failed ? "Could not export decision packet." : "Decision packet copied."));
+            ShowUIToast(app->process_status);
         }
         y += ScaleUIPx(42);
         draw_compact_button(app, font, content_x, y, content_w, ScaleUIPx(190), ScaleUIPx(34),
@@ -4623,8 +4658,12 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                     app->proposal_submit_ok = 1;
                     app->proposal_title[0] = '\0';
                     app->proposal_description[0] = '\0';
+                    ShowUIToast(app->proposal_submit_failed ?
+                                "Proposal saved locally. It will sync when the server is reachable." :
+                                "Proposal submitted.");
                 } else {
                     app->proposal_submit_failed = 1;
+                    ShowUIToast("Could not submit proposal.");
                 }
             }
             y += ScaleUIPx(42);
@@ -4664,8 +4703,12 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                     app->pending_sync_attempted = 0;
                     app->vote_submit_failed = !lyra_submit_vote(app, app->server_url);
                     app->vote_submit_ok = 1;
+                    ShowUIToast(app->vote_submit_failed ?
+                                "Vote saved locally. It will sync when the server is reachable." :
+                                "Vote submitted.");
                 } else {
                     app->vote_submit_failed = 1;
+                    ShowUIToast("Could not submit vote.");
                 }
             }
             y += ScaleUIPx(42);
@@ -4735,6 +4778,10 @@ draw_public_id_modal(UkuApp *app, int view_w, int view_h)
 
     if(!app->account_public_id_modal_open)
         return;
+    if(IsKeyPressed(KEY_ESCAPE)) {
+        app->account_public_id_modal_open = 0;
+        return;
+    }
 
     DrawRectangleRec(overlay, (Color){0, 0, 0, 96});
     DrawRectangleRounded(panel, 0.08f, 12, GetThemeSurface());
@@ -4752,6 +4799,7 @@ draw_public_id_modal(UkuApp *app, int view_w, int view_h)
         SetClipboardText(app->account.public_id);
         copy_text(app->account_status, sizeof(app->account_status),
                   "Public ID copied.", strlen("Public ID copied."));
+        ShowUIToast(app->account_status);
     }
     content_y += ScaleUIPx(4);
     draw_button(app, font, x + pad, content_y, half_w, ScaleUIPx(40), "Copy", 1,
@@ -4762,8 +4810,13 @@ draw_public_id_modal(UkuApp *app, int view_w, int view_h)
         SetClipboardText(app->account.public_id);
         copy_text(app->account_status, sizeof(app->account_status),
                   "Public ID copied.", strlen("Public ID copied."));
+        ShowUIToast(app->account_status);
     }
     if(close_clicked)
+        app->account_public_id_modal_open = 0;
+    if(CheckCollisionPointRec(GetMousePosition(), overlay) &&
+       !CheckCollisionPointRec(GetMousePosition(), panel) &&
+       IsMouseButtonReleased(MOUSE_LEFT_BUTTON))
         app->account_public_id_modal_open = 0;
 
     draw_button(app, font, x + pad, y + panel_h - pad - ScaleUIPx(40),
@@ -4855,7 +4908,9 @@ draw_account_setup_modal(UkuApp *app, const UkuText *text, int view_w, int view_
         app->active_field = UKU_FIELD_NONE;
         if(app->account_setup_start_process) {
             app->account_setup_start_process = 0;
-            open_process_type_picker(app, text);
+            reset_decision(app, text);
+            app->screen = UKU_SCREEN_CREATE;
+            ClearUIFocus();
         }
     }
 
@@ -4908,138 +4963,6 @@ draw_account_required_modal(UkuApp *app, const UkuText *text, int view_w, int vi
 
     (void)view_w;
     (void)view_h;
-}
-
-static void
-draw_process_type_modal(UkuApp *app, int view_w, int view_h)
-{
-    int count = (int)(sizeof(process_templates) / sizeof(process_templates[0]));
-    int panel_w = UKU_MIN(view_w - ScaleUIPx(24), ScaleUIPx(520));
-    int row_h = ScaleUIPx(76);
-    int footer_h = ScaleUIPx(58);
-    int panel_h = ScaleUIPx(58) + row_h * count + footer_h + ScaleUIPx(14);
-    int max_h = view_h - ScaleUIPx(24);
-    int list_y;
-    int list_h;
-    int content_h = row_h * count;
-    int item_font = ClampUIPx(16, 16, 20);
-    int body_font = ClampUIPx(13, 13, 16);
-    int close_clicked = 0;
-    Color line_color = (Color){220, 226, 222, 255};
-    Color selected_color = (Color){247, 251, 249, 255};
-    Color hover_color = (Color){249, 250, 248, 255};
-    Font font = app->font;
-    Vector2 mouse = GetMousePosition();
-    UIPanelFrame frame;
-
-    if(!app->process_type_modal_open)
-        return;
-
-    if(panel_h > max_h)
-        panel_h = max_h;
-
-    frame = DrawUIModalFrame(panel_w, panel_h, "Start a process",
-                             (Texture2D){0}, app->icons[UI_ICON_TYPE_X]);
-    if(frame.right_clicked || IsKeyPressed(KEY_ESCAPE))
-        app->process_type_modal_open = 0;
-    if(!app->process_type_modal_open) {
-        app->process_type_launch_create = 0;
-        return;
-    }
-
-    list_y = frame.content_y;
-    list_h = frame.content_h - footer_h;
-    if(list_h < 1)
-        list_h = 1;
-
-    app->process_type_scroll = clampi(app->process_type_scroll -
-                                      (int)(GetMouseWheelMove() * ScaleUIPx(44)),
-                                      0, app->process_type_max_scroll);
-
-    BeginScissorMode(frame.content_x, list_y, frame.content_w, list_h);
-    for(int i = 0; i < count; i++) {
-        const UkuProcessTemplate *tmpl = &process_templates[i];
-        int row_y = list_y + i * row_h - app->process_type_scroll;
-        Rectangle row = {(float)frame.content_x, (float)row_y,
-                         (float)frame.content_w, (float)(row_h - ScaleUIPx(8))};
-        int selected = process_template_selected(&app->decision, tmpl);
-        int hovered;
-        int focused;
-        int icon_size = ScaleUIPx(28);
-        int text_x;
-
-        if(row_y + row_h < list_y || row_y > list_y + list_h)
-            continue;
-
-        hovered = CheckCollisionPointRec(mouse, row) &&
-                  !UIInputCapturesClick(mouse);
-        focused = RegisterUIFocus(UKU_FOCUS_PROCESS_TYPE_BASE + 1 + i, row);
-
-        if(hovered)
-            app->cursor_clickable = 1;
-        DrawRectangleRounded(row, 0.08f, 10,
-                             selected ? selected_color : (hovered ? hover_color : GetThemeSurface()));
-        DrawRectangleRoundedLinesEx(row, 0.08f, 10, ScaleUIPx(selected || focused ? 2 : 1),
-                                    selected || focused ? GetThemeButton() : line_color);
-        if(focused)
-            DrawUIFocus(row);
-        if(selected)
-            DrawRectangle((int)row.x + ScaleUIPx(7), (int)row.y + ScaleUIPx(12),
-                          ScaleUIPx(4), (int)row.height - ScaleUIPx(24), GetThemeButton());
-        if(tmpl->icon > UI_ICON_TYPE_NONE && tmpl->icon < UI_ICON_TYPE_COUNT &&
-           app->icons[tmpl->icon].id != 0) {
-            Texture2D icon_texture = app->icons[tmpl->icon];
-            Rectangle icon_rect = {(float)((int)row.x + ScaleUIPx(20)),
-                                   (float)((int)row.y + ScaleUIPx(18)),
-                                   (float)icon_size, (float)icon_size};
-            DrawTexturePro(icon_texture,
-                           (Rectangle){0, 0, (float)icon_texture.width, (float)icon_texture.height},
-                           icon_rect, (Vector2){0}, 0.0f, GetThemeButton());
-        }
-        text_x = (int)row.x + ScaleUIPx(62);
-
-        draw_text_font(font, fit_tail(font, tmpl->title, item_font,
-                                      (int)row.width - ScaleUIPx(80)),
-                       text_x, (int)row.y + ScaleUIPx(11),
-                       item_font, GetThemeText());
-        draw_text_font(font, fit_tail(font, tmpl->description, body_font,
-                                      (int)row.width - ScaleUIPx(80)),
-                       text_x, (int)row.y + ScaleUIPx(42),
-                       body_font, GetThemeText());
-
-        if((hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
-           IsUIFocusActivatePressed(UKU_FOCUS_PROCESS_TYPE_BASE + 1 + i)) {
-            if(hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON))
-                UIConsumeRelease();
-            apply_process_template(&app->decision, tmpl);
-            app->process_type_modal_open = 0;
-            app->active_field = UKU_FIELD_NONE;
-            app->process_type_scroll = 0;
-            if(app->process_type_launch_create) {
-                app->screen = UKU_SCREEN_CREATE;
-                app->process_type_launch_create = 0;
-                ClearUIFocus();
-            }
-        }
-    }
-    EndScissorMode();
-
-    app->process_type_max_scroll = UKU_MAX(0, content_h - list_h);
-    app->process_type_scroll = clampi(app->process_type_scroll, 0, app->process_type_max_scroll);
-    draw_scrollbar(app, frame.x + frame.w - ScaleUIPx(12), list_y + ScaleUIPx(8),
-                   list_h - ScaleUIPx(16), content_h, app->process_type_max_scroll,
-                   &app->process_type_scroll, &app->process_type_drag_scrollbar,
-                   &app->process_type_scroll_drag_offset);
-
-    DrawLine(frame.x, frame.y + frame.h - footer_h, frame.x + frame.w,
-             frame.y + frame.h - footer_h, line_color);
-    draw_button(app, font, frame.content_x, frame.y + frame.h - footer_h + ScaleUIPx(10),
-                frame.content_w, ScaleUIPx(40), "Close", 0,
-                UKU_FOCUS_PROCESS_TYPE_CLOSE, &close_clicked);
-    if(close_clicked) {
-        app->process_type_modal_open = 0;
-        app->process_type_launch_create = 0;
-    }
 }
 
 static void
@@ -5304,7 +5227,7 @@ main(void)
                               THEME_SOURCE_APP, THEME_SOURCE_SYSTEM);
     app.theme_mode = clampi(setting_load_int(&app, UKU_THEME_MODE_KEY, THEME_MODE_LIGHT),
                             THEME_MODE_SYSTEM, THEME_MODE_DARK);
-    app.theme_id = clampi(setting_load_int(&app, UKU_THEME_ID_KEY, THEME_MONO),
+    app.theme_id = clampi(setting_load_int(&app, UKU_THEME_ID_KEY, THEME_SUNSET),
                           0, THEME_COUNT - 1);
     app.theme_dark_mode = setting_load_int(&app, UKU_THEME_DARK_KEY, 0) != 0;
     app.account_pfp_icon = (UIIconType)setting_load_int(&app, UKU_ACCOUNT_PFP_KEY,
@@ -5362,8 +5285,8 @@ main(void)
         ClearBackground(GetThemeBackground());
         BeginUIFocus();
         SetUIFocusTextInputActive(app.active_field != UKU_FIELD_NONE);
-        if(app.process_type_modal_open || app.account_required_modal_open ||
-           app.account_setup_modal_open || app.account_pfp_modal_open ||
+        if(app.account_required_modal_open || app.account_setup_modal_open ||
+           app.account_pfp_modal_open ||
            app.account_public_id_modal_open || app.account_alias_modal_open)
             BeginUIModalLayer();
         if(app.screen == UKU_SCREEN_HOME)
@@ -5380,9 +5303,9 @@ main(void)
             draw_manual(&app, &text, view_w, view_h);
         draw_account_setup_modal(&app, &text, view_w, view_h);
         draw_account_required_modal(&app, &text, view_w, view_h);
-        draw_process_type_modal(&app, view_w, view_h);
         draw_public_id_modal(&app, view_w, view_h);
         draw_alias_modal(&app, view_w, view_h);
+        DrawUIToast();
         EndUIFocus();
         EndDrawing();
 

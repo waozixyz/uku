@@ -65,7 +65,7 @@ Add context, constraints, or links.
 Negative score weighting
 ---
 [negative_weight_infinity]
-∞ (systemic consensus)
+Infinity (systemic consensus)
 ---
 [negative_weight_1]
 1
