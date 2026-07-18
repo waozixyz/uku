@@ -528,7 +528,8 @@ app_unload_font(UkuApp *app)
 static int
 measure_text_font(Font font, const char *text, int font_size)
 {
-    return (int)(MeasureTextEx(font, text, (float)font_size, 0).x + 0.5f);
+    (void)font;
+    return MeasureUIText(text, font_size);
 }
 
 static void
@@ -3332,7 +3333,9 @@ draw_button(UkuApp *app, Font font, int x, int y, int w, int h, const char *labe
     bounds.height = (float)h;
     font_size = ClampUIPx(10, 10, 12);
     natural_w = MeasureUIText(label != NULL ? label : "", font_size) + ScaleUIPx(22);
-    if(natural_w > ScaleUIPx(44) && natural_w < w)
+    if(natural_w < ScaleUIPx(44))
+        natural_w = ScaleUIPx(44);
+    if(natural_w < w)
         bounds.width = (float)natural_w;
     if(DrawUIButton((UIButton){
         .bounds = bounds,
@@ -4548,6 +4551,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     UkuDecision *d = &app->decision;
     char timer[128];
     char governance_line[256];
+    int link_box_w;
     int proposal_total = duration_minutes(d->proposal_days, d->proposal_hours, d->proposal_minutes);
     int voting_total = duration_minutes(d->voting_days, d->voting_hours, d->voting_minutes);
     sqlite3_int64 now = (sqlite3_int64)time(NULL);
@@ -4626,10 +4630,13 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
 
     draw_text_font(font, text->local_address_label, content_x, y, small_font, GetThemeButton());
     y += small_font + ScaleUIPx(6);
-    DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)content_w, (float)ScaleUIPx(36)}, 0.08f, 10, WHITE);
-    DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)content_w, (float)ScaleUIPx(36)}, 0.08f, 10,
+    link_box_w = MeasureUIText(d->local_address, body_font) + ScaleUIPx(20);
+    link_box_w = clampi(link_box_w, ScaleUIPx(96), content_w);
+    DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)link_box_w, (float)ScaleUIPx(36)}, 0.08f, 10, WHITE);
+    DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)link_box_w, (float)ScaleUIPx(36)}, 0.08f, 10,
                                 ScaleUIPx(1), GetThemeText());
-    draw_text_font(font, d->local_address, content_x + ScaleUIPx(10), y + ScaleUIPx(9), body_font, GetThemeText());
+    draw_text_font(font, fit_tail(font, d->local_address, body_font, link_box_w - ScaleUIPx(20)),
+                   content_x + ScaleUIPx(10), y + ScaleUIPx(9), body_font, GetThemeText());
     draw_compact_button(app, font, content_x, y + ScaleUIPx(42), content_w, ScaleUIPx(220),
                         ScaleUIPx(34), "Copy share address", 0, UKU_FOCUS_PUBLIC_ID_COPY,
                         &copy_clicked);
