@@ -5868,9 +5868,7 @@ main(void)
 
         UpdateUIDPI(view_w, view_h);
         SetUIScale(ui_dpi_state.ui_scale_clamped);
-        SetUIViewSize(view_w, view_h);
-        InitUI(view_w, view_h, GetUIScale());
-        SetUIFrame((Camera2D){0});
+        BeginUIFrame(view_w, view_h, GetUIScale());
         SetUICursorClickable(&app.cursor_clickable);
         SetUIColors(GetThemeText(), GetThemeBackground(), GetThemeSurface(), GetThemeCircle(), GetThemeButton(), GetThemeButtonHover(), GetThemeIcon());
 
@@ -5901,6 +5899,7 @@ main(void)
         draw_public_id_modal(&app, view_w, view_h);
         draw_alias_modal(&app, view_w, view_h);
         DrawUIToast();
+        DrawUIEditorOverlay();
         EndUIFocus();
         EndDrawing();
 
