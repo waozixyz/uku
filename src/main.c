@@ -549,7 +549,8 @@ compact_public_id(const char *public_id, char *out, size_t out_size)
 static void
 draw_text_font(Font font, const char *text, int x, int y, int font_size, Color color)
 {
-    DrawTextEx(font, text, (Vector2){(float)x, (float)y}, (float)font_size, 0, color);
+    (void)font;
+    DrawUIText(text, x, y, font_size, color);
 }
 
 static int
