@@ -4085,8 +4085,9 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
     int content_h;
     int account_clicked = 0;
     int settings_clicked = 0;
-    int new_clicked = 0;
     int join_clicked = 0;
+    int fab_size = ScaleUIPx(46);
+    int fab_margin = ScaleUIPx(18);
     Font font = app->font;
     sqlite3_int64 now = (sqlite3_int64)time(NULL);
 
@@ -4098,7 +4099,7 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
     app->dashboard_scroll = clampi(app->dashboard_scroll - (int)(GetMouseWheelMove() * ScaleUIPx(44)),
                                    0, app->dashboard_max_scroll);
 
-    draw_dashboard_top_bar(app, text, view_w, &join_clicked, &new_clicked,
+    draw_dashboard_top_bar(app, text, view_w, &join_clicked, NULL,
                            &settings_clicked, &account_clicked);
     if(settings_clicked) {
         app->screen = UKU_SCREEN_THEME;
@@ -4108,8 +4109,6 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
         app->screen = UKU_SCREEN_ACCOUNT;
         ClearUIFocus();
     }
-    if(new_clicked)
-        start_new_process_flow(app, text);
     if(join_clicked) {
         char process_id[40];
 
@@ -4198,6 +4197,12 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
     draw_scrollbar(app, view_w - side - ScaleUIPx(8), viewport_y + ScaleUIPx(8),
                    viewport_h - ScaleUIPx(16), content_h, app->dashboard_max_scroll,
                    &app->dashboard_scroll, &app->dashboard_drag_scrollbar, &app->dashboard_scroll_drag_offset);
+
+    if(draw_icon_button(app, view_w - fab_margin - fab_size,
+                        view_h - fab_margin - fab_size,
+                        fab_size, UI_ICON_TYPE_PLUS,
+                        UKU_FOCUS_DASHBOARD_NEW))
+        start_new_process_flow(app, text);
 }
 
 static void
@@ -4552,6 +4557,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     char timer[128];
     char governance_line[256];
     int link_box_w;
+    int link_box_h;
     int proposal_total = duration_minutes(d->proposal_days, d->proposal_hours, d->proposal_minutes);
     int voting_total = duration_minutes(d->voting_days, d->voting_hours, d->voting_minutes);
     sqlite3_int64 now = (sqlite3_int64)time(NULL);
@@ -4632,12 +4638,15 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     y += small_font + ScaleUIPx(6);
     link_box_w = MeasureUIText(d->local_address, body_font) + ScaleUIPx(20);
     link_box_w = clampi(link_box_w, ScaleUIPx(96), content_w);
-    DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)link_box_w, (float)ScaleUIPx(36)}, 0.08f, 10, WHITE);
-    DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)link_box_w, (float)ScaleUIPx(36)}, 0.08f, 10,
+    link_box_h = GetUITextLineHeight(body_font) + ScaleUIPx(10);
+    DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)link_box_w, (float)link_box_h}, 0.08f, 10, WHITE);
+    DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)link_box_w, (float)link_box_h}, 0.08f, 10,
                                 ScaleUIPx(1), GetThemeText());
     draw_text_font(font, fit_tail(font, d->local_address, body_font, link_box_w - ScaleUIPx(20)),
-                   content_x + ScaleUIPx(10), y + ScaleUIPx(9), body_font, GetThemeText());
-    draw_compact_button(app, font, content_x, y + ScaleUIPx(42), content_w, ScaleUIPx(220),
+                   content_x + ScaleUIPx(10),
+                   GetUIControlTextY(d->local_address, y, link_box_h, body_font),
+                   body_font, GetThemeText());
+    draw_compact_button(app, font, content_x, y + link_box_h + ScaleUIPx(6), content_w, ScaleUIPx(220),
                         ScaleUIPx(34), "Copy share address", 0, UKU_FOCUS_PUBLIC_ID_COPY,
                         &copy_clicked);
     if(copy_clicked) {
@@ -4646,7 +4655,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                   "Share address copied.", strlen("Share address copied."));
         ShowUIToast(app->process_status);
     }
-    y += ScaleUIPx(86);
+    y += link_box_h + ScaleUIPx(50);
 
     if(is_owner) {
         draw_compact_button(app, font, content_x, y, content_w, ScaleUIPx(230), ScaleUIPx(34),
