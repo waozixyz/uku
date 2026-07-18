@@ -170,6 +170,11 @@ typedef struct UkuApp {
     int account_alias_modal_open;
     int account_required_modal_open;
     int account_required_start_process;
+    int account_setup_modal_open;
+    int account_setup_start_process;
+    int account_pfp_modal_open;
+    int account_pfp_scroll;
+    UIIconType account_pfp_icon;
     int theme_source;
     int theme_mode;
     int theme_id;
@@ -360,6 +365,7 @@ static const UkuProcessTemplate process_templates[] = {
 #define UKU_THEME_MODE_KEY "theme_mode"
 #define UKU_THEME_ID_KEY "theme_id"
 #define UKU_THEME_DARK_KEY "theme_dark_mode"
+#define UKU_ACCOUNT_PFP_KEY "account_pfp"
 #define UKU_ACCOUNT_KEY_FILE "account.key"
 #define UKU_ACCOUNT_KEY_FILTER ".key"
 
@@ -1996,7 +2002,8 @@ build_remote_process_json(UkuApp *app)
        !json_append_string(&json, d->description))
         goto fail;
     snprintf(tmp, sizeof(tmp),
-             ",\"visibility\":\"public\",\"decision_type\":\"%s\",\"proposal_minutes\":%d,\"voting_minutes\":%d,\"negative_weight\":%d,\"quorum_percent\":%d,\"require_vote_reason\":%s}",
+             ",\"visibility\":\"%s\",\"decision_type\":\"%s\",\"proposal_minutes\":%d,\"voting_minutes\":%d,\"negative_weight\":%d,\"quorum_percent\":%d,\"require_vote_reason\":%s}",
+             d->visibility[0] != '\0' ? d->visibility : "public",
              d->decision_type[0] != '\0' ? d->decision_type : "consent",
              duration_minutes(d->proposal_days, d->proposal_hours, d->proposal_minutes),
              duration_minutes(d->voting_days, d->voting_hours, d->voting_minutes),
@@ -3338,27 +3345,6 @@ open_process_id(UkuApp *app, const char *id)
     ClearUIFocus();
 }
 
-static void
-append_char(char *buffer, size_t cap, int codepoint)
-{
-    size_t len = strlen(buffer);
-
-    if(codepoint < 32 || codepoint > 126 || len + 1 >= cap)
-        return;
-
-    buffer[len] = (char)codepoint;
-    buffer[len + 1] = '\0';
-}
-
-static void
-delete_char(char *buffer)
-{
-    size_t len = strlen(buffer);
-
-    if(len > 0)
-        buffer[len - 1] = '\0';
-}
-
 static const char *
 fit_tail(Font font, const char *text, int font_size, int w)
 {
@@ -3373,9 +3359,10 @@ fit_tail(Font font, const char *text, int font_size, int w)
 static void
 draw_button(UkuApp *app, Font font, int x, int y, int w, int h, const char *label, int primary, int focus_id, int *clicked)
 {
-    int max_h = ScaleUIPx(30);
+    int max_h = ScaleUIPx(24);
     Rectangle bounds = {(float)x, (float)y, (float)w, (float)h};
     int font_size;
+    int natural_w;
 
     (void)app;
     (void)font;
@@ -3383,7 +3370,10 @@ draw_button(UkuApp *app, Font font, int x, int y, int w, int h, const char *labe
     if(h > max_h)
         h = max_h;
     bounds.height = (float)h;
-    font_size = ClampUIPx(11, 11, 13);
+    font_size = ClampUIPx(10, 10, 12);
+    natural_w = MeasureUIText(label != NULL ? label : "", font_size) + ScaleUIPx(22);
+    if(natural_w > ScaleUIPx(44) && natural_w < w)
+        bounds.width = (float)natural_w;
     if(DrawUIButton((UIButton){
         .bounds = bounds,
         .label = label,
@@ -3482,7 +3472,7 @@ draw_pfp_account_button(UkuApp *app, int x, int y, int size, int focus_id)
     int focused = RegisterUIFocus(focus_id, bounds);
     int clicked;
     UIIconType icon_type = app != NULL && app->account.loaded
-                               ? UI_ICON_TYPE_PFP_PERSON1
+                               ? app->account_pfp_icon
                                : UI_ICON_TYPE_PROFILE;
     Texture2D icon = app != NULL ? app->icons[icon_type] : (Texture2D){0};
     int inset = app != NULL && app->account.loaded ? ScaleUIPx(3) : ScaleUIPx(5);
@@ -3569,77 +3559,41 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
                 char *buffer, size_t cap, UkuField field, int focus_id, int x, int y, int w, int h)
 {
     int label_font = ClampUIPx(12, 12, 14);
-    int input_font = ClampUIPx(13, 13, 16);
+    int input_font = ClampUIPx(12, 12, 14);
     int pad = ScaleUIPx(10);
     int label_y = y;
-    int box_y = y + label_font + ScaleUIPx(8);
-    int tall = h > ScaleUIPx(58);
-    int text_h = input_font + ScaleUIPx(8);
-    int text_y = tall ? GetUIControlTextY("Hg", box_y + pad, text_h, input_font)
-                      : GetUIControlTextY("Hg", box_y, h, input_font);
-    int cursor_h = input_font + ScaleUIPx(2);
-    int cursor_y = tall ? text_y : box_y + (h - cursor_h) / 2;
+    int box_y = y + label_font + ScaleUIPx(5);
     Rectangle box = {(float)x, (float)box_y, (float)w, (float)h};
-    Vector2 mouse = GetMousePosition();
-    int focused;
-    int active;
+    int focused = app->active_field == field;
+    int cursor = (int)strlen(buffer);
 
     draw_text_font(font, label, x, label_y, label_font, GetThemeText());
-
-    if(IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-        if(CheckCollisionPointRec(mouse, box))
-            app->active_field = field;
-        else if(app->active_field == field)
-            app->active_field = UKU_FIELD_NONE;
-    }
-
-    focused = RegisterUIFocus(focus_id, box);
+    DrawUITextField((UITextField){
+        .bounds = box,
+        .text = buffer,
+        .text_size = cap,
+        .cursor_position = &cursor,
+        .focused = &focused,
+        .font = input_font,
+        .focus_id = focus_id,
+        .style = {
+            .background = GetThemeSurface(),
+            .border = GetThemeText(),
+            .focus_border = GetThemeButton(),
+            .text = GetThemeText(),
+            .cursor = GetThemeButton(),
+            .radius = 0.08f,
+            .padding_x = pad
+        }
+    });
     if(focused)
         app->active_field = field;
-    active = app->active_field == field;
-    if(CheckCollisionPointRec(mouse, box))
-        app->cursor_clickable = 1;
-
-    if(active) {
-        int c = GetCharPressed();
-        while(c > 0) {
-            append_char(buffer, cap, c);
-            c = GetCharPressed();
-        }
-        if(IsKeyPressed(KEY_BACKSPACE) || IsKeyPressedRepeat(KEY_BACKSPACE))
-            delete_char(buffer);
-    }
-
-    DrawRectangleRounded(box, 0.08f, 10, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(box, 0.08f, 10, ScaleUIPx(active ? 2 : 1),
-                                active ? GetThemeButton() : GetThemeText());
-    if(focused)
-        DrawUIFocus(box);
-
-    if(buffer[0] == '\0') {
-        draw_text_font(font, placeholder, x + pad, text_y,
-                       input_font, GetThemeText());
-    } else if(tall) {
-        BeginScissorMode(x + pad, box_y + pad, w - pad * 2, h - pad * 2);
-        draw_wrapped_text(font, buffer, x + pad, text_y, w - pad * 2,
-                          input_font, input_font + ScaleUIPx(7), GetThemeText());
-        EndScissorMode();
-    } else {
-        const char *visible = fit_tail(font, buffer, input_font, w - pad * 2 - ScaleUIPx(8));
-        draw_text_font(font, visible, x + pad, text_y,
-                       input_font, GetThemeText());
-    }
-
-    if(active && ((int)(GetTime() * 2.0) % 2) == 0) {
-        int cursor_x;
-        if(tall)
-            cursor_x = x + pad + UKU_MIN(measure_text_font(font, buffer, input_font), w - pad * 2 - ScaleUIPx(4));
-        else
-            cursor_x = x + pad + measure_text_font(font, fit_tail(font, buffer, input_font, w - pad * 2 - ScaleUIPx(8)), input_font);
-        DrawLine(cursor_x, cursor_y, cursor_x, cursor_y + cursor_h, GetThemeButton());
-    }
-
-    return box_y + h + ScaleUIPx(12);
+    else if(app->active_field == field)
+        app->active_field = UKU_FIELD_NONE;
+    if(buffer[0] == '\0' && !focused)
+        DrawUIText(placeholder, x + pad, GetUIControlTextY(placeholder, box_y, h, input_font),
+                   input_font, DarkenUIColor(GetThemeText(), 40));
+    return box_y + h + ScaleUIPx(8);
 }
 
 static int
@@ -4228,6 +4182,24 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
     y = draw_negative_weight_dropdown(app, font, text, content_x, y, UKU_MIN(content_w, ScaleUIPx(310)),
                                       UKU_FOCUS_NEGATIVE_WEIGHT);
     y += ScaleUIPx(2);
+    {
+        int public_clicked = 0;
+        int private_clicked = 0;
+
+        draw_text_font(font, "Visibility", content_x, y, small_font, GetThemeText());
+        y += small_font + ScaleUIPx(5);
+        draw_button(app, font, content_x, y, ScaleUIPx(82), ScaleUIPx(24),
+                    "Public", strcmp(d->visibility, "unlisted") != 0,
+                    UKU_FOCUS_PROCESS_PUBLIC, &public_clicked);
+        draw_button(app, font, content_x + ScaleUIPx(90), y, ScaleUIPx(90), ScaleUIPx(24),
+                    "Private", strcmp(d->visibility, "unlisted") == 0,
+                    UKU_FOCUS_PROCESS_PRIVATE, &private_clicked);
+        if(public_clicked)
+            copy_text(d->visibility, sizeof(d->visibility), "public", strlen("public"));
+        if(private_clicked)
+            copy_text(d->visibility, sizeof(d->visibility), "unlisted", strlen("unlisted"));
+        y += ScaleUIPx(34);
+    }
     y = draw_duration_group(app, font, text->proposal_time_label, text,
                             &d->proposal_days, &d->proposal_hours, &d->proposal_minutes,
                             content_x, y, content_w, UKU_FOCUS_PROPOSAL_DAYS_MINUS);
@@ -4302,27 +4274,39 @@ draw_proposal_card(UkuApp *app, Font font, const UkuProposal *proposal,
     int h = ScaleUIPx(54);
     int can_delete;
     int delete_clicked = 0;
+    int edit_clicked = 0;
     Rectangle card;
 
     if(proposal->description[0] != '\0')
         h += ScaleUIPx(20);
     can_delete = app->account.loaded && proposal->author_user_id[0] != '\0' &&
                  strcmp(app->account.public_id, proposal->author_user_id) == 0;
-    if(can_delete)
-        h += ScaleUIPx(40);
     card = (Rectangle){(float)x, (float)y, (float)w, (float)h};
     DrawRectangleRounded(card, 0.08f, 10, WHITE);
     DrawRectangleRoundedLinesEx(card, 0.08f, 10, ScaleUIPx(1), GetThemeText());
-    draw_text_font(font, fit_tail(font, proposal->title, body_font, w - ScaleUIPx(24)),
+    draw_text_font(font, fit_tail(font, proposal->title, body_font,
+                                  w - (can_delete ? ScaleUIPx(76) : ScaleUIPx(24))),
                    x + ScaleUIPx(10), y + ScaleUIPx(8), body_font, GetThemeText());
     if(proposal->description[0] != '\0')
         draw_wrapped_text(font, proposal->description, x + ScaleUIPx(10), y + ScaleUIPx(32),
                           w - ScaleUIPx(20), small_font, line_h, GetThemeText());
     if(can_delete) {
-        draw_compact_button(app, font, x + ScaleUIPx(10), y + h - ScaleUIPx(34),
-                            w - ScaleUIPx(20), ScaleUIPx(180), ScaleUIPx(28),
-                            "Delete proposal", 0, UKU_FOCUS_PROPOSAL_DELETE_BASE + index,
-                            &delete_clicked);
+        int icon_y = y + ScaleUIPx(6);
+        int trash_x = x + w - ScaleUIPx(30);
+        int edit_x = trash_x - ScaleUIPx(28);
+
+        edit_clicked = draw_icon_button(app, edit_x, icon_y, ScaleUIPx(22),
+                                        UI_ICON_TYPE_PENCIL,
+                                        UKU_FOCUS_PROPOSAL_DELETE_BASE + index + 100);
+        delete_clicked = draw_icon_button(app, trash_x, icon_y, ScaleUIPx(22),
+                                          UI_ICON_TYPE_TRASH,
+                                          UKU_FOCUS_PROPOSAL_DELETE_BASE + index);
+        if(edit_clicked) {
+            copy_text(app->proposal_title, sizeof(app->proposal_title),
+                      proposal->title, strlen(proposal->title));
+            copy_text(app->proposal_description, sizeof(app->proposal_description),
+                      proposal->description, strlen(proposal->description));
+        }
         if(delete_clicked) {
             app->proposal_submit_failed = !lyra_delete_proposal(app, app->server_url, proposal->id);
             app->proposal_submit_ok = !app->proposal_submit_failed;
@@ -4478,8 +4462,6 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     int y = viewport_y + ScaleUIPx(14) - app->collect_scroll;
     int back_clicked = 0;
     int copy_clicked = 0;
-    int public_clicked = 0;
-    int private_clicked = 0;
     int delete_process_clicked = 0;
     int export_clicked = 0;
     int submit_clicked = 0;
@@ -4584,27 +4566,6 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     y += ScaleUIPx(86);
 
     if(is_owner) {
-        int half = (content_w - ScaleUIPx(10)) / 2;
-        char owner_line[96];
-
-        snprintf(owner_line, sizeof(owner_line), "Owner controls | %s",
-                 d->visibility[0] != '\0' ? d->visibility : "public");
-        draw_text_font(font, owner_line, content_x, y, small_font, GetThemeButton());
-        y += small_font + ScaleUIPx(6);
-        draw_button(app, font, content_x, y, half, ScaleUIPx(34), "Public", 0,
-                    UKU_FOCUS_PROCESS_PUBLIC, &public_clicked);
-        draw_button(app, font, content_x + half + ScaleUIPx(10), y, half, ScaleUIPx(34),
-                    "Private", 0, UKU_FOCUS_PROCESS_PRIVATE, &private_clicked);
-        if(public_clicked || private_clicked) {
-            const char *next_visibility = public_clicked ? "public" : "unlisted";
-            app->process_update_failed =
-                !lyra_update_process_visibility(app, app->server_url, next_visibility);
-            if(!app->process_update_failed) {
-                copy_text(app->process_status, sizeof(app->process_status),
-                          "Process visibility updated.", strlen("Process visibility updated."));
-            }
-        }
-        y += ScaleUIPx(42);
         draw_compact_button(app, font, content_x, y, content_w, ScaleUIPx(230), ScaleUIPx(34),
                             "Export decision packet", 0, UKU_FOCUS_PROCESS_EXPORT, &export_clicked);
         if(export_clicked) {
@@ -4813,6 +4774,95 @@ draw_public_id_modal(UkuApp *app, int view_w, int view_h)
 }
 
 static void
+draw_account_setup_modal(UkuApp *app, const UkuText *text, int view_w, int view_h)
+{
+    UIPanelFrame frame;
+    int panel_w = UKU_MIN(view_w - ScaleUIPx(24), ScaleUIPx(380));
+    int panel_h = ScaleUIPx(250);
+    int y;
+    int save_clicked = 0;
+    int pfp_clicked = 0;
+    int icon_size = ScaleUIPx(44);
+    Texture2D pfp;
+
+    if(!app->account_setup_modal_open)
+        return;
+
+    if(app->account_pfp_modal_open) {
+        UIProfilePicturePickerResult result =
+            DrawUIProfilePicturePickerModal((UIProfilePicturePickerModal){
+                .title = "Picture",
+                .icons = app->icons,
+                .selected_icon_type = &app->account_pfp_icon,
+                .close_icon = app->icons[UI_ICON_TYPE_X],
+                .max_width = 360,
+                .scroll_offset = &app->account_pfp_scroll
+            });
+        if(result.changed)
+            setting_save_int(app, UKU_ACCOUNT_PFP_KEY, app->account_pfp_icon);
+        if(result.closed)
+            app->account_pfp_modal_open = 0;
+        return;
+    }
+
+    frame = DrawUIModalFrame(panel_w, panel_h, "", (Texture2D){0},
+                             app->icons[UI_ICON_TYPE_X]);
+    if(frame.right_clicked || IsKeyPressed(KEY_ESCAPE)) {
+        app->account_setup_modal_open = 0;
+        app->account_setup_start_process = 0;
+        app->active_field = UKU_FIELD_NONE;
+        return;
+    }
+
+    y = frame.content_y - ScaleUIPx(18);
+    DrawUIText("Set up account", frame.content_x, y, ClampUIPx(14, 14, 17), GetThemeText());
+    y += ScaleUIPx(30);
+
+    pfp = app->account_pfp_icon > UI_ICON_TYPE_NONE &&
+          app->account_pfp_icon < UI_ICON_TYPE_COUNT
+              ? app->icons[app->account_pfp_icon]
+              : app->icons[UI_ICON_TYPE_PFP_PERSON1];
+    DrawCircle(frame.content_x + icon_size / 2, y + icon_size / 2,
+               icon_size / 2, GetThemeButton());
+    if(pfp.id != 0)
+        DrawTexturePro(pfp, (Rectangle){0, 0, (float)pfp.width, (float)pfp.height},
+                       (Rectangle){(float)frame.content_x + ScaleUIPx(7),
+                                   (float)y + ScaleUIPx(7),
+                                   (float)icon_size - ScaleUIPx(14),
+                                   (float)icon_size - ScaleUIPx(14)},
+                       (Vector2){0}, 0.0f, WHITE);
+    draw_button(app, app->font, frame.content_x + icon_size + ScaleUIPx(12),
+                y + ScaleUIPx(10), ScaleUIPx(120), ScaleUIPx(24),
+                "Picture", 0, UKU_FOCUS_ACCOUNT_ID, &pfp_clicked);
+    if(pfp_clicked)
+        app->account_pfp_modal_open = 1;
+    y += icon_size + ScaleUIPx(14);
+
+    draw_text_field(app, app->font, "Alias", "username",
+                    app->alias_input, sizeof(app->alias_input), UKU_FIELD_ALIAS,
+                    UKU_FOCUS_ALIAS_FIELD, frame.content_x, y,
+                    frame.content_w, ScaleUIPx(30));
+    alias_normalize(app->alias_input);
+    y += ScaleUIPx(66);
+
+    draw_button(app, app->font, frame.content_x, y, ScaleUIPx(92), ScaleUIPx(24),
+                "Continue", 1, UKU_FOCUS_ACCOUNT_CREATE, &save_clicked);
+    if(save_clicked) {
+        setting_save_int(app, UKU_ACCOUNT_PFP_KEY, app->account_pfp_icon);
+        if(alias_valid(app->alias_input))
+            lyra_register_alias(app, app->server_url, app->alias_input);
+        app->account_setup_modal_open = 0;
+        app->active_field = UKU_FIELD_NONE;
+        if(app->account_setup_start_process) {
+            app->account_setup_start_process = 0;
+            open_process_type_picker(app, text);
+        }
+    }
+
+    (void)view_h;
+}
+
+static void
 draw_account_required_modal(UkuApp *app, const UkuText *text, int view_w, int view_h)
 {
     UIModalAction actions[3] = {
@@ -4825,6 +4875,7 @@ draw_account_required_modal(UkuApp *app, const UkuText *text, int view_w, int vi
     if(!app->account_required_modal_open)
         return;
 
+    (void)text;
     result = DrawUIActionModal((UIModalSpec){
         .title = "Account required",
         .message = "Create or import an account before starting a process.",
@@ -4834,11 +4885,14 @@ draw_account_required_modal(UkuApp *app, const UkuText *text, int view_w, int vi
     });
 
     if(result == 1) {
-        account_create(app);
-        if(process_account_ready(app) && app->account_required_start_process) {
+        if(account_create(app) && process_account_ready(app)) {
             app->account_required_modal_open = 0;
+            app->account_setup_modal_open = 1;
+            app->account_setup_start_process = app->account_required_start_process;
             app->account_required_start_process = 0;
-            open_process_type_picker(app, text);
+            setting_load_text(app, UKU_SYNC_ACCOUNT_ALIAS_KEY, "",
+                              app->alias_input, sizeof(app->alias_input));
+            alias_normalize(app->alias_input);
         }
     }
     if(result == 2) {
@@ -5253,6 +5307,11 @@ main(void)
     app.theme_id = clampi(setting_load_int(&app, UKU_THEME_ID_KEY, THEME_MONO),
                           0, THEME_COUNT - 1);
     app.theme_dark_mode = setting_load_int(&app, UKU_THEME_DARK_KEY, 0) != 0;
+    app.account_pfp_icon = (UIIconType)setting_load_int(&app, UKU_ACCOUNT_PFP_KEY,
+                                                        UI_ICON_TYPE_PFP_PERSON1);
+    if(app.account_pfp_icon <= UI_ICON_TYPE_NONE ||
+       app.account_pfp_icon >= UI_ICON_TYPE_COUNT)
+        app.account_pfp_icon = UI_ICON_TYPE_PFP_PERSON1;
     setting_load_text(&app, UKU_SYNC_SERVER_URL_KEY, UKU_SYNC_SERVER_URL_DEFAULT,
                       app.server_url, sizeof(app.server_url));
     {
@@ -5304,6 +5363,7 @@ main(void)
         BeginUIFocus();
         SetUIFocusTextInputActive(app.active_field != UKU_FIELD_NONE);
         if(app.process_type_modal_open || app.account_required_modal_open ||
+           app.account_setup_modal_open || app.account_pfp_modal_open ||
            app.account_public_id_modal_open || app.account_alias_modal_open)
             BeginUIModalLayer();
         if(app.screen == UKU_SCREEN_HOME)
@@ -5318,6 +5378,7 @@ main(void)
             draw_theme_settings(&app, &text, view_w, view_h);
         else
             draw_manual(&app, &text, view_w, view_h);
+        draw_account_setup_modal(&app, &text, view_w, view_h);
         draw_account_required_modal(&app, &text, view_w, view_h);
         draw_process_type_modal(&app, view_w, view_h);
         draw_public_id_modal(&app, view_w, view_h);
