@@ -45,7 +45,8 @@ typedef enum UkuField {
     UKU_FIELD_PROPOSAL_TITLE,
     UKU_FIELD_PROPOSAL_DESCRIPTION,
     UKU_FIELD_VOTE_REASON,
-    UKU_FIELD_JOIN_PROCESS
+    UKU_FIELD_JOIN_PROCESS,
+    UKU_FIELD_COUNT
 } UkuField;
 
 typedef enum UkuProcessPhase {
@@ -127,6 +128,8 @@ typedef struct UkuAccount {
 typedef struct UkuApp {
     UkuScreen screen;
     UkuField active_field;
+    int field_cursor[UKU_FIELD_COUNT];
+    int field_scroll[UKU_FIELD_COUNT];
     int cursor_clickable;
     int create_scroll;
     int create_max_scroll;
@@ -3517,12 +3520,15 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
                           measure_text_font(app->font, text->app_title,
                                             ClampUIPx(15, 15, 18)));
     int button_x = view_w - pad - icon;
+    int search_left;
+    int search_right;
+    int search_available;
     int search_x;
     int search_w;
+    int search_group_w;
     int field_h = ScaleUIPx(30);
     int field_y = (h - field_h) / 2;
     int focused = app->active_field == UKU_FIELD_JOIN_PROCESS;
-    int cursor = (int)strlen(app->join_process_input);
 
     DrawRectangle(0, 0, view_w, h, GetThemeSurface());
     DrawLine(0, h - 1, view_w, h - 1, GetThemeText());
@@ -3548,14 +3554,18 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
         button_x -= icon + gap;
     }
 
-    search_x = pad + brand_w + gap;
-    search_w = button_x - gap - search_x;
+    search_left = pad + brand_w + gap;
+    search_right = button_x - gap;
+    search_available = search_right - search_left;
+    search_w = UKU_MIN(ScaleUIPx(240), search_available - icon - gap);
     if(search_w >= ScaleUIPx(120)) {
+        search_group_w = search_w + gap + icon;
+        search_x = search_left + (search_available - search_group_w) / 2;
         DrawUITextField((UITextField){
             .bounds = {(float)search_x, (float)field_y, (float)search_w, (float)field_h},
             .text = app->join_process_input,
             .text_size = sizeof(app->join_process_input),
-            .cursor_position = &cursor,
+            .cursor_position = &app->field_cursor[UKU_FIELD_JOIN_PROCESS],
             .focused = &focused,
             .font = ClampUIPx(12, 12, 14),
             .focus_id = UKU_FOCUS_JOIN_PROCESS,
@@ -3651,39 +3661,70 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
     int label_font = ClampUIPx(12, 12, 14);
     int input_font = ClampUIPx(12, 12, 14);
     int pad = ScaleUIPx(10);
+    int label_gap = ScaleUIPx(9);
     int label_y = y;
-    int box_y = y + label_font + ScaleUIPx(5);
+    int box_y = y + label_font + label_gap;
     Rectangle box = {(float)x, (float)box_y, (float)w, (float)h};
     int focused = app->active_field == field;
-    int cursor = (int)strlen(buffer);
+    int *cursor = field > UKU_FIELD_NONE && field < UKU_FIELD_COUNT
+                      ? &app->field_cursor[field] : NULL;
+    int *scroll_y = field > UKU_FIELD_NONE && field < UKU_FIELD_COUNT
+                        ? &app->field_scroll[field] : NULL;
+
+    if(cursor == NULL || scroll_y == NULL)
+        return y;
 
     draw_text_font(font, label, x, label_y, label_font, GetThemeText());
-    DrawUITextField((UITextField){
-        .bounds = box,
-        .text = buffer,
-        .text_size = cap,
-        .cursor_position = &cursor,
-        .focused = &focused,
-        .font = input_font,
-        .focus_id = focus_id,
-        .style = {
-            .background = GetThemeSurface(),
-            .border = GetThemeText(),
-            .focus_border = GetThemeButton(),
-            .text = GetThemeText(),
-            .cursor = GetThemeButton(),
-            .radius = 0.08f,
-            .padding_x = pad
-        }
-    });
+    if(h > ScaleUIPx(48)) {
+        DrawUITextArea((UITextArea){
+            .bounds = box,
+            .text = buffer,
+            .text_size = cap,
+            .cursor_position = cursor,
+            .focused = &focused,
+            .scroll_y = scroll_y,
+            .font = input_font,
+            .line_gap = ScaleUIPx(4),
+            .focus_id = focus_id,
+            .placeholder = placeholder,
+            .style = {
+                .background = GetThemeSurface(),
+                .border = GetThemeText(),
+                .focus_border = GetThemeButton(),
+                .text = GetThemeText(),
+                .cursor = GetThemeButton(),
+                .radius = 0.08f,
+                .padding_x = pad
+            }
+        });
+    } else {
+        DrawUITextField((UITextField){
+            .bounds = box,
+            .text = buffer,
+            .text_size = cap,
+            .cursor_position = cursor,
+            .focused = &focused,
+            .font = input_font,
+            .focus_id = focus_id,
+            .style = {
+                .background = GetThemeSurface(),
+                .border = GetThemeText(),
+                .focus_border = GetThemeButton(),
+                .text = GetThemeText(),
+                .cursor = GetThemeButton(),
+                .radius = 0.08f,
+                .padding_x = pad
+            }
+        });
+    }
     if(focused)
         app->active_field = field;
     else if(app->active_field == field)
         app->active_field = UKU_FIELD_NONE;
-    if(buffer[0] == '\0' && !focused)
+    if(h <= ScaleUIPx(48) && buffer[0] == '\0' && !focused)
         DrawUIText(placeholder, x + pad, GetUIControlTextY(placeholder, box_y, h, input_font),
                    input_font, DarkenUIColor(GetThemeText(), 40));
-    return box_y + h + ScaleUIPx(8);
+    return box_y + h + ScaleUIPx(10);
 }
 
 static int
