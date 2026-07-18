@@ -40,6 +40,11 @@ typedef enum UkuField {
     UKU_FIELD_NONE,
     UKU_FIELD_TOPIC,
     UKU_FIELD_DESCRIPTION,
+    UKU_FIELD_OPTION_0,
+    UKU_FIELD_OPTION_1,
+    UKU_FIELD_OPTION_2,
+    UKU_FIELD_OPTION_3,
+    UKU_FIELD_OPTION_4,
     UKU_FIELD_SERVER_URL,
     UKU_FIELD_ALIAS,
     UKU_FIELD_PROPOSAL_TITLE,
@@ -48,6 +53,15 @@ typedef enum UkuField {
     UKU_FIELD_JOIN_PROCESS,
     UKU_FIELD_COUNT
 } UkuField;
+
+typedef enum UkuProcessType {
+    UKU_PROCESS_TYPE_CONSENT,
+    UKU_PROCESS_TYPE_POLL,
+    UKU_PROCESS_TYPE_APPROVAL,
+    UKU_PROCESS_TYPE_RANKED_CHOICE,
+    UKU_PROCESS_TYPE_COLLECTION,
+    UKU_PROCESS_TYPE_COUNT
+} UkuProcessType;
 
 typedef enum UkuProcessPhase {
     UKU_PROCESS_PROPOSAL,
@@ -60,7 +74,7 @@ typedef struct UkuDecision {
     char local_address[96];
     char owner_user_id[65];
     char visibility[16];
-    char decision_type[32];
+    UkuProcessType type;
     char outcome[120];
     char review_at[64];
     char topic[180];
@@ -83,6 +97,7 @@ typedef struct UkuDecision {
 
 #define UKU_MAX_PROCESSES 64
 #define UKU_MAX_PROPOSALS 32
+#define UKU_MAX_OPTIONS 5
 #define UKU_MAX_VOTES 256
 
 typedef struct UkuProcessRow {
@@ -90,6 +105,7 @@ typedef struct UkuProcessRow {
     char local_address[96];
     char topic[180];
     char description[420];
+    UkuProcessType type;
     int proposal_minutes;
     int voting_minutes;
     int negative_weight;
@@ -108,6 +124,15 @@ typedef struct UkuProposal {
     int negative_total;
     int vote_count;
 } UkuProposal;
+
+typedef struct UkuOption {
+    char id[40];
+    char label[180];
+    char description[420];
+    int score;
+    int total;
+    int vote_count;
+} UkuOption;
 
 typedef struct UkuVoteInfo {
     char voter_user_id[65];
@@ -151,6 +176,7 @@ typedef struct UkuApp {
     int negative_dropdown_open;
     int process_count;
     int proposal_count;
+    int option_count;
     int vote_count;
     int current_user_voted;
     int remote_processes_loaded;
@@ -184,6 +210,7 @@ typedef struct UkuApp {
     char server_url[256];
     char alias_input[40];
     char join_process_input[160];
+    char option_inputs[UKU_MAX_OPTIONS][180];
     char proposal_title[180];
     char proposal_description[420];
     char vote_reason[420];
@@ -198,6 +225,7 @@ typedef struct UkuApp {
     UkuDecision decision;
     UkuAccount account;
     UkuProcessRow processes[UKU_MAX_PROCESSES];
+    UkuOption options[UKU_MAX_OPTIONS];
     UkuProposal proposals[UKU_MAX_PROPOSALS];
     UkuVoteInfo votes[UKU_MAX_VOTES];
 } UkuApp;
@@ -298,7 +326,8 @@ typedef enum UkuFocusId {
     UKU_FOCUS_SCORE_BASE = 1000,
     UKU_FOCUS_PROPOSAL_DELETE_BASE = 3000,
     UKU_FOCUS_DASHBOARD_PROCESS_BASE = 100,
-    UKU_FOCUS_PROCESS_TYPE_BASE = 4200
+    UKU_FOCUS_PROCESS_TYPE_BASE = 4200,
+    UKU_FOCUS_OPTION_BASE = 4300
 } UkuFocusId;
 
 #define LOCALE_FONT_NAME "ui"
@@ -640,6 +669,79 @@ clampi(int value, int min_value, int max_value)
     return value;
 }
 
+static const char *
+process_type_key(UkuProcessType type)
+{
+    switch(type) {
+    case UKU_PROCESS_TYPE_CONSENT: return "consent";
+    case UKU_PROCESS_TYPE_POLL: return "poll";
+    case UKU_PROCESS_TYPE_APPROVAL: return "approval";
+    case UKU_PROCESS_TYPE_RANKED_CHOICE: return "ranked_choice";
+    case UKU_PROCESS_TYPE_COLLECTION: return "collection";
+    default: return "consent";
+    }
+}
+
+static const char *
+process_type_label(UkuProcessType type)
+{
+    switch(type) {
+    case UKU_PROCESS_TYPE_CONSENT: return "Consent";
+    case UKU_PROCESS_TYPE_POLL: return "Poll";
+    case UKU_PROCESS_TYPE_APPROVAL: return "Approval";
+    case UKU_PROCESS_TYPE_RANKED_CHOICE: return "Ranked choice";
+    case UKU_PROCESS_TYPE_COLLECTION: return "Collection";
+    default: return "Consent";
+    }
+}
+
+static UkuProcessType
+process_type_from_key(const char *key)
+{
+    if(key == NULL)
+        return UKU_PROCESS_TYPE_CONSENT;
+    for(int i = 0; i < UKU_PROCESS_TYPE_COUNT; i++) {
+        UkuProcessType type = (UkuProcessType)i;
+        if(strcmp(key, process_type_key(type)) == 0)
+            return type;
+    }
+    return UKU_PROCESS_TYPE_CONSENT;
+}
+
+static int
+process_type_has_proposals(UkuProcessType type)
+{
+    return type == UKU_PROCESS_TYPE_CONSENT ||
+           type == UKU_PROCESS_TYPE_COLLECTION;
+}
+
+static int
+process_type_has_voting(UkuProcessType type)
+{
+    return type != UKU_PROCESS_TYPE_COLLECTION;
+}
+
+static int
+process_type_has_options(UkuProcessType type)
+{
+    return type == UKU_PROCESS_TYPE_POLL ||
+           type == UKU_PROCESS_TYPE_APPROVAL ||
+           type == UKU_PROCESS_TYPE_RANKED_CHOICE;
+}
+
+static int
+process_type_uses_negative_weight(UkuProcessType type)
+{
+    return type == UKU_PROCESS_TYPE_CONSENT;
+}
+
+static int
+process_type_uses_reason(UkuProcessType type)
+{
+    return type == UKU_PROCESS_TYPE_CONSENT ||
+           type == UKU_PROCESS_TYPE_APPROVAL;
+}
+
 static int
 has_non_space(const char *text)
 {
@@ -663,14 +765,65 @@ exec_sql(sqlite3 *db, const char *sql)
 }
 
 static int
+db_table_exists(sqlite3 *db, const char *name)
+{
+    sqlite3_stmt *stmt = NULL;
+    int exists;
+
+    if(sqlite3_prepare_v2(db, "select 1 from sqlite_master where type='table' and name=?1", -1, &stmt, NULL) != SQLITE_OK)
+        return 0;
+    sqlite3_bind_text(stmt, 1, name, -1, SQLITE_TRANSIENT);
+    exists = sqlite3_step(stmt) == SQLITE_ROW;
+    sqlite3_finalize(stmt);
+    return exists;
+}
+
+static int
+db_table_has_column(sqlite3 *db, const char *table, const char *column)
+{
+    sqlite3_stmt *stmt = NULL;
+    char sql[128];
+    int found = 0;
+
+    snprintf(sql, sizeof(sql), "pragma table_info(%s)", table);
+    if(sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK)
+        return 0;
+    while(sqlite3_step(stmt) == SQLITE_ROW) {
+        const unsigned char *name = sqlite3_column_text(stmt, 1);
+        if(name != NULL && strcmp((const char *)name, column) == 0) {
+            found = 1;
+            break;
+        }
+    }
+    sqlite3_finalize(stmt);
+    return found;
+}
+
+static void
+db_reset_process_schema_if_old(sqlite3 *db)
+{
+    if(!db_table_exists(db, "processes") || db_table_has_column(db, "processes", "type"))
+        return;
+    sqlite3_exec(db, "drop table if exists processes", NULL, NULL, NULL);
+    sqlite3_exec(db, "drop table if exists proposals", NULL, NULL, NULL);
+    sqlite3_exec(db, "drop table if exists votes", NULL, NULL, NULL);
+    sqlite3_exec(db, "drop table if exists options", NULL, NULL, NULL);
+    sqlite3_exec(db, "drop table if exists results", NULL, NULL, NULL);
+}
+
+static int
 db_init(UkuApp *app)
 {
     if(sqlite3_open("uku.sqlite3", &app->db) != SQLITE_OK)
         return 0;
 
+    db_reset_process_schema_if_old(app->db);
+
     if(!exec_sql(app->db,
                  "create table if not exists processes ("
                  "id text primary key,"
+                 "type text not null,"
+                 "phase text not null,"
                  "topic text not null,"
                  "description text not null,"
                  "proposal_minutes integer not null,"
@@ -680,6 +833,14 @@ db_init(UkuApp *app)
                  "local_address text not null,"
                  "created_at integer not null,"
                  "synced integer not null default 0"
+                 ");"
+                 "create table if not exists options ("
+                 "id text primary key,"
+                 "process_id text not null,"
+                 "label text not null,"
+                 "description text not null,"
+                 "position integer not null,"
+                 "foreign key(process_id) references processes(id)"
                  ");"
                  "create table if not exists proposals ("
                  "id integer primary key autoincrement,"
@@ -703,6 +864,12 @@ db_init(UkuApp *app)
                  "primary key(process_id, voter_user_id),"
                  "foreign key(process_id) references processes(id)"
                  ");"
+                 "create table if not exists results ("
+                 "process_id text primary key,"
+                 "result_json text not null,"
+                 "computed_at integer not null,"
+                 "foreign key(process_id) references processes(id)"
+                 ");"
                  "create table if not exists account ("
                  "id integer primary key check(id = 1),"
                  "public_id text not null,"
@@ -714,11 +881,6 @@ db_init(UkuApp *app)
                  "value text not null"
                  ");"))
         return 0;
-    sqlite3_exec(app->db, "alter table processes add column synced integer not null default 0", NULL, NULL, NULL);
-    sqlite3_exec(app->db, "alter table processes add column visibility text not null default 'public'", NULL, NULL, NULL);
-    sqlite3_exec(app->db, "alter table proposals add column author_user_id text not null default ''", NULL, NULL, NULL);
-    sqlite3_exec(app->db, "alter table proposals add column remote_id text not null default ''", NULL, NULL, NULL);
-    sqlite3_exec(app->db, "alter table proposals add column synced integer not null default 0", NULL, NULL, NULL);
     sqlite3_exec(app->db, "alter table account add column auth_token text not null default ''", NULL, NULL, NULL);
     sqlite3_exec(app->db, "alter table account add column server_url text not null default 'https://api.waozi.xyz'", NULL, NULL, NULL);
     return 1;
@@ -1504,10 +1666,43 @@ proposals_clear(UkuApp *app)
     if(app == NULL)
         return;
     app->proposal_count = 0;
+    app->option_count = 0;
     app->vote_count = 0;
     app->current_user_voted = 0;
+    memset(app->options, 0, sizeof(app->options));
     memset(app->proposals, 0, sizeof(app->proposals));
     memset(app->votes, 0, sizeof(app->votes));
+}
+
+static void
+options_from_inputs(UkuApp *app)
+{
+    if(app == NULL)
+        return;
+    app->option_count = 0;
+    memset(app->options, 0, sizeof(app->options));
+    for(int i = 0; i < UKU_MAX_OPTIONS; i++) {
+        UkuOption *option;
+
+        if(!has_non_space(app->option_inputs[i]))
+            continue;
+        option = &app->options[app->option_count++];
+        snprintf(option->id, sizeof(option->id), "option-%d", app->option_count);
+        copy_text(option->label, sizeof(option->label),
+                  app->option_inputs[i], strlen(app->option_inputs[i]));
+    }
+}
+
+static int
+option_find(UkuApp *app, const char *id)
+{
+    if(app == NULL || id == NULL)
+        return -1;
+    for(int i = 0; i < app->option_count; i++) {
+        if(strcmp(app->options[i].id, id) == 0)
+            return i;
+    }
+    return -1;
 }
 
 static int
@@ -1575,6 +1770,10 @@ proposal_reset_totals(UkuApp *app)
         app->proposals[i].negative_total = 0;
         app->proposals[i].vote_count = 0;
     }
+    for(int i = 0; i < app->option_count; i++) {
+        app->options[i].total = 0;
+        app->options[i].vote_count = 0;
+    }
 }
 
 static void
@@ -1628,6 +1827,8 @@ json_object_end(const char *p)
     return NULL;
 }
 
+static void apply_option_score(UkuApp *app, int option_index, int score, int current_user_vote);
+
 static void
 parse_process_proposals(UkuApp *app, const char *json)
 {
@@ -1676,6 +1877,38 @@ parse_process_proposals(UkuApp *app, const char *json)
 }
 
 static void
+parse_process_options(UkuApp *app, const char *json)
+{
+    const char *p = json_array_start(json, "options");
+
+    app->option_count = 0;
+    memset(app->options, 0, sizeof(app->options));
+    while(p != NULL && *p != '\0' && *p != ']' && app->option_count < UKU_MAX_OPTIONS) {
+        const char *end;
+        char object[1024];
+        UkuOption *option = &app->options[app->option_count];
+        size_t len;
+
+        while(*p != '\0' && *p != '{' && *p != ']')
+            p++;
+        if(*p != '{')
+            break;
+        end = json_object_end(p);
+        if(end == NULL)
+            break;
+        len = UKU_MIN((size_t)(end - p + 1), sizeof(object) - 1);
+        memcpy(object, p, len);
+        object[len] = '\0';
+        extract_json_string(object, "id", option->id, sizeof(option->id));
+        extract_json_string(object, "label", option->label, sizeof(option->label));
+        extract_json_string(object, "description", option->description, sizeof(option->description));
+        if(option->id[0] != '\0' && option->label[0] != '\0')
+            app->option_count++;
+        p = end + 1;
+    }
+}
+
+static void
 parse_vote_scores(UkuApp *app, const char *object, int current_user_vote)
 {
     const char *scores = strstr(object, "\"scores\"");
@@ -1706,17 +1939,23 @@ parse_vote_scores(UkuApp *app, const char *object, int current_user_vote)
             break;
         p++;
         score = atoi(p);
-        index = proposal_find(app, id);
-        if(index >= 0) {
-            int weighted = score < 0 ? score * app->decision.negative_weight : score;
-            app->proposals[index].total += weighted;
-            if(current_user_vote)
-                app->proposals[index].score = score;
-            if(score < 0)
-                app->proposals[index].negative_total += weighted;
-            else
-                app->proposals[index].positive_total += score;
-            app->proposals[index].vote_count++;
+        if(process_type_has_options(app->decision.type)) {
+            index = option_find(app, id);
+            if(index >= 0)
+                apply_option_score(app, index, score, current_user_vote);
+        } else {
+            index = proposal_find(app, id);
+            if(index >= 0) {
+                int weighted = score < 0 ? score * app->decision.negative_weight : score;
+                app->proposals[index].total += weighted;
+                if(current_user_vote)
+                    app->proposals[index].score = score;
+                if(score < 0)
+                    app->proposals[index].negative_total += weighted;
+                else
+                    app->proposals[index].positive_total += score;
+                app->proposals[index].vote_count++;
+            }
         }
         while(*p != '\0' && *p != ',' && *p != '}')
             p++;
@@ -1948,19 +2187,38 @@ build_remote_process_json(UkuApp *app)
        !json_append_string(&json, app->account.public_id) ||
        !http_buffer_append(&json, ",\"id\":", 6) ||
        !json_append_string(&json, d->id) ||
-       !http_buffer_append(&json, ",\"question\":", 12) ||
+       !http_buffer_append(&json, ",\"type\":", 8) ||
+       !json_append_string(&json, process_type_key(d->type)) ||
+       !http_buffer_append(&json, ",\"title\":", 9) ||
        !json_append_string(&json, d->topic) ||
        !http_buffer_append(&json, ",\"description\":", 15) ||
        !json_append_string(&json, d->description))
         goto fail;
     snprintf(tmp, sizeof(tmp),
-             ",\"visibility\":\"%s\",\"decision_type\":\"%s\",\"proposal_minutes\":%d,\"voting_minutes\":%d,\"negative_weight\":%d,\"quorum_percent\":%d,\"require_vote_reason\":%s}",
+             ",\"visibility\":\"%s\",\"proposal_minutes\":%d,\"voting_minutes\":%d,\"negative_weight\":%d,\"quorum_percent\":%d,\"require_vote_reason\":%s",
              d->visibility[0] != '\0' ? d->visibility : "public",
-             d->decision_type[0] != '\0' ? d->decision_type : "consent",
              duration_minutes(d->proposal_days, d->proposal_hours, d->proposal_minutes),
              duration_minutes(d->voting_days, d->voting_hours, d->voting_minutes),
              d->negative_weight, d->quorum_percent, d->require_vote_reason ? "true" : "false");
     if(!http_buffer_append(&json, tmp, strlen(tmp)))
+        goto fail;
+    if(process_type_has_options(d->type)) {
+        if(!http_buffer_append(&json, ",\"options\":[", strlen(",\"options\":[")))
+            goto fail;
+        for(int i = 0; i < app->option_count; i++) {
+            if(i > 0 && !http_buffer_append(&json, ",", 1))
+                goto fail;
+            if(!http_buffer_append(&json, "{\"id\":", strlen("{\"id\":")) ||
+               !json_append_string(&json, app->options[i].id) ||
+               !http_buffer_append(&json, ",\"label\":", strlen(",\"label\":")) ||
+               !json_append_string(&json, app->options[i].label) ||
+               !http_buffer_append(&json, ",\"description\":\"\"}", strlen(",\"description\":\"\"}")))
+                goto fail;
+        }
+        if(!http_buffer_append(&json, "]", 1))
+            goto fail;
+    }
+    if(!http_buffer_append(&json, "}", 1))
         goto fail;
     return json.data;
 
@@ -1990,7 +2248,7 @@ lyra_create_process(UkuApp *app, const char *base_url)
     body = build_remote_process_json(app);
     if(body == NULL)
         return 0;
-    join_url(url, sizeof(url), base_url, "/api/v1/governance/processes");
+    join_url(url, sizeof(url), base_url, "/api/v1/processes");
     snprintf(user_header, sizeof(user_header), "X-Inbe-User: %s", app->account.public_id);
     snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s", app->account.auth_token);
     headers = http_headers_append(headers, "Content-Type: application/json");
@@ -2077,6 +2335,7 @@ static void
 parse_process_detail(UkuApp *app, const char *json, const UkuText *text)
 {
     char created_at[64];
+    char type_key[40];
     int total_minutes;
 
     if(app == NULL || json == NULL)
@@ -2089,11 +2348,10 @@ parse_process_detail(UkuApp *app, const char *json, const UkuText *text)
     if(!extract_json_string(json, "visibility", app->decision.visibility,
                             sizeof(app->decision.visibility)))
         copy_text(app->decision.visibility, sizeof(app->decision.visibility), "public", strlen("public"));
-    extract_json_string(json, "question", app->decision.topic, sizeof(app->decision.topic));
+    if(extract_json_string(json, "type", type_key, sizeof(type_key)))
+        app->decision.type = process_type_from_key(type_key);
+    extract_json_string(json, "title", app->decision.topic, sizeof(app->decision.topic));
     extract_json_string(json, "description", app->decision.description, sizeof(app->decision.description));
-    if(!extract_json_string(json, "decision_type", app->decision.decision_type,
-                            sizeof(app->decision.decision_type)))
-        copy_text(app->decision.decision_type, sizeof(app->decision.decision_type), "consent", strlen("consent"));
     extract_json_int(json, "quorum_percent", &app->decision.quorum_percent);
     extract_json_bool(json, "require_vote_reason", &app->decision.require_vote_reason);
     extract_json_string(json, "outcome", app->decision.outcome, sizeof(app->decision.outcome));
@@ -2111,10 +2369,11 @@ parse_process_detail(UkuApp *app, const char *json, const UkuText *text)
     extract_json_int(json, "negative_weight", &app->decision.negative_weight);
     if(extract_json_string(json, "created_at", created_at, sizeof(created_at)))
         app->decision.created_at = parse_lyra_time(created_at);
-    if(text != NULL)
+    if(text != NULL && app->decision.type == UKU_PROCESS_TYPE_CONSENT)
         load_default_proposals(app, text);
     else
         proposal_reset_totals(app);
+    parse_process_options(app, json);
     parse_process_proposals(app, json);
     parse_process_votes(app, json);
     app->process_detail_loaded = 1;
@@ -2134,7 +2393,7 @@ lyra_fetch_process_detail(UkuApp *app, const char *base_url, const UkuText *text
         return app != NULL && app->process_detail_loaded;
     if(!sync_url_valid(base_url))
         return 0;
-    snprintf(path, sizeof(path), "/api/v1/governance/processes/%s", app->decision.id);
+    snprintf(path, sizeof(path), "/api/v1/processes/%s", app->decision.id);
     join_url(url, sizeof(url), base_url, path);
     if(lyra_http_request("GET", url, NULL, NULL, &status, &response) && status == 200 &&
        response.data != NULL) {
@@ -2162,7 +2421,7 @@ lyra_update_process_visibility(UkuApp *app, const char *base_url, const char *vi
        !json_append_string(&body, visibility) ||
        !http_buffer_append(&body, "}", 1))
         goto cleanup;
-    snprintf(path, sizeof(path), "/api/v1/governance/processes/%s", app->decision.id);
+    snprintf(path, sizeof(path), "/api/v1/processes/%s", app->decision.id);
     ok = lyra_authorized_json(app, base_url, "PATCH", path, body.data, 200, 299, &response);
     if(ok && response.data != NULL)
         parse_process_detail(app, response.data, NULL);
@@ -2182,7 +2441,7 @@ lyra_delete_process(UkuApp *app, const char *base_url)
 
     if(app == NULL || app->decision.id[0] == '\0' || !app->account.loaded)
         return 0;
-    snprintf(path, sizeof(path), "/api/v1/governance/processes/%s", app->decision.id);
+    snprintf(path, sizeof(path), "/api/v1/processes/%s", app->decision.id);
     ok = lyra_authorized_json(app, base_url, "DELETE", path, NULL, 200, 299, &response);
     free(response.data);
     return ok;
@@ -2199,7 +2458,7 @@ lyra_export_process(UkuApp *app, const char *base_url)
 
     if(app == NULL || app->decision.id[0] == '\0')
         return 0;
-    snprintf(path, sizeof(path), "/api/v1/governance/processes/%s/export", app->decision.id);
+    snprintf(path, sizeof(path), "/api/v1/processes/%s/export", app->decision.id);
     join_url(url, sizeof(url), base_url, path);
     if(lyra_http_request("GET", url, NULL, NULL, &status, &response) && status == 200 &&
        response.data != NULL) {
@@ -2219,7 +2478,7 @@ lyra_delete_proposal(UkuApp *app, const char *base_url, const char *proposal_id)
 
     if(app == NULL || proposal_id == NULL || app->decision.id[0] == '\0' || !app->account.loaded)
         return 0;
-    snprintf(path, sizeof(path), "/api/v1/governance/processes/%s/proposals/%s",
+    snprintf(path, sizeof(path), "/api/v1/processes/%s/proposals/%s",
              app->decision.id, proposal_id);
     ok = lyra_authorized_json(app, base_url, "DELETE", path, NULL, 200, 299, &response);
     if(ok && response.data != NULL)
@@ -2251,7 +2510,7 @@ lyra_submit_proposal_text(UkuApp *app, const char *base_url, const char *title,
        !json_append_string(&body, description != NULL ? description : "") ||
        !http_buffer_append(&body, "}", 1))
         goto cleanup;
-    snprintf(path, sizeof(path), "/api/v1/governance/processes/%s/proposals", app->decision.id);
+    snprintf(path, sizeof(path), "/api/v1/processes/%s/proposals", app->decision.id);
     ok = lyra_authorized_json(app, base_url, "POST", path, body.data, 200, 299, &response);
     if(ok && response.data != NULL) {
         parse_process_detail(app, response.data, NULL);
@@ -2289,7 +2548,9 @@ lyra_submit_vote(UkuApp *app, const char *base_url)
     char tmp[64];
     int ok = 0;
 
-    if(app == NULL || app->decision.id[0] == '\0' || app->proposal_count <= 0)
+    if(app == NULL || app->decision.id[0] == '\0' ||
+       (!process_type_has_options(app->decision.type) && app->proposal_count <= 0) ||
+       (process_type_has_options(app->decision.type) && app->option_count <= 0))
         return 0;
     if(!http_buffer_append(&body, "{\"user_id_hash\":", strlen("{\"user_id_hash\":")) ||
        !json_append_string(&body, app->account.public_id) ||
@@ -2297,7 +2558,17 @@ lyra_submit_vote(UkuApp *app, const char *base_url)
        !json_append_string(&body, app->alias_input[0] != '\0' ? app->alias_input : app->account.public_id) ||
        !http_buffer_append(&body, ",\"scores\":{", strlen(",\"scores\":{")))
         goto cleanup;
-    for(int i = 0; i < app->proposal_count; i++) {
+    if(process_type_has_options(app->decision.type)) {
+        for(int i = 0; i < app->option_count; i++) {
+            if(i > 0 && !http_buffer_append(&body, ",", 1))
+                goto cleanup;
+            if(!json_append_string(&body, app->options[i].id))
+                goto cleanup;
+            snprintf(tmp, sizeof(tmp), ":%d", app->options[i].score);
+            if(!http_buffer_append(&body, tmp, strlen(tmp)))
+                goto cleanup;
+        }
+    } else for(int i = 0; i < app->proposal_count; i++) {
         if(i > 0 && !http_buffer_append(&body, ",", 1))
             goto cleanup;
         if(!json_append_string(&body, app->proposals[i].id))
@@ -2310,7 +2581,7 @@ lyra_submit_vote(UkuApp *app, const char *base_url)
        !json_append_string(&body, app->vote_reason) ||
        !http_buffer_append(&body, "}", 1))
         goto cleanup;
-    snprintf(path, sizeof(path), "/api/v1/governance/processes/%s/votes", app->decision.id);
+    snprintf(path, sizeof(path), "/api/v1/processes/%s/votes", app->decision.id);
     ok = lyra_authorized_json(app, base_url, "POST", path, body.data, 200, 299, &response);
     if(ok && response.data != NULL)
         parse_process_detail(app, response.data, NULL);
@@ -2383,7 +2654,7 @@ lyra_fetch_public_processes(UkuApp *app, const char *base_url)
     app->remote_processes_loaded = 1;
     if(!sync_url_valid(base_url))
         return;
-    join_url(url, sizeof(url), base_url, "/api/v1/governance/processes");
+    join_url(url, sizeof(url), base_url, "/api/v1/processes");
     if(!lyra_http_request("GET", url, NULL, NULL, &status, &response) || status != 200 ||
        response.data == NULL)
         goto cleanup;
@@ -2398,10 +2669,12 @@ lyra_fetch_public_processes(UkuApp *app, const char *base_url)
             break;
         memset(&row, 0, sizeof(row));
         if(!extract_json_string(p, "id", row.id, sizeof(row.id)) ||
-           !extract_json_string(p, "question", row.topic, sizeof(row.topic))) {
+           !extract_json_string(p, "title", row.topic, sizeof(row.topic))) {
             p = end + 1;
             continue;
         }
+        if(extract_json_string(p, "type", created_at, sizeof(created_at)))
+            row.type = process_type_from_key(created_at);
         extract_json_string(p, "description", row.description, sizeof(row.description));
         extract_json_int(p, "proposal_minutes", &row.proposal_minutes);
         extract_json_int(p, "voting_minutes", &row.voting_minutes);
@@ -2507,6 +2780,36 @@ db_insert_proposal(sqlite3 *db, const char *process_id, const char *author_user_
 }
 
 static int
+db_insert_option(sqlite3 *db, const char *process_id, const UkuOption *option, int position)
+{
+#if defined(PLATFORM_WEB)
+    (void)db;
+    (void)process_id;
+    (void)option;
+    (void)position;
+    return 1;
+#else
+    sqlite3_stmt *stmt = NULL;
+    int ok;
+
+    if(option == NULL || !has_non_space(option->label))
+        return 1;
+    if(sqlite3_prepare_v2(db,
+                          "insert into options(id, process_id, label, description, position) values(?, ?, ?, ?, ?)",
+                          -1, &stmt, NULL) != SQLITE_OK)
+        return 0;
+    sqlite3_bind_text(stmt, 1, option->id, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, process_id, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, option->label, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, option->description, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt, 5, position);
+    ok = sqlite3_step(stmt) == SQLITE_DONE;
+    sqlite3_finalize(stmt);
+    return ok;
+#endif
+}
+
+static int
 db_save_process(UkuApp *app, const UkuText *text)
 {
 #if defined(PLATFORM_WEB)
@@ -2529,6 +2832,7 @@ db_save_process(UkuApp *app, const UkuText *text)
     copy_text(row.local_address, sizeof(row.local_address), d->local_address, strlen(d->local_address));
     copy_text(row.topic, sizeof(row.topic), d->topic, strlen(d->topic));
     copy_text(row.description, sizeof(row.description), d->description, strlen(d->description));
+    row.type = d->type;
     row.proposal_minutes = duration_minutes(d->proposal_days, d->proposal_hours, d->proposal_minutes);
     row.voting_minutes = duration_minutes(d->voting_days, d->voting_hours, d->voting_minutes);
     row.negative_weight = d->negative_weight;
@@ -2563,32 +2867,43 @@ db_save_process(UkuApp *app, const UkuText *text)
         return 0;
 
     if(sqlite3_prepare_v2(app->db,
-                          "insert into processes(id, topic, description, proposal_minutes, voting_minutes, negative_weight, visibility, local_address, created_at, synced)"
-                          " values(?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
+                          "insert into processes(id, type, phase, topic, description, proposal_minutes, voting_minutes, negative_weight, visibility, local_address, created_at, synced)"
+                          " values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
                           -1, &stmt, NULL) != SQLITE_OK)
         goto cleanup;
 
     sqlite3_bind_text(stmt, 1, d->id, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 2, d->topic, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 3, d->description, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(stmt, 4, duration_minutes(d->proposal_days, d->proposal_hours, d->proposal_minutes));
-    sqlite3_bind_int(stmt, 5, duration_minutes(d->voting_days, d->voting_hours, d->voting_minutes));
-    sqlite3_bind_int(stmt, 6, d->negative_weight);
-    sqlite3_bind_text(stmt, 7, d->visibility, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 8, d->local_address, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int64(stmt, 9, now);
+    sqlite3_bind_text(stmt, 2, process_type_key(d->type), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, "published", -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, d->topic, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 5, d->description, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt, 6, duration_minutes(d->proposal_days, d->proposal_hours, d->proposal_minutes));
+    sqlite3_bind_int(stmt, 7, duration_minutes(d->voting_days, d->voting_hours, d->voting_minutes));
+    sqlite3_bind_int(stmt, 8, d->negative_weight);
+    sqlite3_bind_text(stmt, 9, d->visibility, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 10, d->local_address, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(stmt, 11, now);
 
     if(sqlite3_step(stmt) != SQLITE_DONE)
         goto cleanup;
     sqlite3_finalize(stmt);
     stmt = NULL;
 
-    if(!db_insert_proposal(app->db, d->id, app->account.public_id, text->status_quo_title,
-                           text->status_quo_description, now, 1, NULL, 0))
-        goto cleanup;
-    if(!db_insert_proposal(app->db, d->id, app->account.public_id, text->repeat_process_title,
-                           text->repeat_process_description, now, 1, NULL, 0))
-        goto cleanup;
+    if(process_type_has_options(d->type)) {
+        for(int i = 0; i < app->option_count; i++) {
+            if(!db_insert_option(app->db, d->id, &app->options[i], i))
+                goto cleanup;
+        }
+    }
+
+    if(d->type == UKU_PROCESS_TYPE_CONSENT) {
+        if(!db_insert_proposal(app->db, d->id, app->account.public_id, text->status_quo_title,
+                               text->status_quo_description, now, 1, NULL, 0))
+            goto cleanup;
+        if(!db_insert_proposal(app->db, d->id, app->account.public_id, text->repeat_process_title,
+                               text->repeat_process_description, now, 1, NULL, 0))
+            goto cleanup;
+    }
 
     ok = sqlite3_exec(app->db, "commit", NULL, NULL, NULL) == SQLITE_OK;
 
@@ -2615,7 +2930,7 @@ db_load_processes(UkuApp *app)
         return;
 
     if(sqlite3_prepare_v2(app->db,
-                          "select id, topic, description, proposal_minutes, voting_minutes, negative_weight, visibility, local_address, created_at "
+                          "select id, type, topic, description, proposal_minutes, voting_minutes, negative_weight, visibility, local_address, created_at "
                           "from processes order by created_at desc limit ?",
                           -1, &stmt, NULL) != SQLITE_OK)
         return;
@@ -2624,20 +2939,22 @@ db_load_processes(UkuApp *app)
     while(count < UKU_MAX_PROCESSES && sqlite3_step(stmt) == SQLITE_ROW) {
         UkuProcessRow *row = &app->processes[count];
         const unsigned char *id = sqlite3_column_text(stmt, 0);
-        const unsigned char *topic = sqlite3_column_text(stmt, 1);
-        const unsigned char *description = sqlite3_column_text(stmt, 2);
-        const unsigned char *visibility = sqlite3_column_text(stmt, 6);
-        const unsigned char *address = sqlite3_column_text(stmt, 7);
+        const unsigned char *type = sqlite3_column_text(stmt, 1);
+        const unsigned char *topic = sqlite3_column_text(stmt, 2);
+        const unsigned char *description = sqlite3_column_text(stmt, 3);
+        const unsigned char *visibility = sqlite3_column_text(stmt, 7);
+        const unsigned char *address = sqlite3_column_text(stmt, 8);
 
         copy_text(row->id, sizeof(row->id), (const char *)(id != NULL ? id : (const unsigned char *)""), strlen((const char *)(id != NULL ? id : (const unsigned char *)"")));
+        row->type = process_type_from_key((const char *)(type != NULL ? type : (const unsigned char *)"consent"));
         copy_text(row->topic, sizeof(row->topic), (const char *)(topic != NULL ? topic : (const unsigned char *)""), strlen((const char *)(topic != NULL ? topic : (const unsigned char *)"")));
         copy_text(row->description, sizeof(row->description), (const char *)(description != NULL ? description : (const unsigned char *)""), strlen((const char *)(description != NULL ? description : (const unsigned char *)"")));
         copy_text(row->visibility, sizeof(row->visibility), (const char *)(visibility != NULL ? visibility : (const unsigned char *)"public"), strlen((const char *)(visibility != NULL ? visibility : (const unsigned char *)"public")));
         copy_text(row->local_address, sizeof(row->local_address), (const char *)(address != NULL ? address : (const unsigned char *)""), strlen((const char *)(address != NULL ? address : (const unsigned char *)"")));
-        row->proposal_minutes = sqlite3_column_int(stmt, 3);
-        row->voting_minutes = sqlite3_column_int(stmt, 4);
-        row->negative_weight = sqlite3_column_int(stmt, 5);
-        row->created_at = sqlite3_column_int64(stmt, 8);
+        row->proposal_minutes = sqlite3_column_int(stmt, 4);
+        row->voting_minutes = sqlite3_column_int(stmt, 5);
+        row->negative_weight = sqlite3_column_int(stmt, 6);
+        row->created_at = sqlite3_column_int64(stmt, 9);
         count++;
     }
 
@@ -2665,6 +2982,17 @@ apply_score(UkuApp *app, int proposal_index, int score, int current_user_vote)
 }
 
 static void
+apply_option_score(UkuApp *app, int option_index, int score, int current_user_vote)
+{
+    if(app == NULL || option_index < 0 || option_index >= app->option_count)
+        return;
+    app->options[option_index].total += score;
+    app->options[option_index].vote_count++;
+    if(current_user_vote)
+        app->options[option_index].score = score;
+}
+
+static void
 parse_local_scores(UkuApp *app, const char *scores, int current_user_vote)
 {
     const char *p = scores;
@@ -2686,9 +3014,15 @@ parse_local_scores(UkuApp *app, const char *scores, int current_user_vote)
             break;
         p++;
         score = atoi(p);
-        index = proposal_find(app, id);
-        if(index >= 0)
-            apply_score(app, index, score, current_user_vote);
+        if(process_type_has_options(app->decision.type)) {
+            index = option_find(app, id);
+            if(index >= 0)
+                apply_option_score(app, index, score, current_user_vote);
+        } else {
+            index = proposal_find(app, id);
+            if(index >= 0)
+                apply_score(app, index, score, current_user_vote);
+        }
         while(*p != '\0' && *p != ';')
             p++;
         if(*p == ';')
@@ -2709,6 +3043,31 @@ db_load_process_detail(UkuApp *app, const UkuText *text)
         return;
 
     proposals_clear(app);
+    if(sqlite3_prepare_v2(app->db,
+                          "select id, label, description from options where process_id=? order by position, id",
+                          -1, &stmt, NULL) == SQLITE_OK) {
+        sqlite3_bind_text(stmt, 1, app->decision.id, -1, SQLITE_TRANSIENT);
+        while(app->option_count < UKU_MAX_OPTIONS && sqlite3_step(stmt) == SQLITE_ROW) {
+            UkuOption *option = &app->options[app->option_count++];
+            const unsigned char *id = sqlite3_column_text(stmt, 0);
+            const unsigned char *label = sqlite3_column_text(stmt, 1);
+            const unsigned char *description = sqlite3_column_text(stmt, 2);
+
+            copy_text(option->id, sizeof(option->id),
+                      (const char *)(id != NULL ? id : (const unsigned char *)""),
+                      strlen((const char *)(id != NULL ? id : (const unsigned char *)"")));
+            copy_text(option->label, sizeof(option->label),
+                      (const char *)(label != NULL ? label : (const unsigned char *)""),
+                      strlen((const char *)(label != NULL ? label : (const unsigned char *)"")));
+            copy_text(option->description, sizeof(option->description),
+                      (const char *)(description != NULL ? description : (const unsigned char *)""),
+                      strlen((const char *)(description != NULL ? description : (const unsigned char *)"")));
+        }
+    }
+    if(stmt != NULL)
+        sqlite3_finalize(stmt);
+    stmt = NULL;
+
     if(sqlite3_prepare_v2(app->db,
                           "select id, author_user_id, remote_id, title, description from proposals where process_id=? order by created_at, id",
                           -1, &stmt, NULL) == SQLITE_OK) {
@@ -2738,7 +3097,7 @@ db_load_process_detail(UkuApp *app, const UkuText *text)
     if(stmt != NULL)
         sqlite3_finalize(stmt);
     stmt = NULL;
-    if(app->proposal_count <= 0)
+    if(app->decision.type == UKU_PROCESS_TYPE_CONSENT && app->proposal_count <= 0)
         load_default_proposals(app, text);
 
     proposal_reset_totals(app);
@@ -2806,6 +3165,17 @@ serialize_current_scores(UkuApp *app, char *out, size_t out_size)
     if(app == NULL || out == NULL || out_size == 0)
         return 0;
     out[0] = '\0';
+    if(process_type_has_options(app->decision.type)) {
+        for(int i = 0; i < app->option_count; i++) {
+            int n = snprintf(out + used, out_size - used, "%s%s=%d",
+                             i == 0 ? "" : ";", app->options[i].id,
+                             app->options[i].score);
+            if(n < 0 || (size_t)n >= out_size - used)
+                return 0;
+            used += (size_t)n;
+        }
+        return 1;
+    }
     for(int i = 0; i < app->proposal_count; i++) {
         int n = snprintf(out + used, out_size - used, "%s%s=%d",
                          i == 0 ? "" : ";", app->proposals[i].id, app->proposals[i].score);
@@ -2868,7 +3238,7 @@ lyra_submit_vote_scores(UkuApp *app, const char *base_url, const char *scores,
        !json_append_string(&body, reason != NULL ? reason : "") ||
        !http_buffer_append(&body, "}", 1))
         goto cleanup;
-    snprintf(path, sizeof(path), "/api/v1/governance/processes/%s/votes", app->decision.id);
+    snprintf(path, sizeof(path), "/api/v1/processes/%s/votes", app->decision.id);
     ok = lyra_authorized_json(app, base_url, "POST", path, body.data, 200, 299, &response);
     if(ok && response.data != NULL)
         parse_process_detail(app, response.data, NULL);
@@ -3192,6 +3562,7 @@ open_process_row(UkuApp *app, const UkuProcessRow *row)
     copy_text(d->local_address, sizeof(d->local_address), row->local_address, strlen(row->local_address));
     copy_text(d->topic, sizeof(d->topic), row->topic, strlen(row->topic));
     copy_text(d->description, sizeof(d->description), row->description, strlen(row->description));
+    d->type = row->type;
     d->proposal_days = row->proposal_minutes / (24 * 60);
     d->proposal_hours = (row->proposal_minutes / 60) % 24;
     d->proposal_minutes = row->proposal_minutes % 60;
@@ -3205,7 +3576,6 @@ open_process_row(UkuApp *app, const UkuProcessRow *row)
     copy_text(d->visibility, sizeof(d->visibility),
               row->visibility[0] != '\0' ? row->visibility : "public",
               strlen(row->visibility[0] != '\0' ? row->visibility : "public"));
-    copy_text(d->decision_type, sizeof(d->decision_type), "consent", strlen("consent"));
     proposals_clear(app);
     db_load_process_detail(app, NULL);
     app->process_detail_loaded = 0;
@@ -3280,7 +3650,7 @@ open_process_id(UkuApp *app, const char *id)
     copy_text(d->id, sizeof(d->id), id, strlen(id));
     snprintf(d->local_address, sizeof(d->local_address), "/app/%s/collect", d->id);
     copy_text(d->visibility, sizeof(d->visibility), "public", strlen("public"));
-    copy_text(d->decision_type, sizeof(d->decision_type), "consent", strlen("consent"));
+    d->type = UKU_PROCESS_TYPE_CONSENT;
     d->require_vote_reason = 1;
     d->created_at = (sqlite3_int64)time(NULL);
     d->submitted = 1;
@@ -3921,11 +4291,13 @@ init_decision(UkuApp *app, const UkuText *text)
     UkuDecision *d = &app->decision;
 
     copy_text(d->visibility, sizeof(d->visibility), "public", strlen("public"));
-    copy_text(d->decision_type, sizeof(d->decision_type), "consent", strlen("consent"));
+    d->type = UKU_PROCESS_TYPE_CONSENT;
     d->proposal_days = 2;
     d->voting_days = 1;
     d->negative_weight = 3;
     d->require_vote_reason = 1;
+    copy_text(app->option_inputs[0], sizeof(app->option_inputs[0]), "Option A", strlen("Option A"));
+    copy_text(app->option_inputs[1], sizeof(app->option_inputs[1]), "Option B", strlen("Option B"));
     (void)text;
 }
 
@@ -3933,6 +4305,7 @@ static void
 reset_decision(UkuApp *app, const UkuText *text)
 {
     memset(&app->decision, 0, sizeof(app->decision));
+    memset(app->option_inputs, 0, sizeof(app->option_inputs));
     init_decision(app, text);
     app->create_scroll = 0;
     app->create_max_scroll = 0;
@@ -3956,6 +4329,62 @@ start_new_process_flow(UkuApp *app, const UkuText *text)
     app->screen = UKU_SCREEN_CREATE;
     app->active_field = UKU_FIELD_NONE;
     ClearUIFocus();
+}
+
+static int
+draw_process_type_selector(UkuApp *app, Font font, int x, int y, int w)
+{
+    int label_font = ClampUIPx(12, 12, 14);
+    int btn_h = ScaleUIPx(24);
+    int gap = ScaleUIPx(6);
+    int btn_w = (w - gap) / 2;
+
+    draw_text_font(font, "Process type", x, y, label_font, GetThemeText());
+    y += label_font + ScaleUIPx(8);
+    for(int i = 0; i < UKU_PROCESS_TYPE_COUNT; i++) {
+        int clicked = 0;
+        int col = i % 2;
+        int row = i / 2;
+        int bx = x + col * (btn_w + gap);
+        int by = y + row * (btn_h + gap);
+
+        draw_visibility_button(app, bx, by, btn_w,
+                               process_type_label((UkuProcessType)i),
+                               app->decision.type == (UkuProcessType)i,
+                               UKU_FOCUS_PROCESS_TYPE_BASE + i, &clicked);
+        if(clicked) {
+            app->decision.type = (UkuProcessType)i;
+            app->decision.require_vote_reason =
+                process_type_uses_reason(app->decision.type);
+            if(app->decision.type == UKU_PROCESS_TYPE_COLLECTION)
+                app->decision.voting_days = app->decision.voting_hours =
+                    app->decision.voting_minutes = 0;
+            ClearUIFocus();
+        }
+    }
+    return y + ((UKU_PROCESS_TYPE_COUNT + 1) / 2) * (btn_h + gap) + ScaleUIPx(8);
+}
+
+static int
+draw_option_fields(UkuApp *app, Font font, int x, int y, int w)
+{
+    int label_font = ClampUIPx(12, 12, 14);
+
+    draw_text_font(font, "Options", x, y, label_font, GetThemeText());
+    y += label_font + ScaleUIPx(8);
+    for(int i = 0; i < UKU_MAX_OPTIONS; i++) {
+        char label[32];
+        char placeholder[48];
+
+        snprintf(label, sizeof(label), "Option %d", i + 1);
+        snprintf(placeholder, sizeof(placeholder), "Option %d", i + 1);
+        y = draw_text_field(app, font, label, placeholder,
+                            app->option_inputs[i], sizeof(app->option_inputs[i]),
+                            (UkuField)(UKU_FIELD_OPTION_0 + i),
+                            UKU_FOCUS_OPTION_BASE + i,
+                            x, y, w, ScaleUIPx(32));
+    }
+    return y;
 }
 
 static void
@@ -4175,7 +4604,8 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                            content_x + ScaleUIPx(12), y + ScaleUIPx(31), small_font,
                            process_phase(row->created_at, row->proposal_minutes, row->voting_minutes, now, NULL) == UKU_PROCESS_RESULTS ? GetThemeText() : GetThemeButton());
             format_created_at(created, sizeof(created), row->created_at);
-            snprintf(meta, sizeof(meta), "%s  |  %s", row->local_address, created);
+            snprintf(meta, sizeof(meta), "%s  |  %s  |  %s",
+                     process_type_label(row->type), row->local_address, created);
             draw_text_font(font, fit_tail(font, meta, small_font, content_w - ScaleUIPx(24)),
                            content_x + ScaleUIPx(12), y + ScaleUIPx(52), small_font, GetThemeButton());
             if(row->description[0] != '\0')
@@ -4241,6 +4671,7 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
     }
 
     BeginScissorMode(0, viewport_y, view_w, viewport_h);
+    y = draw_process_type_selector(app, font, content_x, y, content_w);
     y = draw_text_field(app, font, text->topic_question_label, text->topic_question_placeholder,
                         d->topic, sizeof(d->topic), UKU_FIELD_TOPIC, UKU_FOCUS_TOPIC,
                         content_x, y, content_w, ScaleUIPx(36));
@@ -4253,9 +4684,13 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
     y = draw_text_field(app, font, text->description_label, text->description_placeholder,
                         d->description, sizeof(d->description), UKU_FIELD_DESCRIPTION, UKU_FOCUS_DESCRIPTION,
                         content_x, y, content_w, ScaleUIPx(68));
-    y = draw_negative_weight_dropdown(app, font, text, content_x, y, UKU_MIN(content_w, ScaleUIPx(310)),
-                                      UKU_FOCUS_NEGATIVE_WEIGHT);
-    y += ScaleUIPx(2);
+    if(process_type_has_options(d->type))
+        y = draw_option_fields(app, font, content_x, y, content_w);
+    if(process_type_uses_negative_weight(d->type)) {
+        y = draw_negative_weight_dropdown(app, font, text, content_x, y, UKU_MIN(content_w, ScaleUIPx(310)),
+                                          UKU_FOCUS_NEGATIVE_WEIGHT);
+        y += ScaleUIPx(2);
+    }
     {
         int public_clicked = 0;
         int private_clicked = 0;
@@ -4283,22 +4718,30 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
             copy_text(d->visibility, sizeof(d->visibility), "unlisted", strlen("unlisted"));
         y += ScaleUIPx(30);
     }
-    y = draw_duration_group(app, font, text->proposal_time_label, text,
-                            &d->proposal_days, &d->proposal_hours, &d->proposal_minutes,
-                            content_x, y, content_w, UKU_FOCUS_PROPOSAL_DAYS_MINUS);
-    y = draw_duration_group(app, font, text->voting_time_label, text,
-                            &d->voting_days, &d->voting_hours, &d->voting_minutes,
-                            content_x, y, content_w, UKU_FOCUS_VOTING_DAYS_MINUS);
+    if(process_type_has_proposals(d->type))
+        y = draw_duration_group(app, font, text->proposal_time_label, text,
+                                &d->proposal_days, &d->proposal_hours, &d->proposal_minutes,
+                                content_x, y, content_w, UKU_FOCUS_PROPOSAL_DAYS_MINUS);
+    if(process_type_has_voting(d->type))
+        y = draw_duration_group(app, font, text->voting_time_label, text,
+                                &d->voting_days, &d->voting_hours, &d->voting_minutes,
+                                content_x, y, content_w, UKU_FOCUS_VOTING_DAYS_MINUS);
 
     draw_compact_button(app, font, content_x, y, content_w, ScaleUIPx(250), ScaleUIPx(34),
                         text->create_process_button, 1, UKU_FOCUS_CREATE_SUBMIT, &clicked);
     if(clicked) {
+        int option_error = 0;
+
+        options_from_inputs(app);
         d->topic_error = !has_non_space(d->topic);
+        option_error = process_type_has_options(d->type) && app->option_count < 2;
         d->db_error = 0;
         d->remote_error = 0;
+        if(option_error)
+            ShowUIToast("Add at least two options.");
         if(!process_account_ready(app)) {
             d->db_error = 1;
-        } else if(!d->topic_error) {
+        } else if(!d->topic_error && !option_error) {
             d->submitted = db_save_process(app, text);
             d->db_error = !d->submitted;
             if(d->submitted) {
@@ -4318,7 +4761,8 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
                 app->collect_max_scroll = 0;
                 app->process_status[0] = '\0';
                 app->vote_reason[0] = '\0';
-                load_default_proposals(app, text);
+                if(d->type == UKU_PROCESS_TYPE_CONSENT)
+                    load_default_proposals(app, text);
                 app->screen = UKU_SCREEN_COLLECT;
                 app->active_field = UKU_FIELD_NONE;
                 ClearUIFocus();
@@ -4471,6 +4915,79 @@ draw_result_row(UkuApp *app, Font font, const UkuProposal *proposal,
     return y + h + ScaleUIPx(8);
 }
 
+static int
+draw_option_vote_row(UkuApp *app, Font font, UkuOption *option,
+                     UkuProcessType type, int index, int x, int y, int w,
+                     int body_font, int small_font)
+{
+    int h = ScaleUIPx(52);
+    int yes_clicked = 0;
+    int no_clicked = 0;
+    Rectangle card = {(float)x, (float)y, (float)w, (float)h};
+
+    DrawRectangleRounded(card, 0.08f, 10, WHITE);
+    DrawRectangleRoundedLinesEx(card, 0.08f, 10, ScaleUIPx(1), GetThemeText());
+    draw_text_font(font, fit_tail(font, option->label, body_font, w - ScaleUIPx(118)),
+                   x + ScaleUIPx(10), y + ScaleUIPx(8), body_font, GetThemeText());
+
+    if(type == UKU_PROCESS_TYPE_RANKED_CHOICE) {
+        int minus_clicked = 0;
+        int plus_clicked = 0;
+        char rank[16];
+
+        draw_button(app, font, x + w - ScaleUIPx(92), y + ScaleUIPx(14),
+                    ScaleUIPx(26), ScaleUIPx(26), "-", 0,
+                    UKU_FOCUS_SCORE_BASE + index * 2, &minus_clicked);
+        snprintf(rank, sizeof(rank), "%d", option->score);
+        draw_centered_text(font, rank, x + w - ScaleUIPx(46),
+                           GetUIControlTextY(rank, y + ScaleUIPx(14),
+                                             ScaleUIPx(26), body_font),
+                           body_font, GetThemeText());
+        draw_button(app, font, x + w - ScaleUIPx(30), y + ScaleUIPx(14),
+                    ScaleUIPx(26), ScaleUIPx(26), "+", 0,
+                    UKU_FOCUS_SCORE_BASE + index * 2 + 1, &plus_clicked);
+        if(minus_clicked)
+            option->score = clampi(option->score - 1, 0, app->option_count);
+        if(plus_clicked)
+            option->score = clampi(option->score + 1, 0, app->option_count);
+    } else {
+        draw_button(app, font, x + w - ScaleUIPx(88), y + ScaleUIPx(14),
+                    ScaleUIPx(36), ScaleUIPx(26), type == UKU_PROCESS_TYPE_APPROVAL ? "No" : "Off",
+                    0, UKU_FOCUS_SCORE_BASE + index * 2, &no_clicked);
+        draw_button(app, font, x + w - ScaleUIPx(44), y + ScaleUIPx(14),
+                    ScaleUIPx(36), ScaleUIPx(26), type == UKU_PROCESS_TYPE_APPROVAL ? "Yes" : "On",
+                    1, UKU_FOCUS_SCORE_BASE + index * 2 + 1, &yes_clicked);
+        if(no_clicked)
+            option->score = 0;
+        if(yes_clicked)
+            option->score = 1;
+        draw_text_font(font, option->score ? "selected" : "not selected",
+                       x + ScaleUIPx(10), y + ScaleUIPx(30), small_font,
+                       option->score ? GetThemeButton() : GetThemeText());
+    }
+    return y + h + ScaleUIPx(8);
+}
+
+static int
+draw_option_result_row(UkuApp *app, Font font, const UkuOption *option,
+                       int rank, int x, int y, int w, int body_font, int small_font)
+{
+    char meta[96];
+    int h = ScaleUIPx(50);
+    Rectangle card = {(float)x, (float)y, (float)w, (float)h};
+
+    DrawRectangleRounded(card, 0.08f, 10, WHITE);
+    DrawRectangleRoundedLinesEx(card, 0.08f, 10, ScaleUIPx(1), GetThemeText());
+    draw_text_font(font, fit_tail(font, option->label, body_font, w - ScaleUIPx(24)),
+                   x + ScaleUIPx(10), y + ScaleUIPx(8), body_font, GetThemeText());
+    snprintf(meta, sizeof(meta), "%d. total %d | votes %d", rank,
+             option->total, option->vote_count);
+    draw_text_font(font, fit_tail(font, meta, small_font, w - ScaleUIPx(24)),
+                   x + ScaleUIPx(10), y + ScaleUIPx(30), small_font, GetThemeButton());
+    (void)app;
+    return y + h + ScaleUIPx(8);
+}
+
 static void
 sort_result_indices(const UkuApp *app, int *indices, int count)
 {
@@ -4571,7 +5088,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
         app->pending_sync_attempted = 1;
         sync_pending_process_detail(app);
     }
-    if(app->proposal_count <= 0)
+    if(d->type == UKU_PROCESS_TYPE_CONSENT && app->proposal_count <= 0)
         load_default_proposals(app, text);
     proposal_total = duration_minutes(d->proposal_days, d->proposal_hours, d->proposal_minutes);
     voting_total = duration_minutes(d->voting_days, d->voting_hours, d->voting_minutes);
@@ -4607,10 +5124,11 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     y += ScaleUIPx(48);
 
     snprintf(governance_line, sizeof(governance_line),
-             "Method %s | Quorum %d%% | Vote reason %s",
-             d->decision_type[0] != '\0' ? d->decision_type : "consent",
-             d->quorum_percent,
-             d->require_vote_reason ? "required" : "optional");
+             "Type %s%s%s",
+             process_type_label(d->type),
+             process_type_uses_negative_weight(d->type) ? " | weighted resistance" : "",
+             process_type_uses_reason(d->type) ?
+                 (d->require_vote_reason ? " | reason required" : " | reason optional") : "");
     y = draw_wrapped_text(font, governance_line, content_x, y, content_w, small_font,
                           small_font + ScaleUIPx(7), GetThemeButton());
     if(d->outcome[0] != '\0') {
@@ -4688,7 +5206,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
         }
     }
 
-    if(phase == UKU_PROCESS_PROPOSAL) {
+    if(process_type_has_proposals(d->type) && phase == UKU_PROCESS_PROPOSAL) {
         draw_text_font(font, "Add proposal", content_x, y, body_font, GetThemeText());
         y += body_font + ScaleUIPx(8);
         if(!app->account.loaded) {
@@ -4735,7 +5253,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
             y = draw_wrapped_text(font, "Could not submit proposal.", content_x, y, content_w,
                                   small_font, line_h, GetThemeButton());
         y += ScaleUIPx(12);
-    } else if(phase == UKU_PROCESS_VOTING) {
+    } else if(process_type_has_voting(d->type) && phase == UKU_PROCESS_VOTING) {
         draw_text_font(font, "Your ballot", content_x, y, body_font, GetThemeText());
         y += body_font + ScaleUIPx(8);
         if(!app->account.loaded) {
@@ -4743,13 +5261,21 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                                   content_w, small_font, line_h, GetThemeButton());
             y += ScaleUIPx(10);
         } else {
-            for(int i = 0; i < app->proposal_count; i++)
-                y = draw_score_row(app, font, &app->proposals[i], i, content_x, y,
-                                   content_w, body_font, small_font);
-            y = draw_text_field(app, font, "Reason", d->require_vote_reason ? "Required voting reason" : "Optional voting reason",
-                                app->vote_reason, sizeof(app->vote_reason),
-                                UKU_FIELD_VOTE_REASON, UKU_FOCUS_VOTE_REASON,
-                                content_x, y, content_w, ScaleUIPx(68));
+            if(process_type_has_options(d->type)) {
+                for(int i = 0; i < app->option_count; i++)
+                    y = draw_option_vote_row(app, font, &app->options[i], d->type, i,
+                                             content_x, y, content_w,
+                                             body_font, small_font);
+            } else {
+                for(int i = 0; i < app->proposal_count; i++)
+                    y = draw_score_row(app, font, &app->proposals[i], i, content_x, y,
+                                       content_w, body_font, small_font);
+            }
+            if(process_type_uses_reason(d->type))
+                y = draw_text_field(app, font, "Reason", d->require_vote_reason ? "Required voting reason" : "Optional voting reason",
+                                    app->vote_reason, sizeof(app->vote_reason),
+                                    UKU_FIELD_VOTE_REASON, UKU_FOCUS_VOTE_REASON,
+                                    content_x, y, content_w, ScaleUIPx(68));
             draw_compact_button(app, font, content_x, y, content_w, ScaleUIPx(190),
                                 ScaleUIPx(34),
                                 app->current_user_voted ? "Update vote" : "Submit vote", 1,
@@ -4781,22 +5307,33 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                                   small_font, line_h, GetThemeButton());
         y += ScaleUIPx(12);
     } else {
-        draw_text_font(font, "Results", content_x, y, body_font, GetThemeText());
+        draw_text_font(font, d->type == UKU_PROCESS_TYPE_COLLECTION ? "Collected proposals" : "Results",
+                       content_x, y, body_font, GetThemeText());
         y += body_font + ScaleUIPx(8);
-        sort_result_indices(app, result_indices, app->proposal_count);
-        for(int i = 0; i < app->proposal_count; i++)
-            y = draw_result_row(app, font, &app->proposals[result_indices[i]], i + 1,
-                                content_x, y, content_w, body_font, small_font);
+        if(process_type_has_options(d->type)) {
+            for(int i = 0; i < app->option_count; i++)
+                y = draw_option_result_row(app, font, &app->options[i], i + 1,
+                                           content_x, y, content_w,
+                                           body_font, small_font);
+        } else {
+            sort_result_indices(app, result_indices, app->proposal_count);
+            for(int i = 0; i < app->proposal_count; i++)
+                y = draw_result_row(app, font, &app->proposals[result_indices[i]], i + 1,
+                                    content_x, y, content_w, body_font, small_font);
+        }
         y += ScaleUIPx(8);
     }
 
-    y = draw_participant_list(app, font, content_x, y, content_w, body_font, small_font);
+    if(process_type_has_voting(d->type))
+        y = draw_participant_list(app, font, content_x, y, content_w, body_font, small_font);
 
-    draw_text_font(font, "Proposals", content_x, y, body_font, GetThemeText());
-    y += body_font + ScaleUIPx(8);
-    for(int i = 0; i < app->proposal_count; i++)
-        y = draw_proposal_card(app, font, &app->proposals[i], i, content_x, y,
-                               content_w, body_font, small_font);
+    if(process_type_has_proposals(d->type)) {
+        draw_text_font(font, "Proposals", content_x, y, body_font, GetThemeText());
+        y += body_font + ScaleUIPx(8);
+        for(int i = 0; i < app->proposal_count; i++)
+            y = draw_proposal_card(app, font, &app->proposals[i], i, content_x, y,
+                                   content_w, body_font, small_font);
+    }
     if(app->process_status[0] != '\0') {
         y += ScaleUIPx(4);
         y = draw_wrapped_text(font, app->process_status, content_x, y, content_w,
