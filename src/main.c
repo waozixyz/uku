@@ -1,4 +1,3 @@
-#include "raylib.h"
 #include "kryon.h"
 #include "embedded_assets.h"
 #include "file_dialog.h"

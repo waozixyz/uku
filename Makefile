@@ -9,6 +9,9 @@ KRYON_USE_SYSTEM_CURL := 1
 K2C ?= $(KRYON_DIR)/build/bin/k2c
 FONT_MODE ?= font
 FONT_SOURCE ?= $(KRYON_DIR)/fonts/noto/NotoSans-Regular.ttf
+
+# Generated UI font embedded as assets/fonts/ui.ttf (gitignored).
+FONT_FILES := assets/fonts/ui.ttf
 FONT_RANGES ?= ascii latin latin-extended punctuation greek cyrillic
 FONT_MISSING ?= skip
 FONT_BASE_SIZE ?= 32
@@ -61,10 +64,6 @@ endif
 
 include $(KRYON_MAKE_DIR)raylib.mk
 
-# raylib is compiled with the backend rename header (InitWindow ->
-# KryonRaylibBackend_InitWindow etc.), so the app's plain-name calls need the
-# generated wrappers on the link line.
-KRYON_SRCS += $(KRYON_RAYLIB_WRAPPERS_C)
 
 ifneq ($(filter-out web run clean-web,$(MAKECMDGOALS)),)
 include $(KRYON_MAKE_DIR)native.mk
@@ -85,6 +84,11 @@ WEB_LIBOQS_BUILD_DIR = $(KRYON_WEB_LIBOQS_BUILD_DIR)
 WEB_LIBOQS_A = $(KRYON_WEB_LIBOQS_A)
 WEB_LIBOQS_INCLUDE = -I$(WEB_LIBOQS_BUILD_DIR)/include
 WEB_KRYON_SRCS = $(filter-out $(KRYON_DIR)/src/file_dialog/file_dialog.c,$(KRYON_SRCS))
+
+# The web raylib is compiled with the backend rename header (InitWindow ->
+# KryonRaylibBackend_InitWindow etc.), so plain-name calls resolve through the
+# generated wrappers. The native raylib keeps plain symbols and needs none.
+WEB_KRYON_SRCS += $(KRYON_RAYLIB_WRAPPERS_C)
 WEB_PUBLIC_FILES = $(wildcard manifest.json) $(shell find web-assets -type f 2>/dev/null)
 WEB_CFLAGS = -Wall -Wextra -Wno-unused-function -Wno-typedef-redefinition -std=gnu99 -O0 -DPLATFORM_WEB -DGRAPHICS_API_OPENGL_ES2 -D_DEFAULT_SOURCE -DSUPPORT_MODULE_RAUDIO=0 -DSUPPORT_FILEFORMAT_JPG=1 -DUI_EMBEDDED_ONLY=1 -DHAS_LIBOQS=1 -DKRYON_HAS_LIBOQS=1
 WEB_LDFLAGS = -sUSE_GLFW=3 -sFETCH=1 -sASYNCIFY -sINITIAL_MEMORY=134217728 -sSTACK_SIZE=8388608 -sGLOBAL_BASE=16777216 -lidbfs.js
@@ -99,6 +103,10 @@ $(KRY_GEN_SRCS) $(KRY_GEN_HEADERS): $(KRY_SRCS) $(K2C) | $(KRY_GEN_DIR)
 
 $(KRY_GEN_DIR):
 	mkdir -p $@
+
+$(FONT_FILES): $(FONT_SOURCE)
+	@mkdir -p $(dir $@)
+	cp $(FONT_SOURCE) $@
 
 $(WEB_JS_TARGET): $(BUILD_MAKEFILES) $(SRC) $(WEB_KRYON_SRCS) $(CORE_SRCS) $(WEB_RAYLIB_A) $(WEB_LIBOQS_A) $(WEB_PUBLIC_FILES) | $(WEB_BUILD_DIR)
 	$(WEB_CC) $(WEB_CFLAGS) \
