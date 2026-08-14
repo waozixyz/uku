@@ -6,7 +6,6 @@ SRC := src/main.c
 KRYON_DIR := $(if $(wildcard vendor/kryon/mk/common.mk),vendor/kryon,../kryon)
 KRYON_MAKE_DIR := $(KRYON_DIR)/mk/
 KRYON_USE_SYSTEM_CURL := 1
-K2C ?= $(KRYON_DIR)/build/bin/k2c
 FONT_MODE ?= font
 FONT_SOURCE ?= $(KRYON_DIR)/fonts/noto/NotoSans-Regular.ttf
 
@@ -100,7 +99,7 @@ $(eval $(call KRYON_RAYLIB_WEB_RULE,$(WEB_RAYLIB_A),$(or $(WEB_RAYLIB_SOURCE_BUI
 K2C_SRCS := $(sort $(wildcard $(KRYON_DIR)/cmd/k2c/*.c)) \
 	$(KRYON_DIR)/cmd/kir/kir.c $(KRYON_DIR)/cmd/kir/kir_parse.c
 $(K2C): $(K2C_SRCS)
-	$(MAKE) -C $(KRYON_DIR) build/bin/k2c
+	$(MAKE) -C $(KRYON_DIR) k2c
 
 $(KRY_GEN_SRCS) $(KRY_GEN_HEADERS): $(KRY_SRCS) $(K2C) | $(KRY_GEN_DIR)
 	$(K2C) --no-main --root . -o $(KRY_GEN_DIR) $(KRY_SRCS)
