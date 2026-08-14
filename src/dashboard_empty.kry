@@ -1,0 +1,10 @@
+#import "kryon.h"
+
+UkuDashboardEmptyPanel :: (message: const char *, x: int, y: int, w: int, body_font: int) -> int #export {
+    pad: int = ScaleUIPx(12)
+    h: int = ScaleUIPx(76)
+    DrawRectangleLines(x, y, w, h, GetThemeIcon())
+    DrawRectangle(x + 1, y + 1, w - 2, h - 2, GetThemeSurface())
+    DrawFittedUITextInRect(message,(Rectangle){(float)(x + pad),(float)(y + pad),(float)(w - pad * 2),(float)(h - pad * 2)},body_font,UI_TEXT_12,GetThemeText())
+    return y + h + ScaleUIPx(12)
+}

@@ -3,11 +3,12 @@
 APP_NAME := uku
 ANDROID_APP_ID := xyz.waozi.uku
 SRC := src/main.c
-FLINT_DIR := $(if $(wildcard vendor/flint/mk/common.mk),vendor/flint,../flint)
-FLINT_MAKE_DIR := $(FLINT_DIR)/mk/
-FLINT_USE_SYSTEM_CURL := 1
+KRYON_DIR := $(if $(wildcard vendor/kryon/mk/common.mk),vendor/kryon,../kryon)
+KRYON_MAKE_DIR := $(KRYON_DIR)/mk/
+KRYON_USE_SYSTEM_CURL := 1
+K2C ?= $(KRYON_DIR)/build/bin/k2c
 FONT_MODE ?= font
-FONT_SOURCE ?= vendor/flint/vendor/fontchop/fonts/NotoSans-Regular.ttf
+FONT_SOURCE ?= $(KRYON_DIR)/fonts/noto/NotoSans-Regular.ttf
 FONT_RANGES ?= ascii latin latin-extended punctuation greek cyrillic
 FONT_MISSING ?= skip
 FONT_BASE_SIZE ?= 32
@@ -17,39 +18,62 @@ WEB_DEV_HOST ?= 127.0.0.1
 WEB_DEV_PORT ?= 8080
 BRAVE_BROWSER ?= brave-browser
 
-FLINT_RAYLIB_MODULE_AUDIO := FALSE
-FLINT_NATIVE_SUPPORT_FLAGS := -DSUPPORT_MODULE_RAUDIO=0
-APP_RAYLIB_CONFIG := $(RAY_RAYLIB_CONFIG) -DSUPPORT_MODULE_RAUDIO=0
+KRYON_NATIVE_SUPPORT_FLAGS := -DSUPPORT_MODULE_RAUDIO=0
 
-include $(FLINT_MAKE_DIR)common.mk
+include $(KRYON_MAKE_DIR)common.mk
+
+KRYON_RAYLIB_MODULE_AUDIO = FALSE
+APP_RAYLIB_CONFIG = $(RAY_RAYLIB_CONFIG) -DSUPPORT_MODULE_RAUDIO=0
+
+KRY_SRCS := $(shell find src -type f -name '*.kry' 2>/dev/null | LC_ALL=C sort)
+KRY_GEN_DIR := $(BUILD_DIR)/kryon/generated
+KRY_GEN_SRCS := $(patsubst %.kry,$(KRY_GEN_DIR)/%.c,$(KRY_SRCS))
+KRY_GEN_HEADERS := $(patsubst %.kry,$(KRY_GEN_DIR)/%.h,$(KRY_SRCS))
+SRC += $(KRY_GEN_SRCS)
+APP_INCLUDE += -I$(KRY_GEN_DIR)
 
 LINUX_BIN_DIR := $(BUILD_DIR)/linux
-FLINT_VENDOR_BUILD_DIR := $(BUILD_DIR)/vendor
-FLINT_LIBOQS_BUILD_DIR := $(FLINT_VENDOR_BUILD_DIR)/liboqs
-FLINT_CURL_BUILD_TYPE := Release
-FLINT_LIBRESSL_BUILD_TYPE := Release
+KRYON_VENDOR_BUILD_DIR := $(BUILD_DIR)/vendor
+KRYON_LIBOQS_BUILD_DIR := $(KRYON_VENDOR_BUILD_DIR)/liboqs
+KRYON_CURL_BUILD_TYPE := Release
 
-include $(FLINT_MAKE_DIR)vendor.mk
+# uku is a UI-only app: drop the 2D physics subsystem (Box2D) entirely --
+# its sources need box2d.h, which is not vendored here. Must precede the
+# vendor.mk include (which defaults the flag to 1).
+KRYON_WITH_PHYSICS := 0
 
-ifeq ($(FLINT_USE_SYSTEM_CURL),1)
-FLINT_SYSTEM_CURL_CFLAGS := $(shell pkg-config --cflags libcurl)
-FLINT_SYSTEM_CURL_LDLIBS := $(shell pkg-config --libs libcurl)
-FLINT_NATIVE_DEPS := $(FLINT_LIBOQS_A)
-FLINT_NATIVE_CFLAGS := $(FLINT_LIBOQS_INCLUDE) $(FLINT_SYSTEM_CURL_CFLAGS) -DHAS_LIBOQS=1 -DFLINT_HAS_LIBOQS=1
-FLINT_NATIVE_LDLIBS := $(FLINT_LIBOQS_A) $(FLINT_SYSTEM_CURL_LDLIBS) -lsqlite3
+include $(KRYON_MAKE_DIR)vendor.mk
+
+KRYON_INCLUDE += $(KRYON_PHYSICS_CPPFLAGS)
+KRYON_SRCS := $(filter-out $(KRYON_PHYSICS_SRCS),$(KRYON_SRCS))
+
+ifeq ($(KRYON_USE_SYSTEM_CURL),1)
+KRYON_SYSTEM_CURL_CFLAGS := $(shell pkg-config --cflags libcurl)
+KRYON_SYSTEM_CURL_LDLIBS := $(shell pkg-config --libs libcurl)
+KRYON_NATIVE_DEPS := $(KRYON_LIBOQS_A)
+KRYON_NATIVE_CFLAGS := $(KRYON_LIBOQS_INCLUDE) $(KRYON_SYSTEM_CURL_CFLAGS) -DHAS_LIBOQS=1 -DKRYON_HAS_LIBOQS=1
+KRYON_NATIVE_LDLIBS := $(KRYON_LIBOQS_A) $(KRYON_SYSTEM_CURL_LDLIBS) -lsqlite3
 else
-FLINT_NATIVE_DEPS := $(FLINT_LIBOQS_A) $(FLINT_CURL_SO)
-FLINT_NATIVE_CFLAGS := $(FLINT_LIBOQS_INCLUDE) $(FLINT_CURL_CFLAGS) -DHAS_LIBOQS=1 -DFLINT_HAS_LIBOQS=1
-FLINT_NATIVE_LDLIBS := $(FLINT_LIBOQS_A) $(FLINT_CURL_LDLIBS) -lsqlite3
+KRYON_NATIVE_DEPS := $(KRYON_LIBOQS_A) $(KRYON_CURL_SO)
+KRYON_NATIVE_CFLAGS := $(KRYON_LIBOQS_INCLUDE) $(KRYON_CURL_CFLAGS) -DHAS_LIBOQS=1 -DKRYON_HAS_LIBOQS=1
+KRYON_NATIVE_LDLIBS := $(KRYON_LIBOQS_A) $(KRYON_CURL_LDLIBS) -lsqlite3
 endif
 
-include $(FLINT_MAKE_DIR)raylib.mk
+include $(KRYON_MAKE_DIR)raylib.mk
+
+# raylib is compiled with the backend rename header (InitWindow ->
+# KryonRaylibBackend_InitWindow etc.), so the app's plain-name calls need the
+# generated wrappers on the link line.
+KRYON_SRCS += $(KRYON_RAYLIB_WRAPPERS_C)
 
 ifneq ($(filter-out web run clean-web,$(MAKECMDGOALS)),)
-include $(FLINT_MAKE_DIR)native.mk
+include $(KRYON_MAKE_DIR)native.mk
+else
+run:
+	python3 scripts/uku-web-dev.py --host "$(WEB_DEV_HOST)" --port "$(WEB_DEV_PORT)" --browser "$(BRAVE_BROWSER)"
 endif
-include $(FLINT_MAKE_DIR)dist.mk
-include $(FLINT_MAKE_DIR)clean.mk
+include $(KRYON_MAKE_DIR)dist.mk
+include $(KRYON_MAKE_DIR)clean.mk
 
 WEB_CC ?= emcc
 WEB_AR ?= emar
@@ -57,26 +81,35 @@ WEB_JS_TARGET = $(WEB_BUILD_DIR)/index.js
 WEB_TARGET = $(WEB_DIST_DIR)/index.html
 WEB_RAYLIB_BUILD_DIR = $(WEB_BUILD_DIR)/raylib
 WEB_RAYLIB_A = $(WEB_RAYLIB_BUILD_DIR)/libraylib.web.a
-WEB_LIBOQS_BUILD_DIR = $(FLINT_WEB_LIBOQS_BUILD_DIR)
-WEB_LIBOQS_A = $(FLINT_WEB_LIBOQS_A)
+WEB_LIBOQS_BUILD_DIR = $(KRYON_WEB_LIBOQS_BUILD_DIR)
+WEB_LIBOQS_A = $(KRYON_WEB_LIBOQS_A)
 WEB_LIBOQS_INCLUDE = -I$(WEB_LIBOQS_BUILD_DIR)/include
-WEB_FLINT_SRCS = $(filter-out $(FLINT_DIR)/src/file_dialog/file_dialog.c,$(FLINT_SRCS))
+WEB_KRYON_SRCS = $(filter-out $(KRYON_DIR)/src/file_dialog/file_dialog.c,$(KRYON_SRCS))
 WEB_PUBLIC_FILES = $(wildcard manifest.json) $(shell find web-assets -type f 2>/dev/null)
-WEB_CFLAGS = -Wall -Wextra -Wno-unused-function -Wno-typedef-redefinition -std=gnu99 -O0 -DPLATFORM_WEB -DGRAPHICS_API_OPENGL_ES2 -D_DEFAULT_SOURCE -DSUPPORT_MODULE_RAUDIO=0 -DSUPPORT_FILEFORMAT_JPG=1 -DUI_EMBEDDED_ONLY=1 -DHAS_LIBOQS=1 -DFLINT_HAS_LIBOQS=1
+WEB_CFLAGS = -Wall -Wextra -Wno-unused-function -Wno-typedef-redefinition -std=gnu99 -O0 -DPLATFORM_WEB -DGRAPHICS_API_OPENGL_ES2 -D_DEFAULT_SOURCE -DSUPPORT_MODULE_RAUDIO=0 -DSUPPORT_FILEFORMAT_JPG=1 -DUI_EMBEDDED_ONLY=1 -DHAS_LIBOQS=1 -DKRYON_HAS_LIBOQS=1
 WEB_LDFLAGS = -sUSE_GLFW=3 -sFETCH=1 -sASYNCIFY -sINITIAL_MEMORY=134217728 -sSTACK_SIZE=8388608 -sGLOBAL_BASE=16777216 -lidbfs.js
 
-$(eval $(call FLINT_RAYLIB_WEB_RULE,$(WEB_RAYLIB_A),$(or $(WEB_RAYLIB_SOURCE_BUILD_DIR),$(dir $(WEB_RAYLIB_BUILD_DIR))raylib-src),$(WEB_RAYLIB_BUILD_DIR),$(WEB_CC),$(WEB_AR)))
+$(eval $(call KRYON_RAYLIB_WEB_RULE,$(WEB_RAYLIB_A),$(or $(WEB_RAYLIB_SOURCE_BUILD_DIR),$(dir $(WEB_RAYLIB_BUILD_DIR))raylib-src),$(WEB_RAYLIB_BUILD_DIR),$(WEB_CC),$(WEB_AR)))
 
-$(WEB_JS_TARGET): $(BUILD_MAKEFILES) $(SRC) $(WEB_FLINT_SRCS) $(CORE_SRCS) $(WEB_RAYLIB_A) $(WEB_LIBOQS_A) $(WEB_PUBLIC_FILES) | $(WEB_BUILD_DIR)
+$(K2C):
+	$(MAKE) -C $(KRYON_DIR) build/bin/k2c
+
+$(KRY_GEN_SRCS) $(KRY_GEN_HEADERS): $(KRY_SRCS) $(K2C) | $(KRY_GEN_DIR)
+	$(K2C) --no-main --root . -o $(KRY_GEN_DIR) $(KRY_SRCS)
+
+$(KRY_GEN_DIR):
+	mkdir -p $@
+
+$(WEB_JS_TARGET): $(BUILD_MAKEFILES) $(SRC) $(WEB_KRYON_SRCS) $(CORE_SRCS) $(WEB_RAYLIB_A) $(WEB_LIBOQS_A) $(WEB_PUBLIC_FILES) | $(WEB_BUILD_DIR)
 	$(WEB_CC) $(WEB_CFLAGS) \
 		$(APP_INCLUDE) \
-		$(FLINT_INCLUDE) \
+		$(KRYON_INCLUDE) \
 		$(WEB_LIBOQS_INCLUDE) \
 		$(CORE_INCLUDE) \
 		-I$(RAYLIB_DIR) \
 		-o $@ \
 		$(SRC) \
-		$(WEB_FLINT_SRCS) \
+		$(WEB_KRYON_SRCS) \
 		$(CORE_SRCS) \
 		$(WEB_RAYLIB_A) \
 		$(WEB_LIBOQS_A) \
@@ -105,8 +138,5 @@ web: $(WEB_TARGET) $(WEB_ZIP)
 linux: native
 
 dist: dist-linux
-
-run:
-	python3 scripts/uku-web-dev.py --host "$(WEB_DEV_HOST)" --port "$(WEB_DEV_PORT)" --browser "$(BRAVE_BROWSER)"
 
 .PHONY: all native linux web dist run clean

@@ -17,16 +17,16 @@ WATCH_DIRS = [
     os.path.join(ROOT, "src"),
     os.path.join(ROOT, "locales"),
     os.path.join(ROOT, "assets"),
-    os.path.join(ROOT, "..", "flint", "src"),
-    os.path.join(ROOT, "..", "flint", "include"),
-    os.path.join(ROOT, "..", "flint", "mk"),
+    os.path.join(ROOT, "..", "kryon", "src"),
+    os.path.join(ROOT, "..", "kryon", "include"),
+    os.path.join(ROOT, "..", "kryon", "mk"),
 ]
 WATCH_FILES = [
     os.path.join(ROOT, "Makefile"),
-    os.path.join(ROOT, "flint.toml"),
+    os.path.join(ROOT, "project.kryon"),
 ]
 WATCH_SUFFIXES = {
-    ".c", ".h", ".html", ".mk", ".txt", ".png", ".dat", ".toml", ".json",
+    ".c", ".h", ".html", ".mk", ".txt", ".png", ".dat", ".kry", ".kryon", ".json",
 }
 
 

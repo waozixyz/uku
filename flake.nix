@@ -1,5 +1,5 @@
 {
-  description = "Uku native Raylib and Flint development environment";
+  description = "Uku native Raylib and Kryon development environment";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

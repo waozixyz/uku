@@ -1,7 +1,10 @@
 #include "raylib.h"
-#include "flint.h"
+#include "kryon.h"
 #include "embedded_assets.h"
 #include "file_dialog.h"
+#include "ui_inspect.h"
+#include "src/app_chrome.h"
+#include "src/dashboard_empty.h"
 
 #if defined(PLATFORM_WEB)
 typedef long long sqlite3_int64;
@@ -56,9 +59,7 @@ typedef enum UkuField {
 
 typedef enum UkuProcessType {
     UKU_PROCESS_TYPE_CONSENT,
-    UKU_PROCESS_TYPE_POLL,
-    UKU_PROCESS_TYPE_APPROVAL,
-    UKU_PROCESS_TYPE_RANKED_CHOICE,
+    UKU_PROCESS_TYPE_RANKED,
     UKU_PROCESS_TYPE_COLLECTION,
     UKU_PROCESS_TYPE_COUNT
 } UkuProcessType;
@@ -519,22 +520,25 @@ load_text_file(UkuText *text, const char *path)
 static void
 app_load_font(UkuApp *app)
 {
+    const EmbeddedAsset *font_asset;
     Image white;
 
-    app->font = LoadUIFontAsset(LOCALE_FONT_TTF, LOCALE_FONT_BASE_SIZE);
-    if(app->font.texture.id == 0) {
+    font_asset = GetEmbeddedAsset(LOCALE_FONT_TTF);
+    if(font_asset != NULL && font_asset->data != NULL && font_asset->size > 0) {
+        app->locale_font_ready = RegisterUIFontSource(
+            LOCALE_FONT_NAME, GetEmbeddedAssetExtension(LOCALE_FONT_TTF),
+            font_asset->data, font_asset->size, NULL, 0);
+    } else {
+        app->locale_font_ready = RegisterUIFontFileSource(
+            LOCALE_FONT_NAME, LOCALE_FONT_TTF, NULL, 0);
+    }
+
+    if(!app->locale_font_ready || !UseUIFont(LOCALE_FONT_NAME)) {
         app->font = GetFontDefault();
         app->locale_font_ready = 0;
         return;
     }
-    if(!RegisterUIFont(LOCALE_FONT_NAME, app->font) ||
-       !RegisterUISmallFont(LOCALE_FONT_NAME, app->font) ||
-       !UseUIFont(LOCALE_FONT_NAME)) {
-        UnloadUIFont(&app->font);
-        app->font = GetFontDefault();
-        app->locale_font_ready = 0;
-        return;
-    }
+    app->font = GetUIFont();
 
     white = GenImageColor(1, 1, WHITE);
     app->font_shapes_texture = LoadTextureFromImage(white);
@@ -548,8 +552,6 @@ static void
 app_unload_font(UkuApp *app)
 {
     ClearUIFonts();
-    if(app->locale_font_ready)
-        UnloadUIFont(&app->font);
     if(app->font_shapes_texture.id != 0)
         UnloadTexture(app->font_shapes_texture);
 }
@@ -674,9 +676,7 @@ process_type_key(UkuProcessType type)
 {
     switch(type) {
     case UKU_PROCESS_TYPE_CONSENT: return "consent";
-    case UKU_PROCESS_TYPE_POLL: return "poll";
-    case UKU_PROCESS_TYPE_APPROVAL: return "approval";
-    case UKU_PROCESS_TYPE_RANKED_CHOICE: return "ranked_choice";
+    case UKU_PROCESS_TYPE_RANKED: return "ranked_choice";
     case UKU_PROCESS_TYPE_COLLECTION: return "collection";
     default: return "consent";
     }
@@ -687,9 +687,7 @@ process_type_label(UkuProcessType type)
 {
     switch(type) {
     case UKU_PROCESS_TYPE_CONSENT: return "Consent";
-    case UKU_PROCESS_TYPE_POLL: return "Poll";
-    case UKU_PROCESS_TYPE_APPROVAL: return "Approval";
-    case UKU_PROCESS_TYPE_RANKED_CHOICE: return "Ranked choice";
+    case UKU_PROCESS_TYPE_RANKED: return "Ranked";
     case UKU_PROCESS_TYPE_COLLECTION: return "Collection";
     default: return "Consent";
     }
@@ -700,6 +698,9 @@ process_type_from_key(const char *key)
 {
     if(key == NULL)
         return UKU_PROCESS_TYPE_CONSENT;
+    if(strcmp(key, "poll") == 0 || strcmp(key, "approval") == 0 ||
+       strcmp(key, "ranked") == 0)
+        return UKU_PROCESS_TYPE_RANKED;
     for(int i = 0; i < UKU_PROCESS_TYPE_COUNT; i++) {
         UkuProcessType type = (UkuProcessType)i;
         if(strcmp(key, process_type_key(type)) == 0)
@@ -724,9 +725,7 @@ process_type_has_voting(UkuProcessType type)
 static int
 process_type_has_options(UkuProcessType type)
 {
-    return type == UKU_PROCESS_TYPE_POLL ||
-           type == UKU_PROCESS_TYPE_APPROVAL ||
-           type == UKU_PROCESS_TYPE_RANKED_CHOICE;
+    return type == UKU_PROCESS_TYPE_RANKED;
 }
 
 static int
@@ -738,8 +737,7 @@ process_type_uses_negative_weight(UkuProcessType type)
 static int
 process_type_uses_reason(UkuProcessType type)
 {
-    return type == UKU_PROCESS_TYPE_CONSENT ||
-           type == UKU_PROCESS_TYPE_APPROVAL;
+    return type == UKU_PROCESS_TYPE_CONSENT;
 }
 
 static int
@@ -1089,7 +1087,7 @@ sync_server_save(UkuApp *app)
 }
 
 static void
-account_to_lyra(const UkuAccount *account, LyraAccount *out)
+account_to_ksync(const UkuAccount *account, KsyncAccount *out)
 {
     if(out == NULL)
         return;
@@ -1102,7 +1100,7 @@ account_to_lyra(const UkuAccount *account, LyraAccount *out)
 }
 
 static void
-account_from_lyra(UkuAccount *account, const LyraAccount *source)
+account_from_ksync(UkuAccount *account, const KsyncAccount *source)
 {
     char auth_token[sizeof(account->auth_token)];
     int import_failed;
@@ -1163,38 +1161,38 @@ alias_valid(const char *text)
 static int
 account_validate_import(UkuAccount *account)
 {
-    LyraAccount lyra_account;
+    KsyncAccount ksync_account;
 
     if(account == NULL)
         return 0;
-    account_to_lyra(account, &lyra_account);
-    if(!ValidateLyraAccount(&lyra_account))
+    account_to_ksync(account, &ksync_account);
+    if(!ValidateKsyncAccount(&ksync_account))
         return 0;
-    account_from_lyra(account, &lyra_account);
+    account_from_ksync(account, &ksync_account);
     return 1;
 }
 
 static int
 account_parse_key_text(const char *body, UkuAccount *account)
 {
-    LyraAccount parsed;
+    KsyncAccount parsed;
 
     if(body == NULL || account == NULL)
         return 0;
-    if(!ParseLyraAccountText(body, &parsed))
+    if(!ParseKsyncAccountText(body, &parsed))
         return 0;
     memset(account, 0, sizeof(*account));
-    account_from_lyra(account, &parsed);
+    account_from_ksync(account, &parsed);
     return 1;
 }
 
 static int
 account_has_values(const UkuAccount *account)
 {
-    LyraAccount lyra_account;
+    KsyncAccount ksync_account;
 
-    account_to_lyra(account, &lyra_account);
-    return ValidateLyraAccount(&lyra_account);
+    account_to_ksync(account, &ksync_account);
+    return ValidateKsyncAccount(&ksync_account);
 }
 
 static int
@@ -1308,14 +1306,14 @@ account_import_file(UkuApp *app, const char *path)
 static int
 account_export_file(UkuApp *app, const char *path)
 {
-    char body[LYRA_ACCOUNT_EXPORT_TEXT_SIZE];
-    LyraAccount lyra_account;
+    char body[KSYNC_ACCOUNT_EXPORT_TEXT_SIZE];
+    KsyncAccount ksync_account;
     int ok;
 
     if(app == NULL || !account_has_values(&app->account) || path == NULL || path[0] == '\0')
         return 0;
-    account_to_lyra(&app->account, &lyra_account);
-    if(!ExportLyraAccountText(&lyra_account, body, sizeof(body)))
+    account_to_ksync(&app->account, &ksync_account);
+    if(!ExportKsyncAccountText(&ksync_account, body, sizeof(body)))
         return 0;
     ok = SaveFileData(path, body, (int)strlen(body));
     copy_text(app->account_status, sizeof(app->account_status),
@@ -1395,16 +1393,16 @@ account_start_export_dialog(UkuApp *app)
 static int
 account_create(UkuApp *app)
 {
-    LyraAccount lyra_account;
+    KsyncAccount ksync_account;
     UkuAccount generated;
 
     memset(&generated, 0, sizeof(generated));
-    if(!CreateLyraAccount(&lyra_account)) {
+    if(!CreateKsyncAccount(&ksync_account)) {
         copy_text(app->account_status, sizeof(app->account_status),
                   "Account creation failed.", strlen("Account creation failed."));
         return 0;
     }
-    account_from_lyra(&generated, &lyra_account);
+    account_from_ksync(&generated, &ksync_account);
     if(!account_save(app, &generated)) {
         copy_text(app->account_status, sizeof(app->account_status),
                   "Account creation failed.", strlen("Account creation failed."));
@@ -1437,12 +1435,12 @@ static int
 account_sign_hex(UkuApp *app, const uint8_t *message, size_t message_len,
                  char *out_signature_hex, size_t out_size)
 {
-    LyraAccount lyra_account;
+    KsyncAccount ksync_account;
 
     if(app == NULL || !app->account.loaded)
         return 0;
-    account_to_lyra(&app->account, &lyra_account);
-    return SignLyraAccountHex(&lyra_account, message, message_len, out_signature_hex,
+    account_to_ksync(&app->account, &ksync_account);
+    return SignKsyncAccountHex(&ksync_account, message, message_len, out_signature_hex,
                                        out_size);
 }
 
@@ -2026,7 +2024,7 @@ canonical_message_hex(const char *nonce_hex, const char *method, const char *pat
 {
     char digest_hex[65];
 
-    LyraSha256Hex((const uint8_t *)body, strlen(body), digest_hex);
+    KsyncSha256Hex((const uint8_t *)body, strlen(body), digest_hex);
     snprintf(out, out_size, "inbe-sync-v1\n%s\n%s\n%s\n%s\n", method, path, digest_hex, nonce_hex);
 }
 
@@ -3707,18 +3705,12 @@ draw_button(UkuApp *app, Font font, int x, int y, int w, int h, const char *labe
         natural_w = ScaleUIPx(44);
     if(natural_w < w)
         bounds.width = (float)natural_w;
-    if(DrawUIButton((UIButton){
-        .bounds = bounds,
-        .label = label,
-        .font = font_size,
-        .focus_id = focus_id,
-        .background = primary ? GetThemeButton() : GetThemeSurface(),
-        .hover_background = primary ? GetThemeButtonHover() : LightenUIColor(GetThemeSurface(), 14),
-        .text = primary ? WHITE : GetThemeText(),
-        .border = primary ? DarkenUIColor(GetThemeButton(), 22) : DarkenUIColor(GetThemeSurface(), 28),
-        .radius = 0.08f
-    }))
+    if(DrawUIGenericButton((int)bounds.x, (int)bounds.y, (int)bounds.width,
+                           (int)bounds.height, label,
+                           primary ? UI_BUTTON_STYLE_PRIMARY : UI_BUTTON_STYLE_SECONDARY,
+                           0, NULL))
         *clicked = 1;
+    (void)focus_id;
 }
 
 static void
@@ -3735,19 +3727,12 @@ draw_visibility_button(UkuApp *app, int x, int y, int w, const char *label,
                        int selected, int focus_id, int *clicked)
 {
     *clicked = 0;
-    if(DrawUIButton((UIButton){
-        .bounds = {(float)x, (float)y, (float)w, (float)ScaleUIPx(20)},
-        .label = label,
-        .font = ClampUIPx(9, 9, 10),
-        .focus_id = focus_id,
-        .background = selected ? GetThemeButton() : GetThemeSurface(),
-        .hover_background = selected ? GetThemeButtonHover() : LightenUIColor(GetThemeSurface(), 12),
-        .text = selected ? WHITE : GetThemeText(),
-        .border = selected ? DarkenUIColor(GetThemeButton(), 22) : DarkenUIColor(GetThemeSurface(), 28),
-        .radius = 0.07f
-    }))
+    if(DrawUIGenericButton(x, y, w, ScaleUIPx(20), label,
+                           selected ? UI_BUTTON_STYLE_PRIMARY : UI_BUTTON_STYLE_SECONDARY,
+                           0, NULL))
         *clicked = 1;
     (void)app;
+    (void)focus_id;
 }
 
 static int
@@ -3766,8 +3751,6 @@ draw_readonly_field(UkuApp *app, Font font, const char *text, int x, int y, int 
     DrawRectangleRounded(box, 0.08f, 10, GetThemeSurface());
     DrawRectangleRoundedLinesEx(box, 0.08f, 10, ScaleUIPx(focused ? 2 : 1),
                                 focused ? GetThemeButton() : GetThemeText());
-    if(focused)
-        DrawUIFocus(box);
     draw_text_font(font, fit_tail(font, text, text_font, w - pad * 2),
                    x + pad, GetUIControlTextY(text, y, h, text_font),
                    text_font, GetThemeText());
@@ -3836,8 +3819,6 @@ draw_pfp_account_button(UkuApp *app, int x, int y, int size, int focus_id)
                hover || focused ? GetThemeButtonHover() : GetThemeSurface());
     DrawCircleLines(x + size / 2, y + size / 2, size / 2,
                     focused ? GetThemeButton() : GetThemeText());
-    if(focused)
-        DrawUIFocus(bounds);
     if(icon.id != 0) {
         DrawTexturePro(icon, (Rectangle){0, 0, (float)icon.width, (float)icon.height},
                        (Rectangle){(float)(x + inset), (float)(y + inset),
@@ -3864,8 +3845,6 @@ draw_dashboard_brand(UkuApp *app, const char *title, int x, int y, int w, int h)
 
     if(hover)
         app->cursor_clickable = 1;
-    if(focused)
-        DrawUIFocus(bounds);
     draw_text_font(app->font, fit_tail(app->font, title, font_size, w),
                    x, y + (h - font_size) / 2,
                    font_size, GetThemeText());
@@ -3903,8 +3882,7 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
     int field_y = (h - field_h) / 2;
     int focused = app->active_field == UKU_FIELD_JOIN_PROCESS;
 
-    DrawRectangle(0, 0, view_w, h, GetThemeSurface());
-    DrawLine(0, h - 1, view_w, h - 1, GetThemeText());
+    UkuTopBarFrame(view_w, h);
 
     draw_dashboard_brand(app, text->app_title, pad, 0, brand_w, h);
 
@@ -3934,7 +3912,7 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
     if(search_w >= ScaleUIPx(120)) {
         search_group_w = search_w + gap + icon;
         search_x = search_left + (search_available - search_group_w) / 2;
-        DrawUITextField((UITextField){
+        DrawUITextField((TextFieldProps){
             .bounds = {(float)search_x, (float)field_y, (float)search_w, (float)field_h},
             .text = app->join_process_input,
             .text_size = sizeof(app->join_process_input),
@@ -3980,8 +3958,7 @@ draw_top_bar(UkuApp *app, const char *title, int show_back, int back_focus_id, i
     int font_size = ClampUIPx(15, 15, 18);
     int x = ScaleUIPx(14);
 
-    DrawRectangle(0, 0, view_w, h, GetThemeSurface());
-    DrawLine(0, h - 1, view_w, h - 1, GetThemeText());
+    UkuTopBarFrame(view_w, h);
 
     if(show_back) {
         int clicked = draw_icon_button(app, x, ScaleUIPx(8), ScaleUIPx(24),
@@ -4049,7 +4026,7 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
 
     draw_text_font(font, label, x, label_y, label_font, GetThemeText());
     if(h > ScaleUIPx(48)) {
-        DrawUITextArea((UITextArea){
+        DrawUITextArea((TextAreaProps){
             .bounds = box,
             .text = buffer,
             .text_size = cap,
@@ -4071,7 +4048,7 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
             }
         });
     } else {
-        DrawUITextField((UITextField){
+        DrawUITextField((TextFieldProps){
             .bounds = box,
             .text = buffer,
             .text_size = cap,
@@ -4169,8 +4146,6 @@ draw_negative_weight_dropdown(UkuApp *app, Font font, const UkuText *text, int x
 
     DrawRectangleRounded(box, 0.08f, 10, GetThemeSurface());
     DrawRectangleRoundedLinesEx(box, 0.08f, 10, ScaleUIPx(1), app->negative_dropdown_open ? GetThemeButton() : GetThemeText());
-    if(focused)
-        DrawUIFocus(box);
     draw_text_font(font, text->negative_weight_options[selected], x + pad,
                    box_y + (h - input_font) / 2, input_font, GetThemeText());
     DrawTriangle((Vector2){(float)(x + w - pad - ScaleUIPx(10)), (float)(box_y + h / 2 - ScaleUIPx(3))},
@@ -4506,7 +4481,6 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
     int title_font = ClampUIPx(17, 17, 21);
     int body_font = ClampUIPx(14, 14, 17);
     int small_font = ClampUIPx(12, 12, 14);
-    int line_h = body_font + ScaleUIPx(5);
     int viewport_y = top_h;
     int viewport_h = view_h - viewport_y;
     int y = viewport_y + ScaleUIPx(14) - app->dashboard_scroll;
@@ -4554,7 +4528,7 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
     y += title_font + ScaleUIPx(12);
 
     if(app->process_count <= 0) {
-        y = draw_wrapped_text(font, text->dashboard_empty, content_x, y, content_w, body_font, line_h, GetThemeText());
+        y = UkuDashboardEmptyPanel(text->dashboard_empty, content_x, y, content_w, body_font);
     } else {
         int card_h = ScaleUIPx(92);
         int gap = ScaleUIPx(8);
@@ -4567,8 +4541,7 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                 active_count++;
         }
         if(active_count <= 0)
-            y = draw_wrapped_text(font, text->dashboard_empty, content_x, y,
-                                  content_w, body_font, line_h, GetThemeText());
+            y = UkuDashboardEmptyPanel(text->dashboard_empty, content_x, y, content_w, body_font);
         for(int i = 0; i < app->process_count; i++) {
             UkuProcessRow *row = &app->processes[i];
             Rectangle card = {(float)content_x, (float)y, (float)content_w, (float)card_h};
@@ -4593,8 +4566,6 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                 app->cursor_clickable = 1;
             DrawRectangleRounded(card, 0.07f, 10, hovered || focused ? GetThemeSurface() : GetThemeSurface());
             DrawRectangleRoundedLinesEx(card, 0.07f, 10, ScaleUIPx(1), focused ? GetThemeButton() : GetThemeText());
-            if(focused)
-                DrawUIFocus(card);
 
             draw_text_font(font, fit_tail(font, row->topic, body_font, content_w - ScaleUIPx(24)),
                            content_x + ScaleUIPx(12), y + ScaleUIPx(9), body_font, GetThemeText());
@@ -4921,50 +4892,33 @@ draw_option_vote_row(UkuApp *app, Font font, UkuOption *option,
                      int body_font, int small_font)
 {
     int h = ScaleUIPx(52);
-    int yes_clicked = 0;
-    int no_clicked = 0;
+    int minus_clicked = 0;
+    int plus_clicked = 0;
+    char rank[16];
     Rectangle card = {(float)x, (float)y, (float)w, (float)h};
 
+    (void)type;
+    (void)small_font;
     DrawRectangleRounded(card, 0.08f, 10, WHITE);
     DrawRectangleRoundedLinesEx(card, 0.08f, 10, ScaleUIPx(1), GetThemeText());
     draw_text_font(font, fit_tail(font, option->label, body_font, w - ScaleUIPx(118)),
                    x + ScaleUIPx(10), y + ScaleUIPx(8), body_font, GetThemeText());
 
-    if(type == UKU_PROCESS_TYPE_RANKED_CHOICE) {
-        int minus_clicked = 0;
-        int plus_clicked = 0;
-        char rank[16];
-
-        draw_button(app, font, x + w - ScaleUIPx(92), y + ScaleUIPx(14),
-                    ScaleUIPx(26), ScaleUIPx(26), "-", 0,
-                    UKU_FOCUS_SCORE_BASE + index * 2, &minus_clicked);
-        snprintf(rank, sizeof(rank), "%d", option->score);
-        draw_centered_text(font, rank, x + w - ScaleUIPx(46),
-                           GetUIControlTextY(rank, y + ScaleUIPx(14),
-                                             ScaleUIPx(26), body_font),
-                           body_font, GetThemeText());
-        draw_button(app, font, x + w - ScaleUIPx(30), y + ScaleUIPx(14),
-                    ScaleUIPx(26), ScaleUIPx(26), "+", 0,
-                    UKU_FOCUS_SCORE_BASE + index * 2 + 1, &plus_clicked);
-        if(minus_clicked)
-            option->score = clampi(option->score - 1, 0, app->option_count);
-        if(plus_clicked)
-            option->score = clampi(option->score + 1, 0, app->option_count);
-    } else {
-        draw_button(app, font, x + w - ScaleUIPx(88), y + ScaleUIPx(14),
-                    ScaleUIPx(36), ScaleUIPx(26), type == UKU_PROCESS_TYPE_APPROVAL ? "No" : "Off",
-                    0, UKU_FOCUS_SCORE_BASE + index * 2, &no_clicked);
-        draw_button(app, font, x + w - ScaleUIPx(44), y + ScaleUIPx(14),
-                    ScaleUIPx(36), ScaleUIPx(26), type == UKU_PROCESS_TYPE_APPROVAL ? "Yes" : "On",
-                    1, UKU_FOCUS_SCORE_BASE + index * 2 + 1, &yes_clicked);
-        if(no_clicked)
-            option->score = 0;
-        if(yes_clicked)
-            option->score = 1;
-        draw_text_font(font, option->score ? "selected" : "not selected",
-                       x + ScaleUIPx(10), y + ScaleUIPx(30), small_font,
-                       option->score ? GetThemeButton() : GetThemeText());
-    }
+    draw_button(app, font, x + w - ScaleUIPx(92), y + ScaleUIPx(14),
+                ScaleUIPx(26), ScaleUIPx(26), "-", 0,
+                UKU_FOCUS_SCORE_BASE + index * 2, &minus_clicked);
+    snprintf(rank, sizeof(rank), "%d", option->score);
+    draw_centered_text(font, rank, x + w - ScaleUIPx(46),
+                       GetUIControlTextY(rank, y + ScaleUIPx(14),
+                                         ScaleUIPx(26), body_font),
+                       body_font, GetThemeText());
+    draw_button(app, font, x + w - ScaleUIPx(30), y + ScaleUIPx(14),
+                ScaleUIPx(26), ScaleUIPx(26), "+", 0,
+                UKU_FOCUS_SCORE_BASE + index * 2 + 1, &plus_clicked);
+    if(minus_clicked)
+        option->score = clampi(option->score - 1, 0, app->option_count);
+    if(plus_clicked)
+        option->score = clampi(option->score + 1, 0, app->option_count);
     return y + h + ScaleUIPx(8);
 }
 
@@ -5438,7 +5392,7 @@ draw_account_setup_modal(UkuApp *app, const UkuText *text, int view_w, int view_
 
     if(app->account_pfp_modal_open) {
         UIProfilePicturePickerResult result =
-            DrawUIProfilePicturePickerModal((UIProfilePicturePickerModal){
+            ProfilePicturePicker((UIProfilePicturePickerModal){
                 .title = "Picture",
                 .icons = app->icons,
                 .selected_icon_type = &app->account_pfp_icon,
@@ -5453,7 +5407,7 @@ draw_account_setup_modal(UkuApp *app, const UkuText *text, int view_w, int view_
         return;
     }
 
-    frame = DrawUIModalFrame(panel_w, panel_h, "", (Texture2D){0},
+    frame = ModalFrame(panel_w, panel_h, "", (Texture2D){0},
                              app->icons[UI_ICON_TYPE_X]);
     if(frame.right_clicked || IsKeyPressed(KEY_ESCAPE)) {
         app->account_setup_modal_open = 0;
@@ -5526,7 +5480,7 @@ draw_account_required_modal(UkuApp *app, const UkuText *text, int view_w, int vi
         return;
 
     (void)text;
-    result = DrawUIActionModal((UIModalSpec){
+    result = ActionModal((ModalProps){
         .title = "Account required",
         .message = "Create or import an account before starting a process.",
         .actions = actions,
@@ -5689,7 +5643,7 @@ draw_account(UkuApp *app, const UkuText *text, int view_w, int view_h)
             account_start_export_dialog(app);
         y += ScaleUIPx(44);
     } else {
-        if(IsLyraAccountAvailable()) {
+        if(IsKsyncAccountAvailable()) {
             y = draw_wrapped_text(font, "Create an account or import an account key to start processes, add proposals, or vote.", content_x, y, content_w, body_font, line_h, GetThemeText());
             y += ScaleUIPx(12);
             draw_compact_button(app, font, content_x, y, content_w, ScaleUIPx(190), ScaleUIPx(34),
@@ -5723,7 +5677,7 @@ draw_theme_settings(UkuApp *app, const UkuText *text, int view_w, int view_h)
     int top_h = ScaleUIPx(46);
     int y = top_h + ScaleUIPx(16);
     int back_clicked = 0;
-    UIThemeSettings settings;
+    ThemeSettingsProps settings;
     UIThemeSettingsState state;
     UIThemeSettingsResult result;
 
@@ -5735,7 +5689,7 @@ draw_theme_settings(UkuApp *app, const UkuText *text, int view_w, int view_h)
         ClearUIFocus();
     }
 
-    settings = (UIThemeSettings){
+    settings = (ThemeSettingsProps){
         .id_base = 6000,
         .x = content_x,
         .y = y,
@@ -5870,7 +5824,7 @@ main(void)
         SetUIScale(ui_dpi_state.ui_scale_clamped);
         BeginUIFrame(view_w, view_h, GetUIScale());
         SetUICursorClickable(&app.cursor_clickable);
-        SetUIColors(GetThemeText(), GetThemeBackground(), GetThemeSurface(), GetThemeCircle(), GetThemeButton(), GetThemeButtonHover(), GetThemeIcon());
+        ApplyCurrentUITheme();
 
         app.cursor_clickable = 0;
 
@@ -5898,8 +5852,7 @@ main(void)
         draw_account_required_modal(&app, &text, view_w, view_h);
         draw_public_id_modal(&app, view_w, view_h);
         draw_alias_modal(&app, view_w, view_h);
-        DrawUIToast();
-        DrawUIEditorOverlay();
+        DrawUIOverlays();
         EndUIFocus();
         EndDrawing();
 
