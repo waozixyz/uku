@@ -104,7 +104,6 @@ WEB_KRYON_SRCS = $(filter-out $(KRYON_DIR)/src/file_dialog/file_dialog.c,$(KRYON
 # The web raylib is compiled with the backend rename header (InitWindow ->
 # KryonRaylibBackend_InitWindow etc.), so plain-name calls resolve through the
 # generated wrappers. The native raylib keeps plain symbols and needs none.
-WEB_KRYON_SRCS += $(KRYON_RAYLIB_WRAPPERS_C)
 WEB_PUBLIC_FILES = $(wildcard manifest.json) $(shell find web-assets -type f 2>/dev/null)
 WEB_CFLAGS = -Wall -Wextra -Wno-unused-function -Wno-typedef-redefinition -std=gnu99 -O0 -DPLATFORM_WEB -DGRAPHICS_API_OPENGL_ES2 -D_DEFAULT_SOURCE -DSUPPORT_MODULE_RAUDIO=0 -DSUPPORT_FILEFORMAT_JPG=1 -DUI_EMBEDDED_ONLY=1 -DHAS_LIBOQS=1 -DKRYON_HAS_LIBOQS=1
 WEB_LDFLAGS = -sUSE_GLFW=3 -sFETCH=1 -sASYNCIFY -sINITIAL_MEMORY=134217728 -sSTACK_SIZE=8388608 -sGLOBAL_BASE=16777216 -lidbfs.js
@@ -142,7 +141,7 @@ $(WEB_JS_TARGET): $(BUILD_MAKEFILES) $(SRC) $(WEB_KRYON_SRCS) $(CORE_SRCS) $(WEB
 		$(WEB_RAYLIB_A) \
 		$(WEB_LIBOQS_A) \
 	$(WEB_LDFLAGS)
-	@if [ -d web-assets ]; then rsync -a web-assets/ $(WEB_BUILD_DIR)/web-assets/; fi
+	@if [ -d web-assets ]; then cp -R web-assets $(WEB_BUILD_DIR)/; fi
 	@if [ -f web-assets/uku-logo.svg ]; then cp web-assets/uku-logo.svg $(WEB_BUILD_DIR)/favicon.ico; fi
 	@if [ -f manifest.json ]; then cp manifest.json $(WEB_BUILD_DIR)/; fi
 
@@ -158,8 +157,7 @@ $(WEB_TARGET): $(WEB_BUILD_DIR)/index.html | $(WEB_DIST_DIR)
 	@if [ -d $(WEB_BUILD_DIR)/web-assets ]; then cp -R $(WEB_BUILD_DIR)/web-assets $(WEB_DIST_DIR)/; fi
 
 $(WEB_ZIP): $(WEB_TARGET)
-	rm -f $@
-	cd $(WEB_DIST_DIR) && zip -r $(abspath $@) .
+	@if command -v zip >/dev/null 2>&1; then rm -f $@; cd $(WEB_DIST_DIR) && zip -r $(abspath $@) .; else echo "zip not installed; skipping $(WEB_ZIP)"; fi
 
 web: $(WEB_TARGET) $(WEB_ZIP)
 
