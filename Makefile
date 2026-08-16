@@ -5,7 +5,18 @@ ANDROID_APP_ID := xyz.waozi.uku
 SRC := src/main.c
 KRYON_DIR := $(if $(wildcard vendor/kryon/mk/common.mk),vendor/kryon,../kryon)
 KRYON_MAKE_DIR := $(KRYON_DIR)/mk/
-KRYON_USE_SYSTEM_CURL := 1
+# Prefer system libcurl; fall back to the kryon-vendored static build when
+# no pkg-config metadata is installed (e.g. on omega, which has no nix).
+KRYON_USE_SYSTEM_CURL := $(if $(shell pkg-config --exists libcurl 2>/dev/null && echo y),1,0)
+
+# System sqlite3 via pkg-config, or a local build in ~/.local/sqlite3.
+ifeq ($(shell pkg-config --exists sqlite3 2>/dev/null && echo y),y)
+SQLITE_CFLAGS := $(shell pkg-config --cflags sqlite3)
+SQLITE_LDLIBS := $(shell pkg-config --libs sqlite3)
+else
+SQLITE_CFLAGS := -I$(HOME)/.local/sqlite3/include
+SQLITE_LDLIBS := -L$(HOME)/.local/sqlite3/lib -Wl,-rpath,$(HOME)/.local/sqlite3/lib -lsqlite3
+endif
 FONT_MODE ?= font
 FONT_SOURCE ?= $(KRYON_DIR)/fonts/noto/NotoSans-Regular.ttf
 
@@ -43,6 +54,8 @@ KRYON_VENDOR_BUILD_DIR := $(BUILD_DIR)/vendor
 KRYON_LIBOQS_BUILD_DIR := $(KRYON_VENDOR_BUILD_DIR)/liboqs
 KRYON_CURL_BUILD_TYPE := Release
 
+include $(KRYON_MAKE_DIR)raylib.mk
+
 # uku is a UI-only app: drop the 2D physics subsystem (Box2D) entirely --
 # its sources need box2d.h, which is not vendored here. Must precede the
 # vendor.mk include (which defaults the flag to 1).
@@ -57,16 +70,16 @@ ifeq ($(KRYON_USE_SYSTEM_CURL),1)
 KRYON_SYSTEM_CURL_CFLAGS := $(shell pkg-config --cflags libcurl)
 KRYON_SYSTEM_CURL_LDLIBS := $(shell pkg-config --libs libcurl)
 KRYON_NATIVE_DEPS := $(KRYON_LIBOQS_A)
-KRYON_NATIVE_CFLAGS := $(KRYON_LIBOQS_INCLUDE) $(KRYON_SYSTEM_CURL_CFLAGS) -DHAS_LIBOQS=1 -DKRYON_HAS_LIBOQS=1
-KRYON_NATIVE_LDLIBS := $(KRYON_LIBOQS_A) $(KRYON_SYSTEM_CURL_LDLIBS) -lsqlite3
+KRYON_NATIVE_CFLAGS := $(KRYON_LIBOQS_INCLUDE) $(KRYON_SYSTEM_CURL_CFLAGS) $(SQLITE_CFLAGS) -DHAS_LIBOQS=1 -DKRYON_HAS_LIBOQS=1
+KRYON_NATIVE_LDLIBS := $(KRYON_LIBOQS_A) $(KRYON_SYSTEM_CURL_LDLIBS) $(SQLITE_LDLIBS)
 else
+# common.mk clears KRYON_RUNTIME_ASSET_CFLAGS when pkg-config finds no
+# system libcurl; the vendored static build needs it set explicitly.
+KRYON_RUNTIME_ASSET_CFLAGS := -DHAS_LIBCURL=1 $(KRYON_CURL_CFLAGS)
 KRYON_NATIVE_DEPS := $(KRYON_LIBOQS_A) $(KRYON_CURL_SO)
-KRYON_NATIVE_CFLAGS := $(KRYON_LIBOQS_INCLUDE) $(KRYON_CURL_CFLAGS) -DHAS_LIBOQS=1 -DKRYON_HAS_LIBOQS=1
-KRYON_NATIVE_LDLIBS := $(KRYON_LIBOQS_A) $(KRYON_CURL_LDLIBS) -lsqlite3
+KRYON_NATIVE_CFLAGS := $(KRYON_LIBOQS_INCLUDE) $(KRYON_CURL_CFLAGS) $(SQLITE_CFLAGS) -DHAS_LIBOQS=1 -DKRYON_HAS_LIBOQS=1
+KRYON_NATIVE_LDLIBS := $(KRYON_LIBOQS_A) $(KRYON_CURL_LDLIBS) $(KRYON_CURL_TRANSITIVE_LDLIBS) $(SQLITE_LDLIBS)
 endif
-
-include $(KRYON_MAKE_DIR)raylib.mk
-
 
 ifneq ($(filter-out web run clean-web,$(MAKECMDGOALS)),)
 include $(KRYON_MAKE_DIR)native.mk
