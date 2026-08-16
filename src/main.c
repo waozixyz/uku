@@ -5771,9 +5771,9 @@ main(void)
     load_text_file(&text, LOCALE_TEXT_PATH);
     init_decision(&app, &text);
     db_init(&app);
-    app.theme_source = clampi(setting_load_int(&app, UKU_THEME_SOURCE_KEY, THEME_SOURCE_APP),
+    app.theme_source = clampi(setting_load_int(&app, UKU_THEME_SOURCE_KEY, GetDefaultPlatformThemeSource()),
                               THEME_SOURCE_APP, THEME_SOURCE_SYSTEM);
-    app.theme_mode = clampi(setting_load_int(&app, UKU_THEME_MODE_KEY, THEME_MODE_LIGHT),
+    app.theme_mode = clampi(setting_load_int(&app, UKU_THEME_MODE_KEY, GetDefaultPlatformThemeMode()),
                             THEME_MODE_SYSTEM, THEME_MODE_DARK);
     app.theme_id = clampi(setting_load_int(&app, UKU_THEME_ID_KEY, THEME_SUNSET),
                           0, THEME_COUNT - 1);
