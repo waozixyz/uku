@@ -35,6 +35,10 @@ SRC += $(KRY_GEN_SRCS)
 APP_INCLUDE += -I$(KRY_GEN_DIR)
 
 LINUX_BIN_DIR := $(BUILD_DIR)/linux
+# common.mk defines the dir rule for its default build/bin/linux; the override
+# above needs its own or `make linux` finds no rule to create build/linux.
+$(LINUX_BIN_DIR):
+	mkdir -p $@
 KRYON_VENDOR_BUILD_DIR := $(BUILD_DIR)/vendor
 KRYON_LIBOQS_BUILD_DIR := $(KRYON_VENDOR_BUILD_DIR)/liboqs
 KRYON_CURL_BUILD_TYPE := Release
