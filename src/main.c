@@ -4928,8 +4928,8 @@ draw_proposal_card(UkuApp *app, Font font, const UkuProposal *proposal,
     can_delete = app->account.loaded && proposal->author_user_id[0] != '\0' &&
                  strcmp(app->account.public_id, proposal->author_user_id) == 0;
     card = (Rectangle){(float)x, (float)y, (float)w, (float)h};
-    DrawRectangleRounded(card, 0.08f, 10, WHITE);
-    DrawRectangleRoundedLinesEx(card, 0.08f, 10, ScaleUIPx(1), GetThemeText());
+    DrawRectangleRounded(card, 0.10f, 12, GetThemeSurface());
+    DrawRectangleRoundedLinesEx(card, 0.10f, 12, ScaleUIPx(1), GetThemeButton());
     draw_text_font(font, fit_tail(font, proposal->title, body_font,
                                   w - (can_delete ? ScaleUIPx(76) : ScaleUIPx(24))),
                    x + ScaleUIPx(10), y + ScaleUIPx(8), body_font, GetThemeText());
@@ -4961,74 +4961,86 @@ draw_proposal_card(UkuApp *app, Font font, const UkuProposal *proposal,
     return y + h + ScaleUIPx(8);
 }
 
+static int draw_face_picker(UkuApp *app, int x, int y, int h, int current_score, int focus_base);
+
 static int
 draw_score_row(UkuApp *app, Font font, UkuProposal *proposal, int index,
                int x, int y, int w, int body_font, int small_font)
 {
-    int btn = ScaleUIPx(28);
-    int score_w = ScaleUIPx(40);
-    int h = ScaleUIPx(60);
-    int minus_clicked = 0;
-    int plus_clicked = 0;
-    char score[16];
+    int h = ScaleUIPx(86);
+    int new_score;
     Rectangle card = {(float)x, (float)y, (float)w, (float)h};
 
-    DrawRectangleRounded(card, 0.08f, 10, WHITE);
-    DrawRectangleRoundedLinesEx(card, 0.08f, 10, ScaleUIPx(1), GetThemeText());
-    draw_text_font(font, fit_tail(font, proposal->title, body_font,
-                                  w - btn * 2 - score_w - ScaleUIPx(42)),
-                   x + ScaleUIPx(10), y + ScaleUIPx(8), body_font, GetThemeText());
+    DrawRectangleRounded(card, 0.10f, 12, GetThemeSurface());
+    DrawRectangleRoundedLinesEx(card, 0.10f, 12, ScaleUIPx(1), GetThemeButton());
+    draw_text_font(font, fit_tail(font, proposal->title, body_font, w - ScaleUIPx(24)),
+                   x + ScaleUIPx(12), y + ScaleUIPx(8), body_font, GetThemeText());
     if(proposal->description[0] != '\0')
-        draw_text_font(font, fit_tail(font, proposal->description, small_font,
-                                      w - btn * 2 - score_w - ScaleUIPx(42)),
-                       x + ScaleUIPx(10), y + ScaleUIPx(32), small_font, GetThemeText());
+        draw_text_font(font, fit_tail(font, proposal->description, small_font, w - ScaleUIPx(24)),
+                       x + ScaleUIPx(12), y + ScaleUIPx(30), small_font, GetThemeText());
 
-    draw_button(app, font, x + w - btn * 2 - score_w - ScaleUIPx(18), y + ScaleUIPx(16),
-                btn, btn, "-", 0, UKU_FOCUS_SCORE_BASE + index * 2, &minus_clicked);
-    snprintf(score, sizeof(score), "%d", proposal->score);
-    DrawRectangleRounded((Rectangle){(float)(x + w - btn - score_w - ScaleUIPx(16)),
-                                     (float)(y + ScaleUIPx(16)), (float)score_w, (float)btn},
-                         0.08f, 10, GetThemeSurface());
-    DrawRectangleRoundedLinesEx((Rectangle){(float)(x + w - btn - score_w - ScaleUIPx(16)),
-                                            (float)(y + ScaleUIPx(16)), (float)score_w, (float)btn},
-                                0.08f, 10, ScaleUIPx(1), GetThemeText());
-    draw_centered_text(font, score, x + w - btn - score_w / 2 - ScaleUIPx(16),
-                       GetUIControlTextY(score, y + ScaleUIPx(16), btn, body_font),
-                       body_font, GetThemeText());
-    draw_button(app, font, x + w - btn - ScaleUIPx(10), y + ScaleUIPx(16),
-                btn, btn, "+", 0, UKU_FOCUS_SCORE_BASE + index * 2 + 1, &plus_clicked);
-    if(minus_clicked)
-        proposal->score = clampi(proposal->score - 1, -3, 3);
-    if(plus_clicked)
-        proposal->score = clampi(proposal->score + 1, -3, 3);
-    return y + h + ScaleUIPx(8);
+    /* the original's signature ballot: tap a face from -3 to +3 */
+    new_score = draw_face_picker(app, x + w / 2, y + ScaleUIPx(40), ScaleUIPx(40),
+                                 proposal->score, UKU_FOCUS_SCORE_BASE + index * 8);
+    if(new_score != proposal->score)
+        proposal->score = clampi(new_score, -3, 3);
+    return y + h + ScaleUIPx(10);
 }
 
-/* Upstream-Ukuvota-style emoji face: score -3..+3 drawn with primitives so
-   it needs no emoji glyphs in the font atlas. */
+/* Upstream-Ukuvota-style emoji face (EmojiOne yellow: #ffcc4d face,
+   #664500 features, #e75a70 cheeks). Score -3..+3 drives the expression. */
 static void
 draw_emoji_face(int cx, int cy, int size, int score)
 {
     int r = size / 2;
-    int eye_dx = r * 3 / 8;
+    int eye_dx = r * 2 / 5;
     int eye_dy = r / 4 + r / 8;
-    int eye_r = UKU_MAX(1, r / 8);
-    Color face = score >= 2 ? (Color){76, 175, 80, 255} :
-                 score == 1 ? (Color){139, 195, 74, 255} :
-                 score == 0 ? (Color){158, 158, 158, 255} :
-                 score == -1 ? (Color){255, 152, 0, 255} :
-                 score == -2 ? (Color){244, 81, 30, 255} :
-                              (Color){198, 40, 40, 255};
+    int eye_r = UKU_MAX(1, r / 7);
+    Color yellow = {255, 204, 77, 255};
+    Color brown = {102, 69, 0, 255};
+    Color cheek = {231, 90, 112, 255};
     Vector2 mouth_pts[9];
-    int mouth_r = r * 5 / 8;
-    int curve = score * (r / 6);
+    int mouth_r = r * 3 / 5;
     int steps = 8;
+    /* -3..3 => mouth bend and eyebrow slant */
+    int curve = score * (r / 5);
+    int brow_dy = score < 0 ? -score * (r / 10) : 0;
 
-    DrawCircle(cx, cy, r, face);
-    DrawCircle(cx - eye_dx, cy - eye_dy, eye_r, BLACK);
-    DrawCircle(cx + eye_dx, cy - eye_dy, eye_r, BLACK);
-    /* mouth: quadratic arc from (cx-mr, cy+mr/2) to (cx+mr, cy+mr/2),
-       bent down (smile) or up (frown) by the score */
+    DrawCircle(cx, cy, r, yellow);
+    if(score >= 1) {
+        /* rosy cheeks on the happy faces */
+        DrawCircle(cx - eye_dx - r / 5, cy + r / 5, UKU_MAX(1, r / 6), cheek);
+        DrawCircle(cx + eye_dx + r / 5, cy + r / 5, UKU_MAX(1, r / 6), cheek);
+    }
+    if(score >= 3) {
+        /* big grin: happy closed eyes ^^ */
+        Vector2 brow_l[5], brow_r[5];
+        for(int i = 0; i <= 4; i++) {
+            float t = (float)i / 4;
+            float h = (float)r / 3;
+
+            brow_l[i].x = (float)(cx - eye_dx - eye_r * 2) + t * (float)(eye_r * 4);
+            brow_l[i].y = (float)(cy - eye_dy + eye_r * 2) - h * (1.0f - (2.0f * t - 1.0f) * (2.0f * t - 1.0f));
+            brow_r[i].x = (float)(cx + eye_dx - eye_r * 2) + t * (float)(eye_r * 4);
+            brow_r[i].y = brow_l[i].y;
+        }
+        for(int i = 0; i < 4; i++) {
+            DrawLineEx(brow_l[i], brow_l[i + 1], (float)UKU_MAX(1, r / 7), brown);
+            DrawLineEx(brow_r[i], brow_r[i + 1], (float)UKU_MAX(1, r / 7), brown);
+        }
+    } else {
+        DrawCircle(cx - eye_dx, cy - eye_dy, eye_r, brown);
+        DrawCircle(cx + eye_dx, cy - eye_dy, eye_r, brown);
+        if(score <= -2) {
+            /* angry brows */
+            DrawLineEx((Vector2){(float)(cx - eye_dx - eye_r * 2), (float)(cy - eye_dy - eye_r - brow_dy)},
+                       (Vector2){(float)(cx - eye_dx + eye_r * 2), (float)(cy - eye_dy - eye_r + brow_dy)},
+                       (float)UKU_MAX(1, r / 8), brown);
+            DrawLineEx((Vector2){(float)(cx + eye_dx - eye_r * 2), (float)(cy - eye_dy - eye_r - brow_dy)},
+                       (Vector2){(float)(cx + eye_dx + eye_r * 2), (float)(cy - eye_dy - eye_r + brow_dy)},
+                       (float)UKU_MAX(1, r / 8), brown);
+        }
+    }
     for(int i = 0; i <= steps; i++) {
         float t = (float)i / steps;
         float mt = 1.0f - t;
@@ -5040,7 +5052,38 @@ draw_emoji_face(int cx, int cy, int size, int score)
                          (float)(cy + mouth_r / 2 - curve) * t * t;
     }
     for(int i = 0; i < steps; i++)
-        DrawLineEx(mouth_pts[i], mouth_pts[i + 1], (float)UKU_MAX(1, r / 6), BLACK);
+        DrawLineEx(mouth_pts[i], mouth_pts[i + 1], (float)UKU_MAX(1, r / 5), brown);
+}
+
+/* Tappable face picker used on the ballot: one face per score -3..+3. */
+static int
+draw_face_picker(UkuApp *app, int x, int y, int h, int current_score, int focus_base)
+{
+    int face = h - ScaleUIPx(8);
+    int count = 7;
+    int total_w = face * count + ScaleUIPx(6) * (count - 1);
+    int start_x = x - total_w / 2;
+    Vector2 mouse = GetMousePosition();
+
+    for(int i = 0; i < count; i++) {
+        int score = i - 3;
+        int fx = start_x + i * (face + ScaleUIPx(6)) + face / 2;
+        int fy = y + h / 2;
+        int selected = score == current_score;
+        Rectangle hit = {(float)(fx - face / 2 - ScaleUIPx(2)), (float)(fy - face / 2 - ScaleUIPx(2)),
+                         (float)(face + ScaleUIPx(4)), (float)(face + ScaleUIPx(4))};
+        int hovered = CheckCollisionPointRec(mouse, hit);
+        int focused = RegisterUIFocus(focus_base + i, hit);
+
+        if(hovered)
+            app->cursor_clickable = 1;
+        if(selected)
+            DrawCircle(fx, fy, face / 2 + ScaleUIPx(3), GetThemeButton());
+        draw_emoji_face(fx, fy, face, score);
+        if((hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) || IsUIFocusActivatePressed(focus_base + i))
+            return score;
+    }
+    return current_score;
 }
 
 static void
@@ -5063,12 +5106,12 @@ draw_result_row(UkuApp *app, Font font, const UkuProposal *proposal,
     char meta[160];
     char title[220];
     char resistance[80];
-    int h = ScaleUIPx(66);
-    int face = ScaleUIPx(34);
+    int h = ScaleUIPx(72);
+    int face = ScaleUIPx(40);
     Rectangle card = {(float)x, (float)y, (float)w, (float)h};
 
-    DrawRectangleRounded(card, 0.08f, 10, WHITE);
-    DrawRectangleRoundedLinesEx(card, 0.08f, 10, ScaleUIPx(1), GetThemeText());
+    DrawRectangleRounded(card, 0.10f, 12, GetThemeSurface());
+    DrawRectangleRoundedLinesEx(card, 0.10f, 12, ScaleUIPx(1), GetThemeButton());
     snprintf(title, sizeof(title), "%d. %s%s", rank, proposal->title, rank == 1 ? tr(app, " - leading") : "");
     draw_text_font(font, fit_tail(font, title, body_font, w - face - ScaleUIPx(40)),
                    x + ScaleUIPx(10), y + ScaleUIPx(8), body_font, GetThemeText());
@@ -5105,8 +5148,8 @@ draw_option_vote_row(UkuApp *app, Font font, UkuOption *option,
 
     (void)type;
     (void)small_font;
-    DrawRectangleRounded(card, 0.08f, 10, WHITE);
-    DrawRectangleRoundedLinesEx(card, 0.08f, 10, ScaleUIPx(1), GetThemeText());
+    DrawRectangleRounded(card, 0.10f, 12, GetThemeSurface());
+    DrawRectangleRoundedLinesEx(card, 0.10f, 12, ScaleUIPx(1), GetThemeButton());
     draw_text_font(font, fit_tail(font, option->label, body_font, w - ScaleUIPx(118)),
                    x + ScaleUIPx(10), y + ScaleUIPx(8), body_font, GetThemeText());
 
@@ -5136,8 +5179,8 @@ draw_option_result_row(UkuApp *app, Font font, const UkuOption *option,
     int h = ScaleUIPx(50);
     Rectangle card = {(float)x, (float)y, (float)w, (float)h};
 
-    DrawRectangleRounded(card, 0.08f, 10, WHITE);
-    DrawRectangleRoundedLinesEx(card, 0.08f, 10, ScaleUIPx(1), GetThemeText());
+    DrawRectangleRounded(card, 0.10f, 12, GetThemeSurface());
+    DrawRectangleRoundedLinesEx(card, 0.10f, 12, ScaleUIPx(1), GetThemeButton());
     draw_text_font(font, fit_tail(font, option->label, body_font, w - ScaleUIPx(24)),
                    x + ScaleUIPx(10), y + ScaleUIPx(8), body_font, GetThemeText());
     snprintf(meta, sizeof(meta), "%d. %s %d | %s %d | %s %.1f", rank,
@@ -5542,10 +5585,10 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     }
 
     format_process_timer(timer, sizeof(timer), text, d->created_at, proposal_total, voting_total, now);
-    DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)content_w, (float)ScaleUIPx(36)}, 0.08f, 10,
-                         (Color){255, 255, 255, 255});
-    DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)content_w, (float)ScaleUIPx(36)}, 0.08f, 10,
-                                ScaleUIPx(1), GetThemeText());
+    DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)content_w, (float)ScaleUIPx(36)}, 0.10f, 12,
+                         GetThemeSurface());
+    DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)content_w, (float)ScaleUIPx(36)}, 0.10f, 12,
+                                ScaleUIPx(1), GetThemeButton());
     draw_text_font(font, fit_tail(font, timer, body_font, content_w - ScaleUIPx(24)),
                    content_x + ScaleUIPx(10), y + ScaleUIPx(9), body_font,
                    process_phase(d->created_at, proposal_total, voting_total, now, NULL) == UKU_PROCESS_RESULTS ? GetThemeText() : GetThemeButton());
@@ -5587,9 +5630,9 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     link_box_w = MeasureUIText(d->local_address, body_font) + ScaleUIPx(20);
     link_box_w = clampi(link_box_w, ScaleUIPx(96), content_w);
     link_box_h = GetUITextLineHeight(body_font) + ScaleUIPx(10);
-    DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)link_box_w, (float)link_box_h}, 0.08f, 10, WHITE);
-    DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)link_box_w, (float)link_box_h}, 0.08f, 10,
-                                ScaleUIPx(1), GetThemeText());
+    DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)link_box_w, (float)link_box_h}, 0.10f, 12, GetThemeSurface());
+    DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)link_box_w, (float)link_box_h}, 0.10f, 12,
+                                ScaleUIPx(1), GetThemeButton());
     draw_text_font(font, fit_tail(font, d->local_address, body_font, link_box_w - ScaleUIPx(20)),
                    content_x + ScaleUIPx(10),
                    GetUIControlTextY(d->local_address, y, link_box_h, body_font),

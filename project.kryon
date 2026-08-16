@@ -1,6 +1,6 @@
 name "Uku"
 generated "build/kryon/generated"
 
-target "Native" "native" "sh vendor/kryon/scripts/kryon-app.sh run native"
 target "Web" "web" "sh vendor/kryon/scripts/kryon-app.sh build web"
+target "Native" "native" "sh vendor/kryon/scripts/kryon-app.sh run native"
 target "Linux" "linux" "sh vendor/kryon/scripts/kryon-app.sh package linux"
