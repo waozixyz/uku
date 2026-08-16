@@ -4208,7 +4208,7 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
             DrawUIText(tr(app, "Search or paste link"), search_x + ScaleUIPx(9),
                        GetUIControlTextY("Search or paste link", field_y, field_h,
                                          ClampUIPx(12, 12, 14)),
-                       ClampUIPx(12, 12, 14), DarkenUIColor(GetThemeText(), 40));
+                       ClampUIPx(12, 12, 14), Fade(GetThemeText(), 0.55f));
         button_x = search_x + search_w + gap;
     }
 
@@ -4763,7 +4763,7 @@ draw_empty_state(UkuApp *app, Font font, const char *message, int x, int y, int 
     draw_centered_text(font, message, x + w / 2, y + ScaleUIPx(68), body_font, GetThemeText());
     draw_centered_text(font, tr(app, "Start one and share the link with your group."),
                        x + w / 2, y + ScaleUIPx(68) + body_font + ScaleUIPx(6),
-                       small_font, GetThemeButton());
+                       small_font, Fade(GetThemeText(), 0.75f));
     draw_compact_button(app, font, x + (w - btn_w) / 2, y + h - ScaleUIPx(52),
                         btn_w, ScaleUIPx(600), ScaleUIPx(36),
                         tr(app, "Make New Process"), 1, UKU_FOCUS_DASHBOARD_NEW, cta_clicked);
@@ -4881,7 +4881,7 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
         int label_w = measure_text_font(font, text->dashboard_recent_label, small_font);
         int rule_y = y + small_font / 2;
 
-        draw_text_font(font, text->dashboard_recent_label, content_x, y, small_font, GetThemeButton());
+        draw_text_font(font, text->dashboard_recent_label, content_x, y, small_font, Fade(GetThemeText(), 0.75f));
         DrawRectangle(content_x + label_w + ScaleUIPx(10), rule_y,
                       content_w - label_w - ScaleUIPx(10), 1, GetThemeButton());
         y += small_font + ScaleUIPx(16);
@@ -4954,7 +4954,7 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
             snprintf(meta, sizeof(meta), "%s  \xc2\xb7  %s",
                      process_type_label(row->type), created);
             draw_text_font(font, fit_tail(font, meta, small_font, content_w - ScaleUIPx(30)),
-                           content_x + ScaleUIPx(18), y + ScaleUIPx(52), small_font, GetThemeButton());
+                           content_x + ScaleUIPx(18), y + ScaleUIPx(52), small_font, Fade(GetThemeText(), 0.75f));
             if(row->description[0] != '\0')
                 draw_text_font(font, fit_tail(font, row->description, small_font, content_w - ScaleUIPx(30)),
                                content_x + ScaleUIPx(18), y + ScaleUIPx(72), small_font, GetThemeText());
@@ -5118,14 +5118,14 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
     }
     y += ScaleUIPx(44);
     if(d->submitted)
-        draw_centered_text(font, text->setup_ready, content_x + content_w / 2, y, small_font, GetThemeButton());
+        draw_centered_text(font, text->setup_ready, content_x + content_w / 2, y, small_font, Fade(GetThemeText(), 0.75f));
     if(d->db_error)
-        draw_centered_text(font, text->db_error, content_x + content_w / 2, y, small_font, GetThemeButton());
+        draw_centered_text(font, text->db_error, content_x + content_w / 2, y, small_font, Fade(GetThemeText(), 0.75f));
     if(d->remote_error)
-        draw_centered_text(font, "Saved locally, but server upload failed.", content_x + content_w / 2, y + ScaleUIPx(18), small_font, GetThemeButton());
+        draw_centered_text(font, "Saved locally, but server upload failed.", content_x + content_w / 2, y + ScaleUIPx(18), small_font, Fade(GetThemeText(), 0.75f));
     if(app->process_status[0] != '\0')
         draw_centered_text(font, app->process_status, content_x + content_w / 2,
-                           y + ScaleUIPx(34), small_font, GetThemeButton());
+                           y + ScaleUIPx(34), small_font, Fade(GetThemeText(), 0.75f));
     EndScissorMode();
 
     content_bottom = y + app->create_scroll + ScaleUIPx(24);
@@ -5351,7 +5351,7 @@ draw_result_row(UkuApp *app, Font font, const UkuProposal *proposal,
              tr(app, "avg"),
              proposal->vote_count > 0 ? (float)proposal->total / (float)proposal->vote_count : 0.0f);
     draw_text_font(font, fit_tail(font, meta, small_font, w - face - ScaleUIPx(40)),
-                   x + ScaleUIPx(10), y + ScaleUIPx(34), small_font, GetThemeButton());
+                   x + ScaleUIPx(10), y + ScaleUIPx(34), small_font, Fade(GetThemeText(), 0.75f));
     if(proposal->vote_count > 0 && proposal->negative_total < 0 &&
        -proposal->negative_total >= proposal->positive_total) {
         snprintf(resistance, sizeof(resistance), "%s", tr(app, "resistance at least equals support"));
@@ -5417,7 +5417,7 @@ draw_option_result_row(UkuApp *app, Font font, const UkuOption *option,
              tr(app, "avg"),
              option->vote_count > 0 ? (float)option->total / (float)option->vote_count : 0.0f);
     draw_text_font(font, fit_tail(font, meta, small_font, w - ScaleUIPx(44)),
-                   x + ScaleUIPx(10), y + ScaleUIPx(30), small_font, GetThemeButton());
+                   x + ScaleUIPx(10), y + ScaleUIPx(30), small_font, Fade(GetThemeText(), 0.75f));
     draw_result_face(x + w - ScaleUIPx(18), y + h / 2, ScaleUIPx(26),
                      option->total, option->vote_count);
     (void)app;
@@ -5460,7 +5460,7 @@ draw_participant_list(UkuApp *app, Font font, int x, int y, int w, int body_font
     y += body_font + ScaleUIPx(8);
     if(app->vote_count <= 0) {
         y = draw_wrapped_text(font, tr(app, "No votes submitted yet."), x, y, w, small_font,
-                              line_h, GetThemeButton());
+                              line_h, Fade(GetThemeText(), 0.75f));
         return y + ScaleUIPx(8);
     }
     if(app->tally_from_remote)
@@ -5500,7 +5500,7 @@ draw_participant_list(UkuApp *app, Font font, int x, int y, int w, int body_font
             char reason[460];
             snprintf(reason, sizeof(reason), "%s %s", tr(app, "Reason:"), vote->reason);
             y = draw_wrapped_text(font, reason, x + ScaleUIPx(12), y, w - ScaleUIPx(24),
-                                  small_font, line_h, GetThemeButton());
+                                  small_font, line_h, Fade(GetThemeText(), 0.75f));
         }
     }
     return y + ScaleUIPx(8);
@@ -5530,7 +5530,7 @@ draw_history_card(UkuApp *app, Font font, const UkuProcessRow *row, int index,
     snprintf(meta, sizeof(meta), "%s | %s | %s", tr(app, "Finished"),
              process_type_label(row->type), created);
     draw_text_font(font, fit_tail(font, meta, small_font, w - ScaleUIPx(24)),
-                   x + ScaleUIPx(12), y + ScaleUIPx(31), small_font, GetThemeButton());
+                   x + ScaleUIPx(12), y + ScaleUIPx(31), small_font, Fade(GetThemeText(), 0.75f));
     if(row->description[0] != '\0')
         draw_text_font(font, fit_tail(font, row->description, small_font, w - ScaleUIPx(24)),
                        x + ScaleUIPx(12), y + ScaleUIPx(52), small_font, GetThemeText());
@@ -5695,7 +5695,7 @@ qr_draw(UkuApp *app, Font font, const char *url, int x, int y, int w, int body_f
         DrawTexture(app->qr_texture, x + (w - qr_w) / 2, y + panel_pad, WHITE);
     draw_text_font(font, fit_tail(font, url, small_font, w - panel_pad * 2),
                    x + panel_pad, y + panel_pad * 2 + qr_h + ScaleUIPx(2),
-                   small_font, GetThemeButton());
+                   small_font, Fade(GetThemeText(), 0.75f));
 }
 
 static void
@@ -5857,11 +5857,11 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     y += ScaleUIPx(10);
 
     if(d->remote_error) {
-        y = draw_wrapped_text(font, tr(app, "Saved locally, but server upload failed. Check your connection and account."), content_x, y, content_w, small_font, line_h, GetThemeButton());
+        y = draw_wrapped_text(font, tr(app, "Saved locally, but server upload failed. Check your connection and account."), content_x, y, content_w, small_font, line_h, Fade(GetThemeText(), 0.75f));
         y += ScaleUIPx(10);
     }
     if(app->process_detail_loading_failed) {
-        y = draw_wrapped_text(font, tr(app, "Could not refresh this process from the server. Showing local details."), content_x, y, content_w, small_font, line_h, GetThemeButton());
+        y = draw_wrapped_text(font, tr(app, "Could not refresh this process from the server. Showing local details."), content_x, y, content_w, small_font, line_h, Fade(GetThemeText(), 0.75f));
         y += ScaleUIPx(6);
         draw_compact_button(app, font, content_x, y, ScaleUIPx(160), ScaleUIPx(600),
                             ScaleUIPx(30), tr(app, "Refresh"), 0,
@@ -5871,7 +5871,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
         y += ScaleUIPx(38);
     }
 
-    draw_text_font(font, text->local_address_label, content_x, y, small_font, GetThemeButton());
+    draw_text_font(font, text->local_address_label, content_x, y, small_font, Fade(GetThemeText(), 0.75f));
     y += small_font + ScaleUIPx(6);
     link_box_w = MeasureUIText(d->local_address, body_font) + ScaleUIPx(20);
     link_box_w = clampi(link_box_w, ScaleUIPx(96), content_w);
@@ -5943,7 +5943,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
         y += ScaleUIPx(42);
         if(app->process_update_failed) {
             y = draw_wrapped_text(font, tr(app, "Could not update process visibility."), content_x, y,
-                                  content_w, small_font, line_h, GetThemeButton());
+                                  content_w, small_font, line_h, Fade(GetThemeText(), 0.75f));
             y += ScaleUIPx(12);
         }
     }
@@ -5953,7 +5953,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
         y += body_font + ScaleUIPx(8);
         if(!app->account.loaded) {
             y = draw_wrapped_text(font, tr(app, "Create or import an account before adding proposals."), content_x, y,
-                                  content_w, small_font, line_h, GetThemeButton());
+                                  content_w, small_font, line_h, Fade(GetThemeText(), 0.75f));
             y += ScaleUIPx(10);
         } else {
             y = draw_text_field(app, font, tr(app, "Title"), tr(app, "Proposal title"),
@@ -5993,14 +5993,14 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                                   small_font, line_h, GetThemeText());
         if(app->proposal_submit_failed && !app->proposal_submit_ok)
             y = draw_wrapped_text(font, tr(app, "Could not submit proposal."), content_x, y, content_w,
-                                  small_font, line_h, GetThemeButton());
+                                  small_font, line_h, Fade(GetThemeText(), 0.75f));
         y += ScaleUIPx(12);
     } else if(process_type_has_voting(d->type) && phase == UKU_PROCESS_VOTING) {
         draw_text_font(font, tr(app, "Your ballot"), content_x, y, body_font, GetThemeText());
         y += body_font + ScaleUIPx(8);
         if(!app->account.loaded) {
             y = draw_wrapped_text(font, tr(app, "Create or import an account before voting."), content_x, y,
-                                  content_w, small_font, line_h, GetThemeButton());
+                                  content_w, small_font, line_h, Fade(GetThemeText(), 0.75f));
             y += ScaleUIPx(10);
         } else {
             if(process_type_has_options(d->type)) {
@@ -6046,7 +6046,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                                   small_font, line_h, GetThemeText());
         if(app->vote_submit_failed && !app->vote_submit_ok)
             y = draw_wrapped_text(font, tr(app, "Could not submit vote."), content_x, y, content_w,
-                                  small_font, line_h, GetThemeButton());
+                                  small_font, line_h, Fade(GetThemeText(), 0.75f));
         y += ScaleUIPx(12);
     } else {
         draw_text_font(font, tr(app, d->type == UKU_PROCESS_TYPE_COLLECTION ? "Collected proposals" : "Results"),
@@ -6359,7 +6359,7 @@ draw_alias_modal(UkuApp *app, int view_w, int view_h)
     alias_normalize(app->alias_input);
     content_y += ScaleUIPx(74);
     draw_text_font(font, "4-32 letters, numbers, or underscore.", x + pad, content_y,
-                   small_font, GetThemeButton());
+                   small_font, Fade(GetThemeText(), 0.75f));
     content_y += ScaleUIPx(28);
     draw_button(app, font, x + pad, content_y, (panel_w - pad * 2 - ScaleUIPx(10)) / 2,
                 ScaleUIPx(40), "Close", 0, UKU_FOCUS_ALIAS_CLOSE, &close_clicked);
@@ -6423,7 +6423,7 @@ draw_account(UkuApp *app, const UkuText *text, int view_w, int view_h)
         sync_server_save(app);
     y += ScaleUIPx(42);
     if(app->server_url_error) {
-        y = draw_wrapped_text(font, "Use HTTPS for remote servers, or localhost/127.0.0.1/10.0.2.2 for HTTP development.", content_x, y, content_w, small_font, line_h, GetThemeButton());
+        y = draw_wrapped_text(font, "Use HTTPS for remote servers, or localhost/127.0.0.1/10.0.2.2 for HTTP development.", content_x, y, content_w, small_font, line_h, Fade(GetThemeText(), 0.75f));
         y += ScaleUIPx(12);
     }
 
@@ -6434,7 +6434,7 @@ draw_account(UkuApp *app, const UkuText *text, int view_w, int view_h)
             snprintf(display_id, sizeof(display_id), "@%s", alias);
         else
             compact_public_id(app->account.public_id, display_id, sizeof(display_id));
-        draw_text_font(font, "Public ID", content_x, y, small_font, GetThemeButton());
+        draw_text_font(font, "Public ID", content_x, y, small_font, Fade(GetThemeText(), 0.75f));
         y += small_font + ScaleUIPx(6);
         y = draw_readonly_field(app, font, display_id, content_x, y, content_w, ScaleUIPx(36),
                                 UKU_FOCUS_ACCOUNT_ID, &account_id_clicked);
@@ -6461,7 +6461,7 @@ draw_account(UkuApp *app, const UkuText *text, int view_w, int view_h)
             if(import_clicked)
                 account_start_import_dialog(app);
         } else {
-            y = draw_wrapped_text(font, "This build does not include liboqs, so account creation and signing are unavailable.", content_x, y, content_w, body_font, line_h, GetThemeButton());
+            y = draw_wrapped_text(font, "This build does not include liboqs, so account creation and signing are unavailable.", content_x, y, content_w, body_font, line_h, Fade(GetThemeText(), 0.75f));
         }
     }
     if(app->account_status[0] != '\0')
@@ -6502,7 +6502,7 @@ draw_theme_settings(UkuApp *app, const UkuText *text, int view_w, int view_h)
         Font font = app->font;
         int small_font = ClampUIPx(12, 12, 14);
 
-        draw_text_font(font, tr(app, "Language"), content_x, y, small_font, GetThemeButton());
+        draw_text_font(font, tr(app, "Language"), content_x, y, small_font, Fade(GetThemeText(), 0.75f));
         draw_compact_button(app, font, content_x, y + small_font + ScaleUIPx(6),
                             half_w, ScaleUIPx(600), ScaleUIPx(34),
                             strcmp(app->locale, "de") == 0 ? "English" : "[ English ]", 0,
