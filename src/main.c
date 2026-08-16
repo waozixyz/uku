@@ -221,6 +221,9 @@ typedef struct UkuApp {
     int history_scroll_drag_offset;
     int qr_visible;
     int qr_loaded;
+    sqlite3_int64 collect_last_fetch;
+    int collect_refresh_requested;
+    int intro_seen;
     char qr_process_id[40];
     Texture2D qr_texture;
     int tally_from_remote;
@@ -352,6 +355,7 @@ typedef enum UkuFocusId {
     UKU_FOCUS_HISTORY_BACK,
     UKU_FOCUS_QR_TOGGLE,
     UKU_FOCUS_EXPORT_RESULTS,
+    UKU_FOCUS_COLLECT_REFRESH,
     UKU_FOCUS_LOCALE_EN,
     UKU_FOCUS_LOCALE_DE,
     UKU_FOCUS_SCORE_BASE = 1000,
@@ -365,6 +369,7 @@ typedef enum UkuFocusId {
 #define LOCALE_FONT_NAME "ui"
 #define LOCALE_FONT_TTF "assets/fonts/ui.ttf"
 #define UKU_LOCALE_KEY "locale"
+#define UKU_INTRO_SEEN_KEY "intro_seen"
 #define LOCALE_FONT_BASE_SIZE 32
 #define UKU_PACKAGE_ID "xyz.waozi.uku"
 #define UKU_SYNC_SERVER_URL_DEFAULT "https://api.waozi.xyz"
@@ -2168,7 +2173,7 @@ lyra_http_request(const char *method, const char *url, UkuHttpHeaders *headers,
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write_cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 12L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     if(headers != NULL && headers->native != NULL)
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers->native);
@@ -2931,6 +2936,127 @@ db_insert_option(sqlite3 *db, const char *process_id, const UkuOption *option, i
 #endif
 }
 
+#if defined(PLATFORM_WEB)
+/* Web process-list persistence: localStorage key "uku:processes" holds
+   records joined by '\n' with fields separated by 0x1f, mirroring the
+   native sqlite processes table. Accounts and settings already persist
+   through their own localStorage keys. */
+#define UKU_WEB_PROCESS_KEY "uku:processes"
+#define UKU_WEB_FIELD_SEP "\x1f"
+
+static void
+web_ls_set(const char *key, const char *value)
+{
+    EM_ASM({
+        const key = UTF8ToString($0);
+        const value = UTF8ToString($1);
+        try { localStorage.setItem(key, value); } catch(e) {}
+    }, key, value);
+}
+
+static int
+web_ls_get(const char *key, char *out, size_t out_size)
+{
+    char *value = (char *)EM_ASM_PTR({
+        const key = UTF8ToString($0);
+        const value = localStorage.getItem(key);
+        if(value === null)
+            return 0;
+        const bytes = lengthBytesUTF8(value) + 1;
+        const ptr = _malloc(bytes);
+        stringToUTF8(value, ptr, bytes);
+        return ptr;
+    }, key);
+    int found = value != NULL;
+
+    if(found) {
+        copy_text(out, out_size, value, strlen(value));
+        free(value);
+    } else if(out_size > 0) {
+        out[0] = '\0';
+    }
+    return found;
+}
+
+static void
+web_save_processes(const UkuApp *app)
+{
+    char buffer[16384];
+    size_t used = 0;
+
+    buffer[0] = '\0';
+    for(int i = 0; i < app->process_count; i++) {
+        const UkuProcessRow *row = &app->processes[i];
+        int written = snprintf(buffer + used, sizeof(buffer) - used,
+                               "%s" UKU_WEB_FIELD_SEP "%d" UKU_WEB_FIELD_SEP
+                               "%s" UKU_WEB_FIELD_SEP "%s" UKU_WEB_FIELD_SEP
+                               "%d" UKU_WEB_FIELD_SEP "%d" UKU_WEB_FIELD_SEP
+                               "%d" UKU_WEB_FIELD_SEP "%s" UKU_WEB_FIELD_SEP
+                               "%s" UKU_WEB_FIELD_SEP "%lld\n",
+                               row->id, (int)row->type, row->topic, row->description,
+                               row->proposal_minutes, row->voting_minutes,
+                               row->negative_weight, row->visibility,
+                               row->local_address, (long long)row->created_at);
+
+        if(written < 0 || (size_t)written >= sizeof(buffer) - used)
+            break;
+        used += (size_t)written;
+    }
+    web_ls_set(UKU_WEB_PROCESS_KEY, buffer);
+}
+
+static void
+web_load_processes(UkuApp *app)
+{
+    char buffer[16384];
+    char *cursor;
+    int count = 0;
+
+    app->process_count = 0;
+    if(!web_ls_get(UKU_WEB_PROCESS_KEY, buffer, sizeof(buffer)))
+        return;
+    cursor = buffer;
+    while(cursor != NULL && *cursor != '\0' && count < UKU_MAX_PROCESSES) {
+        char *line = cursor;
+        char *fields[12] = {0};
+        int field = 0;
+        char *next = strchr(cursor, '\n');
+
+        if(next != NULL) {
+            *next = '\0';
+            cursor = next + 1;
+        } else {
+            cursor = NULL;
+        }
+        fields[field++] = line;
+        for(char *p = line; *p != '\0'; p++) {
+            if(*p == UKU_WEB_FIELD_SEP[0] && field < 12) {
+                *p = '\0';
+                fields[field++] = p + 1;
+            }
+        }
+        if(field < 10)
+            continue;
+        {
+            UkuProcessRow *row = &app->processes[count++];
+
+            memset(row, 0, sizeof(*row));
+            copy_text(row->id, sizeof(row->id), fields[0], strlen(fields[0]));
+            row->type = clampi(atoi(fields[1]), 0, UKU_PROCESS_TYPE_COUNT - 1);
+            copy_text(row->topic, sizeof(row->topic), fields[2], strlen(fields[2]));
+            copy_text(row->description, sizeof(row->description), fields[3], strlen(fields[3]));
+            row->proposal_minutes = atoi(fields[4]);
+            row->voting_minutes = atoi(fields[5]);
+            row->negative_weight = atoi(fields[6]);
+            copy_text(row->visibility, sizeof(row->visibility), fields[7], strlen(fields[7]));
+            copy_text(row->local_address, sizeof(row->local_address), fields[8], strlen(fields[8]));
+            row->created_at = strtoll(fields[9], NULL, 10);
+        }
+    }
+    app->process_count = count;
+}
+#endif
+
 static int
 db_save_process(UkuApp *app, const UkuText *text)
 {
@@ -2967,6 +3093,7 @@ db_save_process(UkuApp *app, const UkuText *text)
         memmove(&app->processes[1], &app->processes[0],
                 sizeof(app->processes[0]) * (size_t)(app->process_count - 1));
     app->processes[0] = row;
+    web_save_processes(app);
     return 1;
 #else
     UkuDecision *d = &app->decision;
@@ -3042,7 +3169,7 @@ static void
 db_load_processes(UkuApp *app)
 {
 #if defined(PLATFORM_WEB)
-    (void)app;
+    web_load_processes(app);
 #else
     sqlite3_stmt *stmt = NULL;
     int count = 0;
@@ -3156,8 +3283,36 @@ static void
 db_load_process_detail(UkuApp *app, const UkuText *text)
 {
 #if defined(PLATFORM_WEB)
+    UkuDecision *d = &app->decision;
+
     (void)text;
-    (void)app;
+    /* Remember joined/opened processes so the dashboard survives reloads. */
+    if(d->id[0] != '\0') {
+        int existing = -1;
+
+        for(int i = 0; i < app->process_count; i++) {
+            if(strcmp(app->processes[i].id, d->id) == 0) {
+                existing = i;
+                break;
+            }
+        }
+        if(existing < 0 && app->process_count < UKU_MAX_PROCESSES) {
+            UkuProcessRow *row = &app->processes[app->process_count++];
+
+            memset(row, 0, sizeof(*row));
+            copy_text(row->id, sizeof(row->id), d->id, strlen(d->id));
+            snprintf(row->local_address, sizeof(row->local_address), "/app/%s/collect", d->id);
+            copy_text(row->topic, sizeof(row->topic), d->topic, strlen(d->topic));
+            copy_text(row->description, sizeof(row->description), d->description, strlen(d->description));
+            copy_text(row->visibility, sizeof(row->visibility), d->visibility, strlen(d->visibility));
+            row->type = d->type;
+            row->proposal_minutes = duration_minutes(d->proposal_days, d->proposal_hours, d->proposal_minutes);
+            row->voting_minutes = duration_minutes(d->voting_days, d->voting_hours, d->voting_minutes);
+            row->negative_weight = d->negative_weight;
+            row->created_at = d->created_at;
+            web_save_processes(app);
+        }
+    }
 #else
     sqlite3_stmt *stmt = NULL;
 
@@ -3703,6 +3858,8 @@ open_process_row(UkuApp *app, const UkuProcessRow *row)
     app->process_detail_loaded = 0;
     app->process_detail_loading_failed = 0;
     app->pending_sync_attempted = 0;
+    app->collect_last_fetch = 0;
+    app->collect_refresh_requested = 1;
     app->proposal_submit_failed = 0;
     app->proposal_submit_ok = 0;
     app->vote_submit_failed = 0;
@@ -3790,6 +3947,8 @@ open_process_id(UkuApp *app, const char *id)
     app->process_detail_loaded = 0;
     app->process_detail_loading_failed = 0;
     app->pending_sync_attempted = 0;
+    app->collect_last_fetch = 0;
+    app->collect_refresh_requested = 1;
     app->proposal_submit_failed = 0;
     app->proposal_submit_ok = 0;
     app->vote_submit_failed = 0;
@@ -4582,6 +4741,81 @@ format_process_timer(char *dst, size_t size, const UkuText *text, sqlite3_int64 
     append_text(dst, size, text->time_remaining_label);
 }
 
+static int
+draw_empty_state(UkuApp *app, Font font, const char *message, int x, int y, int w,
+                 int body_font, int small_font, int *cta_clicked)
+{
+    int icon = ScaleUIPx(40);
+    int btn_w = ScaleUIPx(220);
+    int h = ScaleUIPx(190);
+    Rectangle card = {(float)x, (float)y, (float)w, (float)h};
+
+    DrawRectangleRounded(card, 0.06f, 12, GetThemeSurface());
+    DrawRectangleRoundedLinesEx(card, 0.06f, 12, ScaleUIPx(1), GetThemeButton());
+    {
+        Texture2D icon_texture = app->icons[UI_ICON_TYPE_GLOBE];
+
+        DrawTexture(icon_texture,
+                    x + w / 2 - icon_texture.width / 2,
+                    y + ScaleUIPx(18) + (icon - icon_texture.height) / 2,
+                    WHITE);
+    }
+    draw_centered_text(font, message, x + w / 2, y + ScaleUIPx(68), body_font, GetThemeText());
+    draw_centered_text(font, tr(app, "Start one and share the link with your group."),
+                       x + w / 2, y + ScaleUIPx(68) + body_font + ScaleUIPx(6),
+                       small_font, GetThemeButton());
+    draw_compact_button(app, font, x + (w - btn_w) / 2, y + h - ScaleUIPx(52),
+                        btn_w, ScaleUIPx(600), ScaleUIPx(36),
+                        tr(app, "Make New Process"), 1, UKU_FOCUS_DASHBOARD_NEW, cta_clicked);
+    return y + h + ScaleUIPx(12);
+}
+
+static void
+draw_intro_modal(UkuApp *app, Font font, int view_w, int view_h, int *dismissed)
+{
+    int panel_w = UKU_MIN(view_w - ScaleUIPx(32), ScaleUIPx(420));
+    int panel_h = ScaleUIPx(340);
+    int x = (view_w - panel_w) / 2;
+    int y = (view_h - panel_h) / 2;
+    int pad = ScaleUIPx(20);
+    int title_font = ClampUIPx(18, 18, 22);
+    int body_font = ClampUIPx(14, 14, 17);
+    int small_font = ClampUIPx(12, 12, 14);
+    int line_h = small_font + ScaleUIPx(6);
+    const char *lines[4];
+    int ly;
+    int start_clicked = 0;
+
+    lines[0] = tr(app, "Score every option from -3 to +3.");
+    lines[1] = tr(app, "Negative scores weigh more, so resistance is visible.");
+    lines[2] = tr(app, "Status quo and Repeat process are always on the ballot.");
+    lines[3] = tr(app, "The option people can accept wins.");
+
+    DrawRectangle(0, 0, view_w, view_h, (Color){0, 0, 0, 160});
+    DrawRectangleRounded((Rectangle){(float)x, (float)y, (float)panel_w, (float)panel_h},
+                         0.05f, 12, GetThemeBackground());
+    DrawRectangleRoundedLinesEx((Rectangle){(float)x, (float)y, (float)panel_w, (float)panel_h},
+                                0.05f, 12, ScaleUIPx(1), GetThemeButton());
+    ly = y + pad;
+    draw_centered_text(font, tr(app, "Decide together"), x + panel_w / 2, ly,
+                       title_font, GetThemeText());
+    ly += title_font + ScaleUIPx(14);
+    for(int i = 0; i < 4; i++) {
+        draw_text_font(font, fit_tail(font, lines[i], small_font, panel_w - pad * 2),
+                       x + pad, ly, small_font, GetThemeText());
+        ly += line_h;
+    }
+    ly += ScaleUIPx(8);
+    draw_compact_button(app, font, x + pad, y + panel_h - pad - ScaleUIPx(40),
+                        panel_w - pad * 2, ScaleUIPx(600), ScaleUIPx(40),
+                        tr(app, "Get started"), 1, UKU_FOCUS_HOME_START, &start_clicked);
+    if(start_clicked) {
+        app->intro_seen = 1;
+        setting_save_int(app, UKU_INTRO_SEEN_KEY, 1);
+        *dismissed = 1;
+    }
+}
+
 static void
 draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
 {
@@ -4654,7 +4888,12 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
     }
 
     if(app->process_count <= 0) {
-        y = UkuDashboardEmptyPanel(text->dashboard_empty, content_x, y, content_w, body_font);
+        int cta_clicked = 0;
+
+        y = draw_empty_state(app, font, text->dashboard_empty, content_x, y,
+                             content_w, body_font, small_font, &cta_clicked);
+        if(cta_clicked)
+            start_new_process_flow(app, text);
     } else {
         int card_h = ScaleUIPx(92);
         int gap = ScaleUIPx(8);
@@ -4666,8 +4905,14 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                              row->voting_minutes, now, NULL) != UKU_PROCESS_RESULTS)
                 active_count++;
         }
-        if(active_count <= 0)
-            y = UkuDashboardEmptyPanel(text->dashboard_empty, content_x, y, content_w, body_font);
+        if(active_count <= 0) {
+            int cta_clicked = 0;
+
+            y = draw_empty_state(app, font, text->dashboard_empty, content_x, y,
+                                 content_w, body_font, small_font, &cta_clicked);
+            if(cta_clicked)
+                start_new_process_flow(app, text);
+        }
         for(int i = 0; i < app->process_count; i++) {
             UkuProcessRow *row = &app->processes[i];
             Rectangle card = {(float)content_x, (float)y, (float)content_w, (float)card_h};
@@ -5517,6 +5762,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     int submit_clicked = 0;
     int qr_clicked = 0;
     int export_results_clicked = 0;
+    int refresh_clicked = 0;
     int content_bottom;
     int content_h;
     int is_owner;
@@ -5535,7 +5781,18 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     app->collect_scroll = clampi(app->collect_scroll - (int)(GetMouseWheelMove() * ScaleUIPx(44)),
                                  0, app->collect_max_scroll);
     GetUICenteredColumn(600, side, &content_x, &content_w);
-    lyra_fetch_process_detail(app, app->server_url, text);
+    {
+        /* Refresh the remote detail at most every 5s (or when explicitly
+           requested) instead of every frame; each fetch is a blocking HTTP
+           round trip on the UI thread. */
+        sqlite3_int64 now_sec = (sqlite3_int64)time(NULL);
+
+        if(app->collect_refresh_requested || now_sec - app->collect_last_fetch >= 5) {
+            app->collect_refresh_requested = 0;
+            app->collect_last_fetch = now_sec;
+            lyra_fetch_process_detail(app, app->server_url, text);
+        }
+    }
     if(app->account.loaded && !app->pending_sync_attempted) {
         app->pending_sync_attempted = 1;
         sync_pending_process_detail(app);
@@ -5605,7 +5862,13 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     }
     if(app->process_detail_loading_failed) {
         y = draw_wrapped_text(font, tr(app, "Could not refresh this process from the server. Showing local details."), content_x, y, content_w, small_font, line_h, GetThemeButton());
-        y += ScaleUIPx(10);
+        y += ScaleUIPx(6);
+        draw_compact_button(app, font, content_x, y, ScaleUIPx(160), ScaleUIPx(600),
+                            ScaleUIPx(30), tr(app, "Refresh"), 0,
+                            UKU_FOCUS_COLLECT_REFRESH, &refresh_clicked);
+        if(refresh_clicked)
+            app->collect_refresh_requested = 1;
+        y += ScaleUIPx(38);
     }
 
     draw_text_font(font, text->local_address_label, content_x, y, small_font, GetThemeButton());
@@ -6356,6 +6619,7 @@ main(void)
                                            GetDefaultThemeForThemeStyle(GetDefaultPlatformThemeStyle())),
                           0, THEME_COUNT - 1);
     app.theme_dark_mode = setting_load_int(&app, UKU_THEME_DARK_KEY, 0) != 0;
+    app.intro_seen = setting_load_int(&app, UKU_INTRO_SEEN_KEY, 0) != 0;
     app.account_pfp_icon = (UIIconType)setting_load_int(&app, UKU_ACCOUNT_PFP_KEY,
                                                         UI_ICON_TYPE_PFP_PERSON1);
     if(app.account_pfp_icon <= UI_ICON_TYPE_NONE ||
@@ -6427,6 +6691,8 @@ main(void)
             draw_history(&app, &text, view_w, view_h);
         else
             draw_manual(&app, &text, view_w, view_h);
+        if(!app.intro_seen)
+            draw_intro_modal(&app, app.font, view_w, view_h, &(int){0});
         draw_account_setup_modal(&app, &text, view_w, view_h);
         draw_account_required_modal(&app, &text, view_w, view_h);
         draw_public_id_modal(&app, view_w, view_h);

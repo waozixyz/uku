@@ -364,3 +364,30 @@ Dunkel
 [Palette]
 Palette
 ---
+[Refresh]
+Aktualisieren
+---
+[Start one and share the link with your group.]
+Starte einen und teile den Link mit deiner Gruppe.
+---
+[Make New Process]
+Neuen Prozess erstellen
+---
+[Decide together]
+Gemeinsam entscheiden
+---
+[Score every option from -3 to +3.]
+Bewerte jede Option von -3 bis +3.
+---
+[Negative scores weigh more, so resistance is visible.]
+Negative Punkte zählen mehr, damit Widerstand sichtbar wird.
+---
+[Status quo and Repeat process are always on the ballot.]
+Status quo und Prozess wiederholen stehen immer zur Wahl.
+---
+[The option people can accept wins.]
+Die Option, die alle akzeptieren können, gewinnt.
+---
+[Get started]
+Loslegen
+---
