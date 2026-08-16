@@ -1,4 +1,4 @@
-.DEFAULT_GOAL := web
+.DEFAULT_GOAL := run
 
 APP_NAME := uku
 ANDROID_APP_ID := xyz.waozi.uku
