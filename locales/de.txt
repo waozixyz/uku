@@ -1,0 +1,366 @@
+[app_title]
+Ukuvota
+---
+[home_title]
+Ukuvota
+---
+[home_subtitle]
+Kollektive Entscheidungen ohne versteckten Widerstand
+---
+[home_summary]
+Ukuvota hilft Gruppen, kollektive Entscheidungen mit Punkte-Wahl zu treffen. Teilnehmende können jede Option unterstützen oder ablehnen, sodass das Ergebnis Wahlmöglichkeiten begünstigt, die alle akzeptieren und dennoch umsetzen können.
+---
+[start_process_button]
+Neuen Prozess starten
+---
+[join_process_label]
+Prozess beitreten
+---
+[join_process_placeholder]
+Prozess-ID oder Link einfügen
+---
+[join_process_button]
+Prozess öffnen
+---
+[join_process_error]
+Dieser Prozess konnte nicht geöffnet werden. Prüfe ID, Link oder Server.
+---
+[dashboard_empty]
+Noch keine aktiven Prozesse.
+---
+[dashboard_recent_label]
+Aktive Prozesse
+---
+[manual_title]
+Anleitung
+---
+[manual_body]
+Uku hilft Gruppen, Optionen zu wählen, die alle unterstützen und akzeptieren können.
+
+Erstelle einen Prozess mit einer klaren Frage und teile den Link mit den Teilnehmenden.
+
+Während der Vorschlagsphase fügen Menschen Optionen hinzu. Uku fügt immer „Status quo“ und „Prozess wiederholen“ hinzu, damit Nichtstun oder erneutes Suchen ausdrückliche Wahlmöglichkeiten sind.
+
+Während der Abstimmung bewertet jedes Konto jeden Vorschlag. Negative Punkte werden gewichtet, damit Widerstand sichtbar bleibt statt von unbezogener Zustimmung verdeckt zu werden.
+---
+[create_title]
+Entscheidung einrichten
+---
+[topic_question_label]
+Fragestellung
+---
+[topic_question_placeholder]
+Was soll diese Gruppe entscheiden?
+---
+[topic_error]
+Zum Starten des Prozesses eine Fragestellung ergänzen.
+---
+[description_label]
+Beschreibung (optional)
+---
+[description_placeholder]
+Kontext, Einschränkungen oder Links ergänzen.
+---
+[negative_weight_label]
+Gewichtung negativer Punkte
+---
+[negative_weight_infinity]
+Unendlich (systemischer Konsens)
+---
+[negative_weight_1]
+1
+---
+[negative_weight_2]
+2
+---
+[negative_weight_3]
+3
+---
+[negative_weight_4]
+4
+---
+[negative_weight_5]
+5
+---
+[negative_weight_6]
+6
+---
+[negative_weight_7]
+7
+---
+[negative_weight_8]
+8
+---
+[negative_weight_9]
+9
+---
+[proposal_time_label]
+Vorschlagszeit
+---
+[voting_time_label]
+Abstimmungszeit
+---
+[days_label]
+Tage
+---
+[hours_label]
+Stunden
+---
+[minutes_label]
+Minuten
+---
+[create_process_button]
+Prozess erstellen
+---
+[setup_ready]
+Prozessentwurf bereit.
+---
+[collect_title]
+Vorschläge sammeln
+---
+[collect_intro]
+Der Prozess wurde lokal gespeichert. Teile diese Adresse mit Teilnehmenden auf diesem Gerät, solange nur lokale Speicherung aktiv ist.
+---
+[proposal_phase_label]
+Vorschlagsphase
+---
+[voting_phase_label]
+Abstimmungsphase
+---
+[results_phase_label]
+Ergebnisse bereit
+---
+[time_remaining_label]
+verbleibend
+---
+[local_address_label]
+Lokale Adresse
+---
+[default_proposals_label]
+Standardvorschläge
+---
+[status_quo_title]
+Status quo
+---
+[status_quo_description]
+Alles bleibt, wie es ist.
+---
+[repeat_process_title]
+Prozess wiederholen
+---
+[repeat_process_description]
+Den Prozess wiederholen und nach anderen Optionen suchen.
+---
+[db_error]
+Der Prozess konnte nicht lokal gespeichert werden.
+---
+[back_button]
+Zurück
+---
+[brand_short]
+Uku
+---
+[Search or paste link]
+Suchen oder Link einfügen
+---
+[Done Decisions]
+Abgeschlossene Entscheidungen
+---
+[Finished Processes]
+Abgeschlossene Prozesse
+---
+[No finished processes yet.]
+Noch keine abgeschlossenen Prozesse.
+---
+[Finished]
+Abgeschlossen
+---
+[Results]
+Ergebnisse
+---
+[Copy results as text]
+Ergebnisse als Text kopieren
+---
+[Results copied.]
+Ergebnisse kopiert.
+---
+[total]
+Gesamt
+---
+[support]
+Zustimmung
+---
+[resistance]
+Widerstand
+---
+[votes]
+Stimmen
+---
+[avg]
+Durchschnitt
+---
+[ - leading]
+ – führend
+---
+[resistance at least equals support]
+Widerstand ist mindestens so groß wie die Zustimmung
+---
+[Participants]
+Teilnehmende
+---
+[No votes submitted yet.]
+Noch keine Stimmen abgegeben.
+---
+[Tap a participant to include or exclude them from the results.]
+Tippe auf eine Person, um sie in die Ergebnisse ein- oder auszuschließen.
+---
+[ (you)]
+ (du)
+---
+[anonymous]
+anonym
+---
+[Reason:]
+Begründung:
+---
+[Reason]
+Begründung
+---
+[Required voting reason]
+Erforderliche Stimmabgabe-Begründung
+---
+[Optional voting reason]
+Optionale Stimmabgabe-Begründung
+---
+[Copy share link]
+Link zum Teilen kopieren
+---
+[Share link copied.]
+Link zum Teilen kopiert.
+---
+[Show QR code]
+QR-Code anzeigen
+---
+[Hide QR code]
+QR-Code ausblenden
+---
+[Type]
+Typ
+---
+[weighted resistance]
+gewichteter Widerstand
+---
+[weighted resistance | reason required]
+gewichteter Widerstand | Begründung erforderlich
+---
+[weighted resistance | reason optional]
+gewichteter Widerstand | Begründung optional
+---
+[Outcome:]
+Ergebnis:
+---
+[Review:]
+Überprüfung:
+---
+[Saved locally, but server upload failed. Check your connection and account.]
+Lokal gespeichert, aber der Server-Upload ist fehlgeschlagen. Prüfe Verbindung und Konto.
+---
+[Could not refresh this process from the server. Showing local details.]
+Dieser Prozess konnte nicht vom Server aktualisiert werden. Lokale Details werden angezeigt.
+---
+[Export decision packet]
+Entscheidungspaket exportieren
+---
+[Could not export decision packet.]
+Entscheidungspaket konnte nicht exportiert werden.
+---
+[Decision packet copied.]
+Entscheidungspaket kopiert.
+---
+[Archive process]
+Prozess archivieren
+---
+[Could not update process visibility.]
+Sichtbarkeit des Prozesses konnte nicht geändert werden.
+---
+[Add proposal]
+Vorschlag hinzufügen
+---
+[Create or import an account before adding proposals.]
+Erstelle oder importiere ein Konto, bevor du Vorschläge hinzufügst.
+---
+[Create or import an account before voting.]
+Erstelle oder importiere ein Konto, bevor du abstimmen kannst.
+---
+[Title]
+Titel
+---
+[Proposal title]
+Vorschlagstitel
+---
+[Description]
+Beschreibung
+---
+[Optional details]
+Optionale Details
+---
+[Submit proposal]
+Vorschlag einreichen
+---
+[Proposal submitted.]
+Vorschlag eingereicht.
+---
+[Proposal saved locally. It will sync when the server is reachable.]
+Vorschlag lokal gespeichert. Er synchronisiert sich, sobald der Server erreichbar ist.
+---
+[Could not submit proposal.]
+Vorschlag konnte nicht eingereicht werden.
+---
+[Your ballot]
+Deine Stimmabgabe
+---
+[Update vote]
+Stimme aktualisieren
+---
+[Submit vote]
+Stimme abgeben
+---
+[Vote submitted.]
+Stimme abgegeben.
+---
+[Vote saved locally. It will sync when the server is reachable.]
+Stimme lokal gespeichert. Sie synchronisiert sich, sobald der Server erreichbar ist.
+---
+[Could not submit vote.]
+Stimme konnte nicht abgegeben werden.
+---
+[Collected proposals]
+Gesammelte Vorschläge
+---
+[Proposals]
+Vorschläge
+---
+[Language]
+Sprache
+---
+[Theme]
+Design
+---
+[System]
+System
+---
+[Mode]
+Modus
+---
+[Follow device]
+Geräteeinstellung folgen
+---
+[Light]
+Hell
+---
+[Dark]
+Dunkel
+---
+[Palette]
+Palette
+---
