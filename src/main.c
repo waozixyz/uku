@@ -3965,32 +3965,6 @@ draw_pfp_account_button(UkuApp *app, int x, int y, int size, int focus_id)
     return clicked;
 }
 
-static int
-draw_dashboard_brand(UkuApp *app, const char *title, int x, int y, int w, int h)
-{
-    int font_size = ClampUIPx(15, 15, 18);
-    int text_w = measure_text_font(app->font, title, font_size);
-    Rectangle bounds = {(float)x, (float)y, (float)UKU_MIN(w, text_w), (float)h};
-    Vector2 mouse = GetMousePosition();
-    int hover = CheckCollisionPointRec(mouse, bounds);
-    int focused = RegisterUIFocus(UKU_FOCUS_DASHBOARD_BRAND, bounds);
-    int clicked;
-
-    if(hover)
-        app->cursor_clickable = 1;
-    draw_text_font(app->font, fit_tail(app->font, title, font_size, w),
-                   x, y + (h - font_size) / 2,
-                   font_size, GetThemeText());
-    clicked = (hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
-              IsUIFocusActivatePressed(UKU_FOCUS_DASHBOARD_BRAND);
-    if(clicked) {
-        app->screen = UKU_SCREEN_HOME;
-        app->dashboard_scroll = 0;
-        app->active_field = UKU_FIELD_NONE;
-        ClearUIFocus();
-    }
-    return clicked;
-}
 
 static void
 draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
@@ -4002,9 +3976,7 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
     int pad = ScaleUIPx(10);
     int icon = ScaleUIPx(24);
     int gap = ScaleUIPx(8);
-    int brand_w = UKU_MIN(ScaleUIPx(112),
-                          measure_text_font(app->font, text->app_title,
-                                            ClampUIPx(15, 15, 18)));
+    int brand_w = 0;
     int button_x = view_w - pad - icon;
     int search_left;
     int search_right;
@@ -4018,7 +3990,6 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
 
     UkuTopBarFrame(view_w, h);
 
-    draw_dashboard_brand(app, text->app_title, pad, 0, brand_w, h);
 
     if(account_clicked != NULL) {
         if(draw_pfp_account_button(app, button_x, ScaleUIPx(8), icon,
@@ -4618,7 +4589,6 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
     int content_x;
     int content_w;
     int top_h = ScaleUIPx(46);
-    int title_font = ClampUIPx(17, 17, 21);
     int body_font = ClampUIPx(14, 14, 17);
     int small_font = ClampUIPx(12, 12, 14);
     int viewport_y = top_h;
@@ -4672,8 +4642,16 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
     }
 
     BeginScissorMode(0, viewport_y, view_w, viewport_h);
-    draw_text_font(font, text->dashboard_recent_label, content_x, y, title_font, GetThemeText());
-    y += title_font + ScaleUIPx(12);
+    {
+        /* quiet section header: small label with a hairline rule */
+        int label_w = measure_text_font(font, text->dashboard_recent_label, small_font);
+        int rule_y = y + small_font / 2;
+
+        draw_text_font(font, text->dashboard_recent_label, content_x, y, small_font, GetThemeButton());
+        DrawRectangle(content_x + label_w + ScaleUIPx(10), rule_y,
+                      content_w - label_w - ScaleUIPx(10), 1, GetThemeButton());
+        y += small_font + ScaleUIPx(16);
+    }
 
     if(app->process_count <= 0) {
         y = UkuDashboardEmptyPanel(text->dashboard_empty, content_x, y, content_w, body_font);
@@ -4712,24 +4690,29 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
 
             if(hovered)
                 app->cursor_clickable = 1;
-            DrawRectangleRounded(card, 0.07f, 10, hovered || focused ? GetThemeSurface() : GetThemeSurface());
-            DrawRectangleRoundedLinesEx(card, 0.07f, 10, ScaleUIPx(1), focused ? GetThemeButton() : GetThemeText());
+            DrawRectangleRounded(card, 0.07f, 10, GetThemeSurface());
+            DrawRectangleRoundedLinesEx(card, 0.07f, 10, ScaleUIPx(1),
+                                        focused || hovered ? GetThemeButton() : GetThemeButton());
+            /* accent bar marks the live phase */
+            DrawRectangleRounded((Rectangle){(float)content_x, (float)y + ScaleUIPx(10),
+                                             (float)ScaleUIPx(4), (float)card_h - ScaleUIPx(20)},
+                                 0.5f, 4, GetThemeCircle());
 
-            draw_text_font(font, fit_tail(font, row->topic, body_font, content_w - ScaleUIPx(24)),
-                           content_x + ScaleUIPx(12), y + ScaleUIPx(9), body_font, GetThemeText());
+            draw_text_font(font, fit_tail(font, row->topic, body_font, content_w - ScaleUIPx(30)),
+                           content_x + ScaleUIPx(18), y + ScaleUIPx(9), body_font, GetThemeText());
             format_process_timer(timer, sizeof(timer), text, row->created_at,
                                  row->proposal_minutes, row->voting_minutes, now);
-            draw_text_font(font, fit_tail(font, timer, small_font, content_w - ScaleUIPx(24)),
-                           content_x + ScaleUIPx(12), y + ScaleUIPx(31), small_font,
+            draw_text_font(font, fit_tail(font, timer, small_font, content_w - ScaleUIPx(30)),
+                           content_x + ScaleUIPx(18), y + ScaleUIPx(31), small_font,
                            process_phase(row->created_at, row->proposal_minutes, row->voting_minutes, now, NULL) == UKU_PROCESS_RESULTS ? GetThemeText() : GetThemeButton());
             format_created_at(created, sizeof(created), row->created_at);
-            snprintf(meta, sizeof(meta), "%s  |  %s  |  %s",
-                     process_type_label(row->type), row->local_address, created);
-            draw_text_font(font, fit_tail(font, meta, small_font, content_w - ScaleUIPx(24)),
-                           content_x + ScaleUIPx(12), y + ScaleUIPx(52), small_font, GetThemeButton());
+            snprintf(meta, sizeof(meta), "%s  \xc2\xb7  %s",
+                     process_type_label(row->type), created);
+            draw_text_font(font, fit_tail(font, meta, small_font, content_w - ScaleUIPx(30)),
+                           content_x + ScaleUIPx(18), y + ScaleUIPx(52), small_font, GetThemeButton());
             if(row->description[0] != '\0')
-                draw_text_font(font, fit_tail(font, row->description, small_font, content_w - ScaleUIPx(24)),
-                               content_x + ScaleUIPx(12), y + ScaleUIPx(72), small_font, GetThemeText());
+                draw_text_font(font, fit_tail(font, row->description, small_font, content_w - ScaleUIPx(30)),
+                               content_x + ScaleUIPx(18), y + ScaleUIPx(72), small_font, GetThemeText());
 
             open = (hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) || IsUIFocusActivatePressed(focus_id);
             if(open)
