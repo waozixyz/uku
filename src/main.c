@@ -6369,7 +6369,8 @@ main(void)
                               THEME_SOURCE_APP, THEME_SOURCE_SYSTEM);
     app.theme_mode = clampi(setting_load_int(&app, UKU_THEME_MODE_KEY, GetDefaultPlatformThemeMode()),
                             THEME_MODE_SYSTEM, THEME_MODE_DARK);
-    app.theme_id = clampi(setting_load_int(&app, UKU_THEME_ID_KEY, THEME_SUNSET),
+    app.theme_id = clampi(setting_load_int(&app, UKU_THEME_ID_KEY,
+                                           GetDefaultThemeForThemeStyle(GetDefaultPlatformThemeStyle())),
                           0, THEME_COUNT - 1);
     app.theme_dark_mode = setting_load_int(&app, UKU_THEME_DARK_KEY, 0) != 0;
     app.account_pfp_icon = (UIIconType)setting_load_int(&app, UKU_ACCOUNT_PFP_KEY,
