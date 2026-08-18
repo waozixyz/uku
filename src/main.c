@@ -214,6 +214,7 @@ typedef struct UkuApp {
     int theme_source;
     int theme_mode;
     int theme_id;
+    int theme_style;
     int theme_dark_mode;
     int history_scroll;
     int history_max_scroll;
@@ -378,6 +379,7 @@ typedef enum UkuFocusId {
 #define UKU_THEME_SOURCE_KEY "theme_source"
 #define UKU_THEME_MODE_KEY "theme_mode"
 #define UKU_THEME_ID_KEY "theme_id"
+#define UKU_THEME_STYLE_KEY "theme_style"
 #define UKU_THEME_DARK_KEY "theme_dark_mode"
 #define UKU_ACCOUNT_PFP_KEY "account_pfp"
 #define UKU_ACCOUNT_KEY_FILE "account.key"
@@ -1079,8 +1081,10 @@ app_apply_theme(UkuApp *app)
     app->theme_source = clampi(app->theme_source, THEME_SOURCE_APP, THEME_SOURCE_SYSTEM);
     app->theme_mode = clampi(app->theme_mode, THEME_MODE_SYSTEM, THEME_MODE_DARK);
     app->theme_id = clampi(app->theme_id, 0, THEME_COUNT - 1);
+    app->theme_style = clampi(app->theme_style, THEME_STYLE_SYSTEM, THEME_STYLE_AERO);
     SetThemeSource((ThemeSource)app->theme_source);
     SetThemeMode((ThemeMode)app->theme_mode);
+    SetThemeStyle((ThemeStyle)app->theme_style);
     app->theme_dark_mode = GetEffectiveThemeDarkMode() ? 1 : 0;
     SetCurrentTheme(app->theme_id, app->theme_dark_mode);
 }
@@ -1093,6 +1097,7 @@ app_save_theme(UkuApp *app)
     setting_save_int(app, UKU_THEME_SOURCE_KEY, app->theme_source);
     setting_save_int(app, UKU_THEME_MODE_KEY, app->theme_mode);
     setting_save_int(app, UKU_THEME_ID_KEY, app->theme_id);
+    setting_save_int(app, UKU_THEME_STYLE_KEY, app->theme_style);
     setting_save_int(app, UKU_THEME_DARK_KEY, app->theme_dark_mode);
 }
 
@@ -6526,6 +6531,7 @@ draw_theme_settings(UkuApp *app, const UkuText *text, int view_w, int view_h)
         .theme_source = &app->theme_source,
         .theme_mode = &app->theme_mode,
         .theme_id = &app->theme_id,
+        .theme_style = &app->theme_style,
         .allow_system_source = IsSystemThemeAvailable() ? 1 : 0,
         .allow_system_mode = 1,
         .theme_label = tr(app, "Theme"),
@@ -6618,6 +6624,9 @@ main(void)
     app.theme_id = clampi(setting_load_int(&app, UKU_THEME_ID_KEY,
                                            GetDefaultThemeForThemeStyle(GetDefaultPlatformThemeStyle())),
                           0, THEME_COUNT - 1);
+    app.theme_style = clampi(setting_load_int(&app, UKU_THEME_STYLE_KEY,
+                                              THEME_STYLE_SYSTEM),
+                             THEME_STYLE_SYSTEM, THEME_STYLE_AERO);
     app.theme_dark_mode = setting_load_int(&app, UKU_THEME_DARK_KEY, 0) != 0;
     app.intro_seen = setting_load_int(&app, UKU_INTRO_SEEN_KEY, 0) != 0;
     app.account_pfp_icon = (UIIconType)setting_load_int(&app, UKU_ACCOUNT_PFP_KEY,

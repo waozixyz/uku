@@ -32,6 +32,9 @@ WEB_DEV_PORT ?= 8080
 BRAVE_BROWSER ?= brave-browser
 
 KRYON_NATIVE_SUPPORT_FLAGS := -DSUPPORT_MODULE_RAUDIO=0
+# raylib is built without the audio module, so the generated compat
+# wrappers must drop the audio forwarders as well.
+export KRYON_COMPAT_AUDIO := 0
 
 include $(KRYON_MAKE_DIR)common.mk
 
