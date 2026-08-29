@@ -259,3 +259,9 @@ Repeat process chosen
 [Consent reached: %s]
 Consent reached: %s
 ---
+[No account needed - your name keeps votes apart.]
+No account needed - your name keeps votes apart.
+---
+[That name is already taken in this process. Choose another.]
+That name is already taken in this process. Choose another.
+---

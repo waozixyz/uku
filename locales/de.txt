@@ -487,3 +487,9 @@ Prozess wird wiederholt
 [Consent reached: %s]
 Konsens erreicht: %s
 ---
+[No account needed - your name keeps votes apart.]
+Kein Konto nötig - dein Name hält die Stimmen auseinander.
+---
+[That name is already taken in this process. Choose another.]
+Dieser Name ist in diesem Prozess bereits vergeben. Wähle einen anderen.
+---

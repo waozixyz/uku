@@ -276,6 +276,10 @@ typedef struct UkuApp {
     sqlite3 *db;
     UkuDecision decision;
     UkuAccount account;
+    UkuAccount guest;
+    char guest_process_id[40];
+    int guest_active;
+    int vote_name_taken;
     UkuProcessRow processes[UKU_MAX_PROCESSES];
     UkuOption options[UKU_MAX_OPTIONS];
     UkuProposal proposals[UKU_MAX_PROPOSALS];
@@ -419,6 +423,7 @@ typedef enum UkuFocusId {
 #define UKU_ACCOUNT_PFP_KEY "account_pfp"
 #define UKU_ACCOUNT_KEY_FILE "account.key"
 #define UKU_ACCOUNT_KEY_FILTER ".key"
+#define UKU_GUEST_KEY_PREFIX "guest."
 
 static int
 copy_text(char *dst, size_t dst_size, const char *src, size_t len)
@@ -1667,6 +1672,94 @@ process_account_ready(UkuApp *app)
     return 0;
 }
 
+/* Anonymous participation: a throwaway keypair per process, stored in the
+   settings store, that logs in like an account but is never surfaced as one.
+   The server auto-registers any keypair that signs its challenge, so guests
+   get the same signature-verified identity without an onboarding flow. */
+
+static void
+guest_setting_key(char *out, size_t out_size, const char *process_id, const char *field)
+{
+    snprintf(out, out_size, UKU_GUEST_KEY_PREFIX "%s.%s", process_id, field);
+}
+
+static void
+guest_identity_save(UkuApp *app)
+{
+    char key[96];
+
+    if(!app->guest.loaded || app->guest_process_id[0] == '\0')
+        return;
+    guest_setting_key(key, sizeof(key), app->guest_process_id, "public_id");
+    setting_save_text(app, key, app->guest.public_id);
+    guest_setting_key(key, sizeof(key), app->guest_process_id, "public_key");
+    setting_save_text(app, key, app->guest.public_key_hex);
+    guest_setting_key(key, sizeof(key), app->guest_process_id, "private_key");
+    setting_save_text(app, key, app->guest.private_key_hex);
+    guest_setting_key(key, sizeof(key), app->guest_process_id, "token");
+    setting_save_text(app, key, app->guest.auth_token);
+}
+
+static void
+guest_identity_load(UkuApp *app, const char *process_id)
+{
+    char key[96];
+
+    memset(&app->guest, 0, sizeof(app->guest));
+    copy_text(app->guest_process_id, sizeof(app->guest_process_id),
+              process_id, strlen(process_id));
+    guest_setting_key(key, sizeof(key), process_id, "public_id");
+    setting_load_text(app, key, "", app->guest.public_id, sizeof(app->guest.public_id));
+    if(app->guest.public_id[0] == '\0')
+        return;
+    guest_setting_key(key, sizeof(key), process_id, "public_key");
+    setting_load_text(app, key, "", app->guest.public_key_hex, sizeof(app->guest.public_key_hex));
+    guest_setting_key(key, sizeof(key), process_id, "private_key");
+    setting_load_text(app, key, "", app->guest.private_key_hex, sizeof(app->guest.private_key_hex));
+    guest_setting_key(key, sizeof(key), process_id, "token");
+    setting_load_text(app, key, "", app->guest.auth_token, sizeof(app->guest.auth_token));
+    app->guest.loaded = app->guest.public_key_hex[0] != '\0' &&
+                        app->guest.private_key_hex[0] != '\0';
+}
+
+static int
+guest_identity_ensure(UkuApp *app)
+{
+    KsyncAccount ksync_account;
+
+    if(app == NULL || app->decision.id[0] == '\0')
+        return 0;
+    if(app->guest.loaded && strcmp(app->guest_process_id, app->decision.id) == 0)
+        return 1;
+    guest_identity_load(app, app->decision.id);
+    if(app->guest.loaded)
+        return 1;
+    if(!CreateKsyncAccount(&ksync_account))
+        return 0;
+    account_from_ksync(&app->guest, &ksync_account);
+    app->guest.loaded = app->guest.public_id[0] != '\0';
+    guest_identity_save(app);
+    return app->guest.loaded;
+}
+
+/* Requests made while guest_active is set authenticate as the guest identity
+   instead of the account; everything else keeps using the account. */
+static UkuAccount *
+request_identity(UkuApp *app)
+{
+    return app != NULL && app->guest_active && app->guest.loaded ?
+           &app->guest : &app->account;
+}
+
+static void
+request_identity_persist(UkuApp *app)
+{
+    if(app != NULL && app->guest_active)
+        guest_identity_save(app);
+    else
+        account_save(app, &app->account);
+}
+
 static void
 current_participant_identity(UkuApp *app, char *user_id, size_t user_id_size,
                              char *display_name, size_t display_name_size)
@@ -1690,6 +1783,15 @@ current_participant_identity(UkuApp *app, char *user_id, size_t user_id_size,
                       strlen(alias[0] != '\0' ? alias : app->account.public_id));
         return;
     }
+    if(app->guest.loaded && app->guest.public_id[0] != '\0' &&
+       strcmp(app->guest_process_id, app->decision.id) == 0) {
+        if(user_id != NULL && user_id_size > 0)
+            copy_text(user_id, user_id_size, app->guest.public_id,
+                      strlen(app->guest.public_id));
+        if(display_name != NULL && display_name_size > 0)
+            copy_text(display_name, display_name_size, alias, strlen(alias));
+        return;
+    }
     if(alias[0] != '\0') {
         if(user_id != NULL && user_id_size > 0)
             snprintf(user_id, user_id_size, "alias:%s", alias);
@@ -1708,10 +1810,14 @@ account_sign_hex(UkuApp *app, const uint8_t *message, size_t message_len,
                  char *out_signature_hex, size_t out_size)
 {
     KsyncAccount ksync_account;
+    UkuAccount *identity;
 
-    if(app == NULL || !app->account.loaded)
+    if(app == NULL)
         return 0;
-    account_to_ksync(&app->account, &ksync_account);
+    identity = request_identity(app);
+    if(!identity->loaded)
+        return 0;
+    account_to_ksync(identity, &ksync_account);
     return SignKsyncAccountHex(&ksync_account, message, message_len, out_signature_hex,
                                        out_size);
 }
@@ -2477,12 +2583,14 @@ lyra_login(UkuApp *app, const char *base_url)
     char account_alias[40];
     UkuHttpBuffer response = {0};
     UkuHttpHeaders *headers = NULL;
+    UkuAccount *identity;
     long status = 0;
     int ok = 0;
 
-    if(app == NULL || !app->account.loaded)
+    identity = request_identity(app);
+    if(app == NULL || !identity->loaded)
         return 0;
-    snprintf(challenge_path, sizeof(challenge_path), "/api/v1/sync/challenge?user_id=%s", app->account.public_id);
+    snprintf(challenge_path, sizeof(challenge_path), "/api/v1/sync/challenge?user_id=%s", identity->public_id);
     join_url(url, sizeof(url), base_url, challenge_path);
     if(!lyra_http_request("GET", url, NULL, NULL, &status, &response) || status != 200 ||
        !extract_json_string(response.data, "nonce", nonce, sizeof(nonce)))
@@ -2491,12 +2599,12 @@ lyra_login(UkuApp *app, const char *base_url)
     response = (UkuHttpBuffer){0};
 
     snprintf(body, sizeof(body), "{\"user_id_hash\":\"%s\",\"client_id\":\"uku-native-client\",\"public_key\":\"%s\"}",
-             app->account.public_id, app->account.public_key_hex);
+             identity->public_id, identity->public_key_hex);
     canonical_message_hex(nonce, "POST", "/api/v1/sync/login", body, message, sizeof(message));
     if(!account_sign_hex(app, (const uint8_t *)message, strlen(message), signature, sizeof(signature)))
         goto cleanup;
     join_url(url, sizeof(url), base_url, "/api/v1/sync/login");
-    snprintf(user_header, sizeof(user_header), "X-Inbe-User: %s", app->account.public_id);
+    snprintf(user_header, sizeof(user_header), "X-Inbe-User: %s", identity->public_id);
     headers = http_headers_append(headers, "Content-Type: application/json");
     headers = http_headers_append(headers, user_header);
     {
@@ -2505,12 +2613,13 @@ lyra_login(UkuApp *app, const char *base_url)
         headers = http_headers_append(headers, sig_header);
     }
     if(!lyra_http_request("POST", url, headers, body, &status, &response) || status != 200 ||
-       !extract_json_string(response.data, "auth_token", app->account.auth_token, sizeof(app->account.auth_token)))
+       !extract_json_string(response.data, "auth_token", identity->auth_token, sizeof(identity->auth_token)))
         goto cleanup;
-    if(extract_json_string(response.data, "account_alias", account_alias, sizeof(account_alias)) &&
+    if(!app->guest_active &&
+       extract_json_string(response.data, "account_alias", account_alias, sizeof(account_alias)) &&
        account_alias[0] != '\0')
         setting_save_text(app, UKU_SYNC_ACCOUNT_ALIAS_KEY, account_alias);
-    account_save(app, &app->account);
+    request_identity_persist(app);
     ok = 1;
 
 cleanup:
@@ -2636,16 +2745,18 @@ lyra_authorized_json(UkuApp *app, const char *base_url, const char *method,
     char user_header[96];
     char auth_header[900];
     UkuHttpHeaders *headers = NULL;
+    UkuAccount *identity;
     long status = 0;
     int ok = 0;
 
-    if(app == NULL || !app->account.loaded || path == NULL)
+    identity = request_identity(app);
+    if(app == NULL || !identity->loaded || path == NULL)
         return 0;
-    if(app->account.auth_token[0] == '\0' && !lyra_login(app, base_url))
+    if(identity->auth_token[0] == '\0' && !lyra_login(app, base_url))
         return 0;
     join_url(url, sizeof(url), base_url, path);
-    snprintf(user_header, sizeof(user_header), "X-Inbe-User: %s", app->account.public_id);
-    snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s", app->account.auth_token);
+    snprintf(user_header, sizeof(user_header), "X-Inbe-User: %s", identity->public_id);
+    snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s", identity->auth_token);
     headers = http_headers_append(headers, "Content-Type: application/json");
     headers = http_headers_append(headers, user_header);
     headers = http_headers_append(headers, auth_header);
@@ -2659,10 +2770,10 @@ lyra_authorized_json(UkuApp *app, const char *base_url, const char *method,
             free(response->data);
             *response = (UkuHttpBuffer){0};
         }
-        app->account.auth_token[0] = '\0';
-        account_save(app, &app->account);
+        identity->auth_token[0] = '\0';
+        request_identity_persist(app);
         if(lyra_login(app, base_url)) {
-            snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s", app->account.auth_token);
+            snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s", identity->auth_token);
             headers = http_headers_append(headers, "Content-Type: application/json");
             headers = http_headers_append(headers, user_header);
             headers = http_headers_append(headers, auth_header);
@@ -2842,16 +2953,25 @@ lyra_submit_proposal_text(UkuApp *app, const char *base_url, const char *title,
     char path[128];
     UkuHttpBuffer body = {0};
     UkuHttpBuffer response = {0};
+    UkuAccount *identity;
     int local_index;
+    int used_guest = 0;
     int ok = 0;
 
     if(remote_id != NULL && remote_id_size > 0)
         remote_id[0] = '\0';
     if(app == NULL || app->decision.id[0] == '\0' || !has_non_space(title))
         return 0;
-    local_index = proposal_find_equivalent(app, app->account.public_id, title, description);
+    if(!app->account.loaded) {
+        if(!guest_identity_ensure(app))
+            return 0;
+        app->guest_active = 1;
+        used_guest = 1;
+    }
+    identity = request_identity(app);
+    local_index = proposal_find_equivalent(app, identity->public_id, title, description);
     if(!http_buffer_append(&body, "{\"user_id_hash\":", strlen("{\"user_id_hash\":")) ||
-       !json_append_string(&body, app->account.public_id) ||
+       !json_append_string(&body, identity->public_id) ||
        !http_buffer_append(&body, ",\"title\":", strlen(",\"title\":")) ||
        !json_append_string(&body, title) ||
        !http_buffer_append(&body, ",\"description\":", strlen(",\"description\":")) ||
@@ -2869,6 +2989,8 @@ lyra_submit_proposal_text(UkuApp *app, const char *base_url, const char *title,
     }
 
 cleanup:
+    if(used_guest)
+        app->guest_active = 0;
     free(body.data);
     free(response.data);
     return ok;
@@ -2891,20 +3013,24 @@ static int
 lyra_submit_vote(UkuApp *app, const char *base_url)
 {
     char path[128];
-    char url[512];
     UkuHttpBuffer body = {0};
     UkuHttpBuffer response = {0};
-    UkuHttpHeaders *headers = NULL;
     char tmp[64];
     char voter_user_id[65];
     char display_name[65];
-    long status = 0;
+    int used_guest = 0;
     int ok = 0;
 
     if(app == NULL || app->decision.id[0] == '\0' ||
        (!process_type_has_options(app->decision.type) && app->proposal_count <= 0) ||
        (process_type_has_options(app->decision.type) && app->option_count <= 0))
         return 0;
+    if(!app->account.loaded) {
+        if(!guest_identity_ensure(app))
+            return 0;
+        app->guest_active = 1;
+        used_guest = 1;
+    }
     current_participant_identity(app, voter_user_id, sizeof(voter_user_id),
                                  display_name, sizeof(display_name));
     if(!http_buffer_append(&body, "{\"user_id_hash\":", strlen("{\"user_id_hash\":")) ||
@@ -2937,20 +3063,16 @@ lyra_submit_vote(UkuApp *app, const char *base_url)
        !http_buffer_append(&body, "}", 1))
         goto cleanup;
     snprintf(path, sizeof(path), "/api/v1/processes/%s/votes", app->decision.id);
-    if(app->account.loaded) {
-        ok = lyra_authorized_json(app, base_url, "POST", path, body.data, 200, 299, &response);
-    } else {
-        join_url(url, sizeof(url), base_url, path);
-        headers = http_headers_append(headers, "Content-Type: application/json");
-        ok = lyra_http_request("POST", url, headers, body.data, &status, &response) &&
-             status >= 200 && status <= 299;
-    }
+    ok = lyra_authorized_json(app, base_url, "POST", path, body.data, 200, 299, &response);
+    if(!ok && response.data != NULL &&
+       strstr(response.data, "display name taken") != NULL)
+        app->vote_name_taken = 1;
     if(ok && response.data != NULL)
         parse_process_detail(app, response.data, NULL);
 
 cleanup:
-    if(headers != NULL)
-        http_headers_free(headers);
+    if(used_guest)
+        app->guest_active = 0;
     free(body.data);
     free(response.data);
     return ok;
@@ -7190,6 +7312,10 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                                 UKU_FIELD_ALIAS, UKU_FOCUS_ALIAS_FIELD,
                                 content_x, y, content_w, ScaleUIPx(36));
             alias_normalize(app->alias_input);
+            y = draw_wrapped_text(font, tr(app, "No account needed - your name keeps votes apart."),
+                                  content_x, y - ScaleUIPx(4), content_w, small_font,
+                                  small_font + ScaleUIPx(4), Fade(GetThemeText(), 0.6f));
+            y += ScaleUIPx(8);
         }
         if(process_type_has_options(d->type)) {
             for(int i = 0; i < app->option_count; i++)
@@ -7214,20 +7340,27 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
         if(submit_clicked) {
             app->vote_submit_ok = 0;
             app->vote_submit_failed = 0;
+            app->vote_name_taken = 0;
             if(db_save_local_vote(app)) {
                 app->pending_sync_attempted = 0;
                 app->vote_submit_failed = !lyra_submit_vote(app, app->server_url);
                 app->vote_submit_ok = 1;
-                ShowToast(app->vote_submit_failed ?
-                            tr(app, "Vote saved locally. It will sync when the server is reachable.") :
-                            tr(app, "Vote submitted."));
+                if(app->vote_name_taken)
+                    ShowToast(tr(app, "That name is already taken in this process. Choose another."));
+                else
+                    ShowToast(app->vote_submit_failed ?
+                                tr(app, "Vote saved locally. It will sync when the server is reachable.") :
+                                tr(app, "Vote submitted."));
             } else {
                 app->vote_submit_failed = 1;
                 ShowToast(tr(app, "Could not submit vote."));
             }
         }
         y += ScaleUIPx(42);
-        if(app->vote_submit_ok)
+        if(app->vote_submit_ok && app->vote_name_taken)
+            y = draw_wrapped_text(font, tr(app, "That name is already taken in this process. Choose another."),
+                                  content_x, y, content_w, small_font, line_h, GetThemeText());
+        else if(app->vote_submit_ok)
             y = draw_wrapped_text(font, tr(app, app->vote_submit_failed ?
                                  "Vote saved locally. It will sync when the server is reachable." :
                                   "Vote submitted."), content_x, y, content_w,
