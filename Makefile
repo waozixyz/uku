@@ -2,6 +2,8 @@
 
 APP_NAME := uku
 ANDROID_APP_ID := xyz.waozi.uku
+ANDROID_ACTIVITY := xyz.waozi.uku.MainActivity
+GRADLE := ./droid/gradlew
 SRC := src/main.c src/qrcodegen.c
 KRYON_DIR := $(if $(wildcard vendor/kryon/mk/common.mk),vendor/kryon,../kryon)
 KRYON_MAKE_DIR := $(KRYON_DIR)/mk/
@@ -91,6 +93,7 @@ run:
 	python3 scripts/uku-web-dev.py --host "$(WEB_DEV_HOST)" --port "$(WEB_DEV_PORT)" --browser "$(BRAVE_BROWSER)"
 endif
 include $(KRYON_MAKE_DIR)dist.mk
+include $(KRYON_MAKE_DIR)android.mk
 include $(KRYON_MAKE_DIR)clean.mk
 
 WEB_CC ?= emcc
