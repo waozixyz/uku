@@ -35,3 +35,29 @@ jobs:
             exit 1
           fi
           echo "all submodule URLs HTTPS - ok"
+
+  build-linux:
+    name: Build Linux x86_64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake pkg-config \
+            libsdl2-dev libsqlite3-dev libcurl4-openssl-dev
+
+      - name: Build
+        run: make linux-x86_64
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: uku-linux-x86_64
+          path: build/linux/uku-linux-x86_64
+          if-no-files-found: error
