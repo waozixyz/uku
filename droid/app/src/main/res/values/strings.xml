@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">Ukuvota</string>
+    <string name="share_chooser_title">Share Uku link</string>
+    <string name="qr_share_failed">Could not share QR code.</string>
+    <string name="qr_scan_unavailable">No QR scanner app is installed. Paste the link instead.</string>
+</resources>
