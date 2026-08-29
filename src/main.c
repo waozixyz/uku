@@ -105,6 +105,7 @@ typedef struct UkuDecision {
     int voting_minutes;
     int negative_weight;
     int quorum_percent;
+    int quorum_votes;
     int require_vote_reason;
     int submitted;
     int topic_error;
@@ -127,6 +128,7 @@ typedef struct UkuProcessRow {
     int proposal_minutes;
     int voting_minutes;
     int negative_weight;
+    int quorum_votes;
     char visibility[16];
     sqlite3_int64 created_at;
 } UkuProcessRow;
@@ -390,6 +392,8 @@ typedef enum UkuFocusId {
     UKU_FOCUS_LOCALE_DE,
     UKU_FOCUS_CREATE_PREVIOUS,
     UKU_FOCUS_CREATE_NEXT,
+    UKU_FOCUS_QUORUM_MINUS,
+    UKU_FOCUS_QUORUM_PLUS,
     UKU_FOCUS_SCORE_BASE = 1000,
     UKU_FOCUS_VOTER_BASE = 5000,
     UKU_FOCUS_PROPOSAL_DELETE_BASE = 3000,
@@ -1054,6 +1058,7 @@ db_init(UkuApp *app)
                  "proposal_minutes integer not null,"
                  "voting_minutes integer not null,"
                  "negative_weight integer not null,"
+                 "quorum_votes integer not null default 0,"
                  "visibility text not null default 'public',"
                  "local_address text not null,"
                  "created_at integer not null,"
@@ -1108,6 +1113,7 @@ db_init(UkuApp *app)
         return 0;
     sqlite3_exec(app->db, "alter table account add column auth_token text not null default ''", NULL, NULL, NULL);
     sqlite3_exec(app->db, "alter table account add column server_url text not null default 'https://api.waozi.xyz'", NULL, NULL, NULL);
+    sqlite3_exec(app->db, "alter table processes add column quorum_votes integer not null default 0", NULL, NULL, NULL);
     return 1;
 }
 #else
@@ -2533,11 +2539,11 @@ build_remote_process_json(UkuApp *app)
        !json_append_string(&json, d->description))
         goto fail;
     snprintf(tmp, sizeof(tmp),
-             ",\"visibility\":\"%s\",\"proposal_minutes\":%d,\"voting_minutes\":%d,\"negative_weight\":%d,\"quorum_percent\":%d,\"require_vote_reason\":%s",
+             ",\"visibility\":\"%s\",\"proposal_minutes\":%d,\"voting_minutes\":%d,\"negative_weight\":%d,\"quorum_percent\":%d,\"quorum_votes\":%d,\"require_vote_reason\":%s",
              d->visibility[0] != '\0' ? d->visibility : "public",
              duration_minutes(d->proposal_days, d->proposal_hours, d->proposal_minutes),
              duration_minutes(d->voting_days, d->voting_hours, d->voting_minutes),
-             d->negative_weight, d->quorum_percent, d->require_vote_reason ? "true" : "false");
+             d->negative_weight, d->quorum_percent, d->quorum_votes, d->require_vote_reason ? "true" : "false");
     if(!http_buffer_append(&json, tmp, strlen(tmp)))
         goto fail;
     if(process_type_has_options(d->type)) {
@@ -2707,6 +2713,8 @@ parse_process_detail(UkuApp *app, const char *json, const UkuText *text)
     extract_json_int(json, "negative_weight", &app->decision.negative_weight);
     if(process_type_uses_negative_weight(app->decision.type))
         app->decision.negative_weight = negative_weight_normalize(app->decision.negative_weight);
+    if(!extract_json_int(json, "quorum_votes", &app->decision.quorum_votes))
+        app->decision.quorum_votes = 0;
     if(extract_json_string(json, "created_at", created_at, sizeof(created_at)))
         app->decision.created_at = parse_lyra_time(created_at);
     if(text != NULL && app->decision.type == UKU_PROCESS_TYPE_CONSENT)
@@ -3037,6 +3045,7 @@ lyra_fetch_public_processes(UkuApp *app, const char *base_url)
         extract_json_int(p, "negative_weight", &row.negative_weight);
         if(process_type_uses_negative_weight(row.type))
             row.negative_weight = negative_weight_normalize(row.negative_weight);
+        extract_json_int(p, "quorum_votes", &row.quorum_votes);
         copy_text(row.visibility, sizeof(row.visibility), "public", strlen("public"));
         snprintf(row.local_address, sizeof(row.local_address), "/app/%s/collect", row.id);
         if(extract_json_string(p, "created_at", created_at, sizeof(created_at)))
@@ -3223,11 +3232,13 @@ web_save_processes(const UkuApp *app)
                                "%s" UKU_WEB_FIELD_SEP "%s" UKU_WEB_FIELD_SEP
                                "%d" UKU_WEB_FIELD_SEP "%d" UKU_WEB_FIELD_SEP
                                "%d" UKU_WEB_FIELD_SEP "%s" UKU_WEB_FIELD_SEP
-                               "%s" UKU_WEB_FIELD_SEP "%lld\n",
+                               "%s" UKU_WEB_FIELD_SEP "%lld" UKU_WEB_FIELD_SEP
+                               "%d\n",
                                row->id, (int)row->type, row->topic, row->description,
                                row->proposal_minutes, row->voting_minutes,
                                row->negative_weight, row->visibility,
-                               row->local_address, (long long)row->created_at);
+                               row->local_address, (long long)row->created_at,
+                               row->quorum_votes);
 
         if(written < 0 || (size_t)written >= sizeof(buffer) - used)
             break;
@@ -3281,6 +3292,8 @@ web_load_processes(UkuApp *app)
             row->negative_weight = atoi(fields[6]);
             if(process_type_uses_negative_weight(row->type))
                 row->negative_weight = negative_weight_normalize(row->negative_weight);
+            if(field >= 11)
+                row->quorum_votes = atoi(fields[10]);
             copy_text(row->visibility, sizeof(row->visibility), fields[7], strlen(fields[7]));
             copy_text(row->local_address, sizeof(row->local_address), fields[8], strlen(fields[8]));
             row->created_at = strtoll(fields[9], NULL, 10);
@@ -3317,6 +3330,7 @@ db_save_process(UkuApp *app, const UkuText *text)
     row.proposal_minutes = duration_minutes(d->proposal_days, d->proposal_hours, d->proposal_minutes);
     row.voting_minutes = duration_minutes(d->voting_days, d->voting_hours, d->voting_minutes);
     row.negative_weight = d->negative_weight;
+    row.quorum_votes = d->quorum_votes;
     copy_text(row.visibility, sizeof(row.visibility), d->visibility, strlen(d->visibility));
     row.created_at = now;
 
@@ -3349,8 +3363,8 @@ db_save_process(UkuApp *app, const UkuText *text)
         return 0;
 
     if(sqlite3_prepare_v2(app->db,
-                          "insert into processes(id, type, phase, topic, description, proposal_minutes, voting_minutes, negative_weight, visibility, local_address, created_at, synced)"
-                          " values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
+                          "insert into processes(id, type, phase, topic, description, proposal_minutes, voting_minutes, negative_weight, quorum_votes, visibility, local_address, created_at, synced)"
+                          " values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
                           -1, &stmt, NULL) != SQLITE_OK)
         goto cleanup;
 
@@ -3362,9 +3376,10 @@ db_save_process(UkuApp *app, const UkuText *text)
     sqlite3_bind_int(stmt, 6, duration_minutes(d->proposal_days, d->proposal_hours, d->proposal_minutes));
     sqlite3_bind_int(stmt, 7, duration_minutes(d->voting_days, d->voting_hours, d->voting_minutes));
     sqlite3_bind_int(stmt, 8, d->negative_weight);
-    sqlite3_bind_text(stmt, 9, d->visibility, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 10, d->local_address, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int64(stmt, 11, now);
+    sqlite3_bind_int(stmt, 9, d->quorum_votes);
+    sqlite3_bind_text(stmt, 10, d->visibility, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 11, d->local_address, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(stmt, 12, now);
 
     if(sqlite3_step(stmt) != SQLITE_DONE)
         goto cleanup;
@@ -3422,7 +3437,7 @@ db_load_processes(UkuApp *app)
         return;
 
     if(sqlite3_prepare_v2(app->db,
-                          "select id, type, topic, description, proposal_minutes, voting_minutes, negative_weight, visibility, local_address, created_at "
+                          "select id, type, topic, description, proposal_minutes, voting_minutes, negative_weight, visibility, local_address, created_at, quorum_votes "
                           "from processes order by created_at desc limit ?",
                           -1, &stmt, NULL) != SQLITE_OK)
         return;
@@ -3448,6 +3463,7 @@ db_load_processes(UkuApp *app)
         row->negative_weight = sqlite3_column_int(stmt, 6);
         if(process_type_uses_negative_weight(row->type))
             row->negative_weight = negative_weight_normalize(row->negative_weight);
+        row->quorum_votes = sqlite3_column_int(stmt, 10);
         row->created_at = sqlite3_column_int64(stmt, 9);
         count++;
     }
@@ -3554,6 +3570,7 @@ db_load_process_detail(UkuApp *app, const UkuText *text)
             row->proposal_minutes = duration_minutes(d->proposal_days, d->proposal_hours, d->proposal_minutes);
             row->voting_minutes = duration_minutes(d->voting_days, d->voting_hours, d->voting_minutes);
             row->negative_weight = d->negative_weight;
+            row->quorum_votes = d->quorum_votes;
             row->created_at = d->created_at;
             web_save_processes(app);
         }
@@ -4107,6 +4124,7 @@ open_process_row(UkuApp *app, const UkuProcessRow *row)
     d->voting_hours = (row->voting_minutes / 60) % 24;
     d->voting_minutes = row->voting_minutes % 60;
     d->negative_weight = row->negative_weight;
+    d->quorum_votes = row->quorum_votes;
     d->require_vote_reason = 1;
     d->created_at = row->created_at;
     d->submitted = 1;
@@ -4974,6 +4992,7 @@ init_decision(UkuApp *app, const UkuText *text)
     d->proposal_hours = 1;
     d->voting_hours = 1;
     d->negative_weight = 3;
+    d->quorum_votes = 0;
     d->require_vote_reason = 1;
     (void)text;
 }
@@ -5667,6 +5686,19 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
             y += ScaleUIPx(18);
         }
 
+        if(process_type_has_voting(d->type)) {
+            y = draw_stepper(app, font, tr(app, "Minimum ballots (quorum)"), &d->quorum_votes,
+                             0, 64, content_x, y, content_w,
+                             UKU_FOCUS_QUORUM_MINUS, UKU_FOCUS_QUORUM_PLUS);
+            if(d->quorum_votes == 0) {
+                y = draw_wrapped_text(font, tr(app, "0 means no minimum - the result counts with any number of ballots."),
+                                      content_x, y - ScaleUIPx(4), content_w, small_font,
+                                      small_font + ScaleUIPx(4), Fade(GetThemeText(), 0.6f));
+                y += ScaleUIPx(12);
+            } else
+                y += ScaleUIPx(16);
+        }
+
         draw_text_font(font, "Visibility", content_x, y, body_font, GetThemeText());
         y += body_font + ScaleUIPx(8);
         draw_visibility_button(app, content_x, y, option_w, "Public",
@@ -5885,6 +5917,12 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
             format_negative_weight_label(weight_label, sizeof(weight_label),
                                          text->negative_weight_options[0], d->negative_weight);
             snprintf(value, sizeof(value), "Negative Score Weighting: %s", weight_label);
+            draw_text_font(font, value, content_x, y, body_font, GetThemeText());
+            y += body_font + ScaleUIPx(10);
+        }
+        if(process_type_has_voting(d->type) && d->quorum_votes > 0) {
+            snprintf(value, sizeof(value), "%s: %d", tr(app, "Quorum (minimum ballots)"),
+                     d->quorum_votes);
             draw_text_font(font, value, content_x, y, body_font, GetThemeText());
             y += body_font + ScaleUIPx(10);
         }
@@ -6307,6 +6345,97 @@ sort_result_indices(const UkuApp *app, int *indices, int count)
     }
 }
 
+typedef enum UkuVerdict {
+    UKU_VERDICT_PENDING = 0,
+    UKU_VERDICT_NO_QUORUM,
+    UKU_VERDICT_CONSENT,
+    UKU_VERDICT_OBJECTIONS,
+    UKU_VERDICT_ALL_RESISTED
+} UkuVerdict;
+
+/* Pronounces the outcome from the included tallies: quorum first, then whether
+   the leading option's support survives its weighted resistance. Under the
+   infinity weight any resistance excludes an option, so a resisted leader
+   implies every option was resisted and the least-resisted one prevails. */
+static UkuVerdict
+uku_verdict(const UkuApp *app, int *winner_index)
+{
+    int indices[UKU_MAX_PROPOSALS];
+    const UkuProposal *leader;
+    int included = tally_included_count(app);
+
+    if(winner_index != NULL)
+        *winner_index = -1;
+    if(app->proposal_count <= 0 || included <= 0)
+        return UKU_VERDICT_PENDING;
+    if(app->decision.quorum_votes > 0 && included < app->decision.quorum_votes)
+        return UKU_VERDICT_NO_QUORUM;
+    sort_result_indices(app, indices, app->proposal_count);
+    leader = &app->proposals[indices[0]];
+    if(winner_index != NULL)
+        *winner_index = indices[0];
+    if(negative_weight_is_infinite(app->decision.negative_weight) &&
+       leader->negative_total <= -UKU_NEGATIVE_WEIGHT_INFINITY)
+        return UKU_VERDICT_ALL_RESISTED;
+    if(leader->negative_total < 0 && -leader->negative_total >= leader->positive_total)
+        return UKU_VERDICT_OBJECTIONS;
+    return UKU_VERDICT_CONSENT;
+}
+
+static void
+format_verdict_text(UkuApp *app, UkuVerdict verdict, int winner_index,
+                    char *out, size_t out_size)
+{
+    const UkuProposal *winner = winner_index >= 0 && winner_index < app->proposal_count ?
+                                &app->proposals[winner_index] : NULL;
+    const char *winner_title = winner != NULL ? winner->title : "";
+
+    out[0] = '\0';
+    switch(verdict) {
+    case UKU_VERDICT_NO_QUORUM:
+        snprintf(out, out_size, tr(app, "No quorum yet - %d of %d ballots cast"),
+                 tally_included_count(app), app->decision.quorum_votes);
+        break;
+    case UKU_VERDICT_ALL_RESISTED:
+        snprintf(out, out_size, tr(app, "Every option meets resistance - least resisted prevails: %s"),
+                 winner_title);
+        break;
+    case UKU_VERDICT_OBJECTIONS:
+        if(winner != NULL && strcmp(winner->id, "status-quo") == 0)
+            snprintf(out, out_size, "%s", tr(app, "Objections outweigh support - no consent yet"));
+        else
+            snprintf(out, out_size, tr(app, "Objections outweigh support - %s leads without consent"),
+                     winner_title);
+        break;
+    case UKU_VERDICT_CONSENT:
+        if(winner != NULL && strcmp(winner->id, "status-quo") == 0)
+            snprintf(out, out_size, "%s", tr(app, "Status quo prevails"));
+        else if(winner != NULL && strcmp(winner->id, "repeat-process") == 0)
+            snprintf(out, out_size, "%s", tr(app, "Repeat process chosen"));
+        else
+            snprintf(out, out_size, tr(app, "Consent reached: %s"), winner_title);
+        break;
+    default:
+        break;
+    }
+}
+
+static int
+draw_verdict_banner(UkuApp *app, Font font, const char *verdict_text, int positive,
+                    int x, int y, int w, int body_font)
+{
+    int h = ScaleUIPx(48);
+    Rectangle card = {(float)x, (float)y, (float)w, (float)h};
+
+    (void)app;
+    DrawRectangleRounded(card, 0.10f, 12, GetThemeSurface());
+    DrawRectangleRoundedLinesEx(card, 0.10f, 12, ScaleUIPx(2),
+                                positive ? GetThemeText() : GetThemeButton());
+    draw_text_font(font, fit_tail(font, verdict_text, body_font, w - ScaleUIPx(24)),
+                   x + ScaleUIPx(12), y + (h - body_font) / 2, body_font, GetThemeText());
+    return y + h + ScaleUIPx(10);
+}
+
 static int
 draw_participant_list(UkuApp *app, Font font, int x, int y, int w, int body_font, int small_font)
 {
@@ -6646,6 +6775,18 @@ build_results_text(UkuApp *app, char *out, size_t out_size)
 
     snprintf(out + used, out_size - used, "%s: %s\n", tr(app, "Results"), app->decision.topic);
     used = strlen(out);
+    {
+        int winner_index = -1;
+        UkuVerdict verdict = uku_verdict(app, &winner_index);
+
+        if(verdict != UKU_VERDICT_PENDING) {
+            char verdict_text[320];
+
+            format_verdict_text(app, verdict, winner_index, verdict_text, sizeof(verdict_text));
+            snprintf(out + used, out_size - used, "%s\n", verdict_text);
+            used = strlen(out);
+        }
+    }
     if(process_type_has_options(app->decision.type))
         count = 0;
     else {
@@ -6679,6 +6820,10 @@ build_results_text(UkuApp *app, char *out, size_t out_size)
     }
     snprintf(out + used, out_size - used, "%s: %d/%d\n", tr(app, "Participants"),
              tally_included_count(app), app->vote_count);
+    used = strlen(out);
+    if(app->decision.quorum_votes > 0)
+        snprintf(out + used, out_size - used, "%s: %d/%d\n", tr(app, "Quorum"),
+                 tally_included_count(app), app->decision.quorum_votes);
 }
 
 static void
@@ -6791,6 +6936,12 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
         format_negative_weight_label(weight_label, sizeof(weight_label),
                                      text->negative_weight_options[0], d->negative_weight);
         snprintf(segment, sizeof(segment), " | %s: %s", tr(app, "Weight"), weight_label);
+        strncat(governance_line, segment, sizeof(governance_line) - strlen(governance_line) - 1);
+    }
+    if(d->quorum_votes > 0) {
+        char segment[96];
+
+        snprintf(segment, sizeof(segment), " | %s: %d", tr(app, "Quorum"), d->quorum_votes);
         strncat(governance_line, segment, sizeof(governance_line) - strlen(governance_line) - 1);
     }
     y = draw_wrapped_text(font, governance_line, content_x, y, content_w, small_font,
@@ -7095,6 +7246,17 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                                            content_x, y, content_w,
                                            body_font, small_font);
         } else {
+            int winner_index = -1;
+            UkuVerdict verdict = uku_verdict(app, &winner_index);
+
+            if(verdict != UKU_VERDICT_PENDING) {
+                char verdict_text[320];
+
+                format_verdict_text(app, verdict, winner_index, verdict_text, sizeof(verdict_text));
+                y = draw_verdict_banner(app, font, verdict_text,
+                                        verdict == UKU_VERDICT_CONSENT,
+                                        content_x, y, content_w, body_font);
+            }
             sort_result_indices(app, result_indices, app->proposal_count);
             for(int i = 0; i < app->proposal_count; i++)
                 y = draw_result_row(app, font, &app->proposals[result_indices[i]], i + 1,

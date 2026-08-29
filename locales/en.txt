@@ -2,7 +2,7 @@
 Ukuvota
 ---
 [home_title]
-Ukuvota
+Dashboard
 ---
 [home_subtitle]
 Collective decisions without hidden resistance
@@ -160,9 +160,102 @@ Back
 [brand_short]
 Uku
 ---
+[Currently In Progress]
+Currently In Progress
+---
+[No processes currently in progress.]
+No processes currently in progress.
+---
+[Completed Processes]
+Completed Processes
+---
+[Completed processes will appear here.]
+Completed processes will appear here.
+---
+[Your name or persistent alias]
+Your name or persistent alias
+---
+[anonymous]
+anonymous
+---
+[Share link]
+Share link
+---
+[Share Uku link]
+Share Uku link
+---
+[Could not share link.]
+Could not share link.
+---
+[Share link ready.]
+Share link ready.
+---
+[Save QR code]
+Save QR code
+---
+[Share QR code]
+Share QR code
+---
+[QR code saved:]
+QR code saved:
+---
+[QR code saved.]
+QR code saved.
+---
+[QR code ready to share.]
+QR code ready to share.
+---
+[Could not create QR code.]
+Could not create QR code.
+---
+[Could not share QR code.]
+Could not share QR code.
+---
+[Scan QR code]
+Scan QR code
+---
+[Scan QR unavailable. Paste the link instead.]
+Scan QR unavailable. Paste the link instead.
+---
+[Paste a QR link into search.]
+Paste a QR link into search.
+---
+[Minimum ballots (quorum)]
+Minimum ballots (quorum)
+---
+[0 means no minimum - the result counts with any number of ballots.]
+0 means no minimum - the result counts with any number of ballots.
+---
+[Quorum]
+Quorum
+---
+[Quorum (minimum ballots)]
+Quorum (minimum ballots)
+---
 [Weight]
 Weight
 ---
 [ - vetoed]
  - vetoed
+---
+[No quorum yet - %d of %d ballots cast]
+No quorum yet - %d of %d ballots cast
+---
+[Every option meets resistance - least resisted prevails: %s]
+Every option meets resistance - least resisted prevails: %s
+---
+[Objections outweigh support - no consent yet]
+Objections outweigh support - no consent yet
+---
+[Objections outweigh support - %s leads without consent]
+Objections outweigh support - %s leads without consent
+---
+[Status quo prevails]
+Status quo prevails
+---
+[Repeat process chosen]
+Repeat process chosen
+---
+[Consent reached: %s]
+Consent reached: %s
 ---

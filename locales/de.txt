@@ -2,7 +2,7 @@
 Ukuvota
 ---
 [home_title]
-Ukuvota
+Dashboard
 ---
 [home_subtitle]
 Kollektive Entscheidungen ohne versteckten Widerstand
@@ -160,6 +160,18 @@ Zurück
 [brand_short]
 Uku
 ---
+[Currently In Progress]
+Aktuell in Bearbeitung
+---
+[No processes currently in progress.]
+Keine Prozesse aktuell in Bearbeitung.
+---
+[Completed Processes]
+Abgeschlossene Prozesse
+---
+[Completed processes will appear here.]
+Abgeschlossene Prozesse erscheinen hier.
+---
 [Search or paste link]
 Suchen oder Link einfügen
 ---
@@ -244,6 +256,48 @@ QR-Code anzeigen
 [Hide QR code]
 QR-Code ausblenden
 ---
+[Share link]
+Link teilen
+---
+[Share Uku link]
+Uku-Link teilen
+---
+[Could not share link.]
+Link konnte nicht geteilt werden.
+---
+[Share link ready.]
+Link bereit zum Teilen.
+---
+[Save QR code]
+QR-Code speichern
+---
+[Share QR code]
+QR-Code teilen
+---
+[QR code saved:]
+QR-Code gespeichert:
+---
+[QR code saved.]
+QR-Code gespeichert.
+---
+[QR code ready to share.]
+QR-Code bereit zum Teilen.
+---
+[Could not create QR code.]
+QR-Code konnte nicht erstellt werden.
+---
+[Could not share QR code.]
+QR-Code konnte nicht geteilt werden.
+---
+[Scan QR code]
+QR-Code scannen
+---
+[Scan QR unavailable. Paste the link instead.]
+QR-Scanner nicht verfuegbar. Fuege den Link stattdessen ein.
+---
+[Paste a QR link into search.]
+Fuege einen QR-Link in die Suche ein.
+---
 [Type]
 Typ
 ---
@@ -285,6 +339,9 @@ Sichtbarkeit des Prozesses konnte nicht geändert werden.
 ---
 [Add proposal]
 Vorschlag hinzufügen
+---
+[Your name or persistent alias]
+Dein Name oder dauerhafter Alias
 ---
 [Create or import an account before adding proposals.]
 Erstelle oder importiere ein Konto, bevor du Vorschläge hinzufügst.
@@ -391,9 +448,42 @@ Die Option, die alle akzeptieren können, gewinnt.
 [Get started]
 Loslegen
 ---
+[Minimum ballots (quorum)]
+Mindeststimmen (Quorum)
+---
+[0 means no minimum - the result counts with any number of ballots.]
+0 bedeutet kein Minimum - das Ergebnis gilt bei jeder Anzahl von Stimmen.
+---
+[Quorum]
+Quorum
+---
+[Quorum (minimum ballots)]
+Quorum (Mindeststimmen)
+---
 [Weight]
 Gewichtung
 ---
 [ - vetoed]
  - Veto
+---
+[No quorum yet - %d of %d ballots cast]
+Noch kein Quorum - %d von %d Stimmen abgegeben
+---
+[Every option meets resistance - least resisted prevails: %s]
+Jede Option trifft auf Widerstand - die am wenigsten abgelehnte setzt sich durch: %s
+---
+[Objections outweigh support - no consent yet]
+Einsprüche überwiegen die Zustimmung - noch kein Konsens
+---
+[Objections outweigh support - %s leads without consent]
+Einsprüche überwiegen die Zustimmung - %s führt ohne Konsens
+---
+[Status quo prevails]
+Status quo bleibt bestehen
+---
+[Repeat process chosen]
+Prozess wird wiederholt
+---
+[Consent reached: %s]
+Konsens erreicht: %s
 ---
