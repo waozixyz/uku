@@ -160,3 +160,9 @@ Back
 [brand_short]
 Uku
 ---
+[Weight]
+Weight
+---
+[ - vetoed]
+ - vetoed
+---

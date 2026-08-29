@@ -391,3 +391,9 @@ Die Option, die alle akzeptieren können, gewinnt.
 [Get started]
 Loslegen
 ---
+[Weight]
+Gewichtung
+---
+[ - vetoed]
+ - Veto
+---

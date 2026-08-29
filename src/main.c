@@ -925,6 +925,48 @@ process_type_uses_reason(UkuProcessType type)
     return type == UKU_PROCESS_TYPE_CONSENT;
 }
 
+/* Dropdown index 0 is the localized "Infinity (systemic consensus)" entry and
+   maps to a sentinel weight so large that one resister outweighs all possible
+   support (256 voters x +3 = 768). Earlier builds stored weight 0 for that
+   entry, which made resistance count as nothing instead of excluding the
+   option; weight 0 read from old data is normalized back to the sentinel. */
+#define UKU_NEGATIVE_WEIGHT_INFINITY 1000000
+
+static int
+negative_weight_is_infinite(int weight)
+{
+    return weight >= UKU_NEGATIVE_WEIGHT_INFINITY;
+}
+
+static int
+negative_weight_from_index(int index)
+{
+    return index <= 0 ? UKU_NEGATIVE_WEIGHT_INFINITY : index;
+}
+
+static int
+negative_weight_to_index(int weight)
+{
+    if(negative_weight_is_infinite(weight))
+        return 0;
+    return weight < 1 ? 1 : (weight > 9 ? 9 : weight);
+}
+
+static int
+negative_weight_normalize(int weight)
+{
+    return weight <= 0 ? UKU_NEGATIVE_WEIGHT_INFINITY : weight;
+}
+
+static void
+format_negative_weight_label(char *out, size_t out_size, const char *infinity_label, int weight)
+{
+    if(negative_weight_is_infinite(weight))
+        snprintf(out, out_size, "%s", infinity_label != NULL && infinity_label[0] != '\0' ? infinity_label : "Infinity");
+    else
+        snprintf(out, out_size, "%d", weight);
+}
+
 static int
 has_non_space(const char *text)
 {
@@ -2663,6 +2705,8 @@ parse_process_detail(UkuApp *app, const char *json, const UkuText *text)
         app->decision.voting_minutes = total_minutes % 60;
     }
     extract_json_int(json, "negative_weight", &app->decision.negative_weight);
+    if(process_type_uses_negative_weight(app->decision.type))
+        app->decision.negative_weight = negative_weight_normalize(app->decision.negative_weight);
     if(extract_json_string(json, "created_at", created_at, sizeof(created_at)))
         app->decision.created_at = parse_lyra_time(created_at);
     if(text != NULL && app->decision.type == UKU_PROCESS_TYPE_CONSENT)
@@ -2991,6 +3035,8 @@ lyra_fetch_public_processes(UkuApp *app, const char *base_url)
         extract_json_int(p, "proposal_minutes", &row.proposal_minutes);
         extract_json_int(p, "voting_minutes", &row.voting_minutes);
         extract_json_int(p, "negative_weight", &row.negative_weight);
+        if(process_type_uses_negative_weight(row.type))
+            row.negative_weight = negative_weight_normalize(row.negative_weight);
         copy_text(row.visibility, sizeof(row.visibility), "public", strlen("public"));
         snprintf(row.local_address, sizeof(row.local_address), "/app/%s/collect", row.id);
         if(extract_json_string(p, "created_at", created_at, sizeof(created_at)))
@@ -3233,6 +3279,8 @@ web_load_processes(UkuApp *app)
             row->proposal_minutes = atoi(fields[4]);
             row->voting_minutes = atoi(fields[5]);
             row->negative_weight = atoi(fields[6]);
+            if(process_type_uses_negative_weight(row->type))
+                row->negative_weight = negative_weight_normalize(row->negative_weight);
             copy_text(row->visibility, sizeof(row->visibility), fields[7], strlen(fields[7]));
             copy_text(row->local_address, sizeof(row->local_address), fields[8], strlen(fields[8]));
             row->created_at = strtoll(fields[9], NULL, 10);
@@ -3398,6 +3446,8 @@ db_load_processes(UkuApp *app)
         row->proposal_minutes = sqlite3_column_int(stmt, 4);
         row->voting_minutes = sqlite3_column_int(stmt, 5);
         row->negative_weight = sqlite3_column_int(stmt, 6);
+        if(process_type_uses_negative_weight(row->type))
+            row->negative_weight = negative_weight_normalize(row->negative_weight);
         row->created_at = sqlite3_column_int64(stmt, 9);
         count++;
     }
@@ -4773,7 +4823,7 @@ draw_negative_weight_dropdown(UkuApp *app, Font font, const UkuText *text, int x
     int box_y;
     Rectangle box;
     Vector2 mouse = GetMousePosition();
-    int selected = clampi(app->decision.negative_weight, 0, 9);
+    int selected = negative_weight_to_index(app->decision.negative_weight);
     int focused;
 
     draw_text_font(font, text->negative_weight_label, x, y, label_font, GetThemeText());
@@ -4789,10 +4839,13 @@ draw_negative_weight_dropdown(UkuApp *app, Font font, const UkuText *text, int x
         app->active_field = UKU_FIELD_NONE;
     }
     if(focused) {
+        int index = negative_weight_to_index(app->decision.negative_weight);
+
         if(IsKeyPressed(KEY_DOWN))
-            app->decision.negative_weight = clampi(app->decision.negative_weight + 1, 0, 9);
+            index = clampi(index + 1, 0, 9);
         if(IsKeyPressed(KEY_UP))
-            app->decision.negative_weight = clampi(app->decision.negative_weight - 1, 0, 9);
+            index = clampi(index - 1, 0, 9);
+        app->decision.negative_weight = negative_weight_from_index(index);
     }
 
     DrawRectangleRounded(box, 0.08f, 10, GetThemeSurface());
@@ -4825,7 +4878,7 @@ draw_negative_weight_dropdown(UkuApp *app, Font font, const UkuText *text, int x
             draw_text_font(font, text->negative_weight_options[i], x + pad + ScaleUIPx(8),
                            oy + (option_h - input_font) / 2, input_font, GetThemeText());
             if(hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
-                app->decision.negative_weight = i;
+                app->decision.negative_weight = negative_weight_from_index(i);
                 app->negative_dropdown_open = 0;
             }
         }
@@ -5827,8 +5880,11 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
         draw_text_font(font, value, content_x, y, body_font, GetThemeText());
         y += body_font + ScaleUIPx(10);
         if(process_type_uses_negative_weight(d->type)) {
-            snprintf(value, sizeof(value), "Negative Score Weighting: %d",
-                     d->negative_weight);
+            char weight_label[96];
+
+            format_negative_weight_label(weight_label, sizeof(weight_label),
+                                         text->negative_weight_options[0], d->negative_weight);
+            snprintf(value, sizeof(value), "Negative Score Weighting: %s", weight_label);
             draw_text_font(font, value, content_x, y, body_font, GetThemeText());
             y += body_font + ScaleUIPx(10);
         }
@@ -6140,7 +6196,11 @@ draw_result_row(UkuApp *app, Font font, const UkuProposal *proposal,
 
     DrawRectangleRounded(card, 0.10f, 12, GetThemeSurface());
     DrawRectangleRoundedLinesEx(card, 0.10f, 12, ScaleUIPx(1), GetThemeButton());
-    snprintf(title, sizeof(title), "%d. %s%s", rank, proposal->title, rank == 1 ? tr(app, " - leading") : "");
+    snprintf(title, sizeof(title), "%d. %s%s%s", rank, proposal->title,
+             rank == 1 ? tr(app, " - leading") : "",
+             negative_weight_is_infinite(app->decision.negative_weight) &&
+                 proposal->negative_total <= -UKU_NEGATIVE_WEIGHT_INFINITY ?
+                 tr(app, " - vetoed") : "");
     draw_text_font(font, fit_tail(font, title, body_font, w - face - ScaleUIPx(40)),
                    x + ScaleUIPx(10), y + ScaleUIPx(8), body_font, GetThemeText());
     snprintf(meta, sizeof(meta), "%s %d | %s %d | %s %d | %s %d | %s %.1f",
@@ -6724,6 +6784,15 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                  (d->require_vote_reason ? tr(app, "weighted resistance | reason required")
                                          : tr(app, "weighted resistance | reason optional")) :
                  (process_type_uses_negative_weight(d->type) ? tr(app, "weighted resistance") : ""));
+    if(process_type_uses_negative_weight(d->type)) {
+        char weight_label[96];
+        char segment[128];
+
+        format_negative_weight_label(weight_label, sizeof(weight_label),
+                                     text->negative_weight_options[0], d->negative_weight);
+        snprintf(segment, sizeof(segment), " | %s: %s", tr(app, "Weight"), weight_label);
+        strncat(governance_line, segment, sizeof(governance_line) - strlen(governance_line) - 1);
+    }
     y = draw_wrapped_text(font, governance_line, content_x, y, content_w, small_font,
                           small_font + ScaleUIPx(7), GetThemeButton());
     if(d->outcome[0] != '\0') {
