@@ -114,10 +114,10 @@ typedef struct UkuDecision {
     sqlite3_int64 created_at;
 } UkuDecision;
 
-#define UKU_MAX_PROCESSES 64
-#define UKU_MAX_PROPOSALS 32
+#define UKU_MAX_PROCESSES 128
+#define UKU_MAX_PROPOSALS 64
 #define UKU_MAX_OPTIONS 5
-#define UKU_MAX_VOTES 256
+#define UKU_MAX_VOTES 1024
 
 typedef struct UkuProcessRow {
     char id[40];
@@ -7989,6 +7989,9 @@ main(void)
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
 #endif
     InitWindow(window_w, window_h, text.app_title);
+    /* Escape closes modals in the UI; raylib's default exit key would quit
+       the whole app on the same keypress. */
+    SetExitKey(0);
     SetTargetFPS(60);
     InitUIDPI();
 #if defined(PLATFORM_ANDROID)

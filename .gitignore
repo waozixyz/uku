@@ -12,3 +12,4 @@ uku.sqlite3
 .direnv/
 *.core
 __pycache__/
+vendor-builds/
