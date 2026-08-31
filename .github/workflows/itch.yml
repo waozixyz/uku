@@ -48,13 +48,12 @@ jobs:
           "$HOME/emsdk/emsdk" activate latest
           echo "EMSDK=$HOME/emsdk" >> "$GITHUB_ENV"
           echo "EM_CONFIG=$HOME/emsdk/.emscripten" >> "$GITHUB_ENV"
-          echo "$HOME/emsdk" >> "$GITHUB_PATH"
           echo "$HOME/emsdk/upstream/emscripten" >> "$GITHUB_PATH"
 
       - name: Build Itch Package
         run: |
           set -euo pipefail
-          make itch
+          make CMAKE=/usr/bin/cmake itch
           test -f build/dist/uku-itch-html5.zip
 
       - name: Install Butler

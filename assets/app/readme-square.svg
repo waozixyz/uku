@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="630" height="500" viewBox="0 0 630 500">
+  <rect width="630" height="500" fill="#fbf6e9"/>
+  <g opacity="0.28">
+    <circle cx="72" cy="64" r="1.4" fill="#93b7ad"/>
+    <circle cx="190" cy="78" r="1.2" fill="#d89b78"/>
+    <circle cx="342" cy="52" r="1.3" fill="#a9ba98"/>
+    <circle cx="504" cy="88" r="1.4" fill="#93b7ad"/>
+    <circle cx="566" cy="46" r="1.2" fill="#d89b78"/>
+  </g>
+
+  <path d="M0 304 C94 218 186 230 278 296 C376 366 476 342 630 272 L630 500 L0 500 Z" fill="#e4eedc"/>
+  <path d="M0 346 C118 286 210 298 314 342 C432 392 520 362 630 322 L630 500 L0 500 Z" fill="#cfe2dc" opacity="0.86"/>
+  <path d="M0 438 C122 406 222 424 330 444 C440 466 536 438 630 422 L630 500 L0 500 Z" fill="#f8eedc"/>
+
+  <g opacity="0.48" fill="none" stroke-linecap="round">
+    <path d="M86 248 C180 190 262 200 342 236 S480 288 572 232" stroke="#85bdc5" stroke-width="1.4"/>
+    <path d="M74 280 C178 226 272 238 354 270 S492 304 576 270" stroke="#8eb493" stroke-width="1.1" stroke-dasharray="5 9"/>
+  </g>
+
+  <g transform="translate(26 26)" opacity="0.92">
+    <path d="M18 0 C31 24 29 54 12 80 C6 52 5 24 18 0Z" fill="#7b9a70"/>
+    <path d="M2 62 C28 74 48 94 59 124 C32 112 12 92 2 62Z" fill="#9bb48c"/>
+    <path d="M64 20 C58 46 42 66 18 80 C26 52 42 32 64 20Z" fill="#8daa80"/>
+  </g>
+
+  <g transform="translate(468 62)">
+    <rect x="0" y="0" width="62" height="62" rx="10" fill="#f8f5e9" opacity="0.94"/>
+    <rect x="72" y="0" width="62" height="62" rx="10" fill="#f8f5e9" opacity="0.94"/>
+    <rect x="0" y="72" width="62" height="62" rx="10" fill="#f8f5e9" opacity="0.94"/>
+    <rect x="72" y="72" width="62" height="62" rx="10" fill="#f8f5e9" opacity="0.94"/>
+    <g transform="translate(14 17)">
+      <rect x="0" y="5" width="31" height="24" rx="5" fill="#cfe1d0"/>
+      <path d="M7 15 L14 22 L27 8" fill="none" stroke="#31545a" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <g transform="translate(88 15)">
+      <circle cx="8" cy="8" r="7" fill="#a8bea2"/>
+      <circle cx="28" cy="8" r="7" fill="#e9b08e"/>
+      <circle cx="8" cy="28" r="7" fill="#d7cdb3"/>
+      <circle cx="28" cy="28" r="7" fill="#9fc8d0"/>
+    </g>
+    <g transform="translate(14 86)" fill="none" stroke-width="5" stroke-linecap="round">
+      <circle cx="18" cy="18" r="15" stroke="#bfcbb0"/>
+      <path d="M18 3 A15 15 0 0 1 33 18" stroke="#7eb2c0"/>
+      <path d="M3 18 A15 15 0 0 1 18 3" stroke="#e7a685"/>
+    </g>
+    <g transform="translate(88 90)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M0 26 L12 16 L25 21 L37 6" stroke="#88aaa0" stroke-width="4"/>
+      <circle cx="0" cy="26" r="4" fill="#88aaa0"/>
+      <circle cx="12" cy="16" r="4" fill="#c4d3b6"/>
+      <circle cx="25" cy="21" r="4" fill="#e9ad8d"/>
+      <circle cx="37" cy="6" r="4" fill="#88aaa0"/>
+    </g>
+  </g>
+
+  <g transform="translate(216 86)">
+    <ellipse cx="88" cy="100" rx="82" ry="20" fill="#93b7ad" opacity="0.34"/>
+    <rect x="43" y="46" width="90" height="86" rx="14" fill="#fffaf0" stroke="#d7c8ae" stroke-width="4"/>
+    <rect x="60" y="28" width="56" height="40" rx="8" fill="#ffffff" stroke="#31545a" stroke-width="5"/>
+    <path d="M66 58 L82 76 L112 42" fill="none" stroke="#e89070" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="61" y="92" width="55" height="10" rx="5" fill="#31545a" opacity="0.84"/>
+    <rect x="61" y="112" width="42" height="8" rx="4" fill="#9bbf9d"/>
+    <circle cx="30" cy="78" r="12" fill="#e7a685"/>
+    <circle cx="146" cy="84" r="12" fill="#8cb8c0"/>
+    <circle cx="46" cy="136" r="10" fill="#b5c6a4"/>
+    <circle cx="130" cy="138" r="10" fill="#d7cdb3"/>
+  </g>
+
+  <rect x="72" y="244" width="486" height="150" fill="#fffdf6" opacity="0.82"/>
+  <text x="315" y="318" font-family="Inter, Avenir, Helvetica, Arial, sans-serif" font-size="66" font-weight="800" text-anchor="middle" fill="#203f43">Ukuvota</text>
+  <text x="315" y="361" font-family="Inter, Avenir, Helvetica, Arial, sans-serif" font-size="24" font-weight="400" text-anchor="middle" fill="#60746d">group decisions, proposals, voting</text>
+
+  <circle cx="542" cy="244" r="13" fill="#f0aa8b" opacity="0.95"/>
+  <circle cx="87" cy="137" r="18" fill="#f2b18f" opacity="0.72"/>
+</svg>

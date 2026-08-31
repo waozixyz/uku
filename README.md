@@ -1,7 +1,7 @@
 # Uku
 
 <p align="center">
-  <img src="assets/app/readme-square-630x500.png" alt="Ukuvota" width="630">
+  <img src="assets/app/readme-banner-1280x360.png" alt="Ukuvota" width="960">
 </p>
 
 Website: https://uku.waozi.xyz
