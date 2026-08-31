@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Uku
+Comment=Collective decisions without hidden resistance
+Exec=uku
+Icon=xyz.waozi.uku
+Categories=Office;Utility;
+Keywords=voting;decisions;consent;proposals;score voting;polls;
+Terminal=false
+StartupNotify=true
+StartupWMClass=xyz.waozi.uku

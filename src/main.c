@@ -89,9 +89,12 @@ typedef enum UkuProcessPhase {
 
 typedef struct UkuDecision {
     char id[40];
-    char local_address[96];
+    char local_address[512];
     char owner_user_id[65];
     char visibility[16];
+    char proposal_visibility[16];
+    char proposal_access[16];
+    char voting_access[16];
     UkuProcessType type;
     char outcome[120];
     char review_at[64];
@@ -118,10 +121,12 @@ typedef struct UkuDecision {
 #define UKU_MAX_PROPOSALS 64
 #define UKU_MAX_OPTIONS 5
 #define UKU_MAX_VOTES 1024
+#define UKU_SCORE_UNSET 127
 
 typedef struct UkuProcessRow {
     char id[40];
-    char local_address[96];
+    char local_address[512];
+    char owner_user_id[65];
     char topic[180];
     char description[420];
     UkuProcessType type;
@@ -130,12 +135,16 @@ typedef struct UkuProcessRow {
     int negative_weight;
     int quorum_votes;
     char visibility[16];
+    char proposal_visibility[16];
+    char proposal_access[16];
+    char voting_access[16];
     sqlite3_int64 created_at;
 } UkuProcessRow;
 
 typedef struct UkuProposal {
     char id[40];
     char author_user_id[65];
+    char display_name[80];
     char title[180];
     char description[420];
     int score;
@@ -159,6 +168,7 @@ typedef struct UkuVoteInfo {
     char display_name[80];
     char reason[420];
     char updated_at[64];
+    int has_ballot;
 } UkuVoteInfo;
 
 typedef struct UkuAccount {
@@ -232,6 +242,8 @@ typedef struct UkuApp {
     int account_pfp_scroll;
     UIIconType account_pfp_icon;
     int dashboard_menu_open;
+    int dashboard_filter_public;
+    int public_processes_loaded;
     int theme_source;
     int theme_mode;
     int theme_id;
@@ -244,11 +256,13 @@ typedef struct UkuApp {
     int qr_visible;
     int qr_loaded;
     int qr_file_ready;
+    int dashboard_completed_expanded;
+    int create_draft_saved;
     sqlite3_int64 collect_last_fetch;
     int collect_refresh_requested;
     int intro_seen;
     char qr_process_id[40];
-    char qr_payload[320];
+    char qr_payload[512];
     char qr_file_path[512];
     Texture2D qr_texture;
     int tally_from_remote;
@@ -306,6 +320,7 @@ typedef struct UkuText {
     char topic_question_label[96];
     char topic_question_placeholder[128];
     char topic_error[128];
+    char proposal_title_warning[128];
     char description_label[96];
     char description_placeholder[128];
     char negative_weight_label[96];
@@ -378,6 +393,15 @@ typedef enum UkuFocusId {
     UKU_FOCUS_PROCESS_PUBLIC,
     UKU_FOCUS_PROCESS_PRIVATE,
     UKU_FOCUS_PROCESS_UNLISTED,
+    UKU_FOCUS_PROPOSAL_VISIBILITY_PUBLIC,
+    UKU_FOCUS_PROPOSAL_VISIBILITY_PARTICIPANTS,
+    UKU_FOCUS_PROPOSAL_VISIBILITY_OWNER,
+    UKU_FOCUS_PROPOSAL_ACCESS_PUBLIC,
+    UKU_FOCUS_PROPOSAL_ACCESS_LOGGED_IN,
+    UKU_FOCUS_PROPOSAL_ACCESS_PARTICIPANTS,
+    UKU_FOCUS_VOTING_ACCESS_PUBLIC,
+    UKU_FOCUS_VOTING_ACCESS_LOGGED_IN,
+    UKU_FOCUS_VOTING_ACCESS_PARTICIPANTS,
     UKU_FOCUS_PROCESS_DELETE,
     UKU_FOCUS_PROCESS_EXPORT,
     UKU_FOCUS_JOIN_PROCESS,
@@ -391,6 +415,8 @@ typedef enum UkuFocusId {
     UKU_FOCUS_QR_SCAN,
     UKU_FOCUS_EXPORT_RESULTS,
     UKU_FOCUS_COLLECT_REFRESH,
+    UKU_FOCUS_DASHBOARD_FILTER_MINE,
+    UKU_FOCUS_DASHBOARD_FILTER_PUBLIC,
     UKU_FOCUS_DASHBOARD_MENU,
     UKU_FOCUS_LOCALE_EN,
     UKU_FOCUS_LOCALE_DE,
@@ -484,6 +510,8 @@ assign_text(UkuText *text, const char *key, const char *value, size_t len)
         return copy_text(text->topic_question_placeholder, sizeof(text->topic_question_placeholder), value, len);
     else if(strcmp(key, "topic_error") == 0)
         return copy_text(text->topic_error, sizeof(text->topic_error), value, len);
+    else if(strcmp(key, "proposal_title_warning") == 0)
+        return copy_text(text->proposal_title_warning, sizeof(text->proposal_title_warning), value, len);
     else if(strcmp(key, "description_label") == 0)
         return copy_text(text->description_label, sizeof(text->description_label), value, len);
     else if(strcmp(key, "description_placeholder") == 0)
@@ -1129,6 +1157,9 @@ db_init(UkuApp *app)
                  "negative_weight integer not null,"
                  "quorum_votes integer not null default 0,"
                  "visibility text not null default 'public',"
+                 "proposal_visibility text not null default 'public',"
+                 "proposal_access text not null default 'public',"
+                 "voting_access text not null default 'public',"
                  "local_address text not null,"
                  "created_at integer not null,"
                  "synced integer not null default 0"
@@ -1146,6 +1177,7 @@ db_init(UkuApp *app)
                  "process_id text not null,"
                  "author_user_id text not null default '',"
                  "remote_id text not null default '',"
+                 "display_name text not null default '',"
                  "title text not null,"
                  "description text not null,"
                  "created_at integer not null,"
@@ -1183,6 +1215,11 @@ db_init(UkuApp *app)
     sqlite3_exec(app->db, "alter table account add column auth_token text not null default ''", NULL, NULL, NULL);
     sqlite3_exec(app->db, "alter table account add column server_url text not null default 'https://api.waozi.xyz'", NULL, NULL, NULL);
     sqlite3_exec(app->db, "alter table processes add column quorum_votes integer not null default 0", NULL, NULL, NULL);
+    sqlite3_exec(app->db, "alter table processes add column owner_user_id text not null default ''", NULL, NULL, NULL);
+    sqlite3_exec(app->db, "alter table processes add column proposal_visibility text not null default 'public'", NULL, NULL, NULL);
+    sqlite3_exec(app->db, "alter table processes add column proposal_access text not null default 'public'", NULL, NULL, NULL);
+    sqlite3_exec(app->db, "alter table processes add column voting_access text not null default 'public'", NULL, NULL, NULL);
+    sqlite3_exec(app->db, "alter table proposals add column display_name text not null default ''", NULL, NULL, NULL);
     return 1;
 }
 #else
@@ -1198,6 +1235,42 @@ static int
 duration_minutes(int days, int hours, int minutes)
 {
     return days * 24 * 60 + hours * 60 + minutes;
+}
+
+static void
+decision_permission_defaults(UkuDecision *d)
+{
+    if(d == NULL)
+        return;
+    if(d->visibility[0] == '\0')
+        copy_text(d->visibility, sizeof(d->visibility), "public", strlen("public"));
+    if(d->proposal_visibility[0] == '\0')
+        copy_text(d->proposal_visibility, sizeof(d->proposal_visibility),
+                  "public", strlen("public"));
+    if(d->proposal_access[0] == '\0')
+        copy_text(d->proposal_access, sizeof(d->proposal_access),
+                  "public", strlen("public"));
+    if(d->voting_access[0] == '\0')
+        copy_text(d->voting_access, sizeof(d->voting_access),
+                  "public", strlen("public"));
+}
+
+static void
+row_permission_defaults(UkuProcessRow *row)
+{
+    if(row == NULL)
+        return;
+    if(row->visibility[0] == '\0')
+        copy_text(row->visibility, sizeof(row->visibility), "public", strlen("public"));
+    if(row->proposal_visibility[0] == '\0')
+        copy_text(row->proposal_visibility, sizeof(row->proposal_visibility),
+                  "public", strlen("public"));
+    if(row->proposal_access[0] == '\0')
+        copy_text(row->proposal_access, sizeof(row->proposal_access),
+                  "public", strlen("public"));
+    if(row->voting_access[0] == '\0')
+        copy_text(row->voting_access, sizeof(row->voting_access),
+                  "public", strlen("public"));
 }
 
 static void
@@ -1392,7 +1465,7 @@ sync_server_save(UkuApp *app)
 }
 
 static void
-account_to_ksync(const UkuAccount *account, KsyncAccount *out)
+account_to_key_material(const UkuAccount *account, KsyncAccount *out)
 {
     if(out == NULL)
         return;
@@ -1405,7 +1478,7 @@ account_to_ksync(const UkuAccount *account, KsyncAccount *out)
 }
 
 static void
-account_from_ksync(UkuAccount *account, const KsyncAccount *source)
+account_from_key_material(UkuAccount *account, const KsyncAccount *source)
 {
     char auth_token[sizeof(account->auth_token)];
     int import_failed;
@@ -1470,10 +1543,10 @@ account_validate_import(UkuAccount *account)
 
     if(account == NULL)
         return 0;
-    account_to_ksync(account, &ksync_account);
+    account_to_key_material(account, &ksync_account);
     if(!ValidateKsyncAccount(&ksync_account))
         return 0;
-    account_from_ksync(account, &ksync_account);
+    account_from_key_material(account, &ksync_account);
     return 1;
 }
 
@@ -1487,7 +1560,7 @@ account_parse_key_text(const char *body, UkuAccount *account)
     if(!ParseKsyncAccountText(body, &parsed))
         return 0;
     memset(account, 0, sizeof(*account));
-    account_from_ksync(account, &parsed);
+    account_from_key_material(account, &parsed);
     return 1;
 }
 
@@ -1496,7 +1569,7 @@ account_has_values(const UkuAccount *account)
 {
     KsyncAccount ksync_account;
 
-    account_to_ksync(account, &ksync_account);
+    account_to_key_material(account, &ksync_account);
     return ValidateKsyncAccount(&ksync_account);
 }
 
@@ -1577,7 +1650,7 @@ account_load(UkuApp *app)
 static int
 account_import_file(UkuApp *app, const char *path)
 {
-    char *body;
+    char *body = NULL;
     UkuAccount imported;
 
     app->account.import_failed = 0;
@@ -1617,7 +1690,7 @@ account_export_file(UkuApp *app, const char *path)
 
     if(app == NULL || !account_has_values(&app->account) || path == NULL || path[0] == '\0')
         return 0;
-    account_to_ksync(&app->account, &ksync_account);
+    account_to_key_material(&app->account, &ksync_account);
     if(!ExportKsyncAccountText(&ksync_account, body, sizeof(body)))
         return 0;
     ok = SaveFileData(path, body, (int)strlen(body));
@@ -1707,7 +1780,7 @@ account_create(UkuApp *app)
                   "Account creation failed.", strlen("Account creation failed."));
         return 0;
     }
-    account_from_ksync(&generated, &ksync_account);
+    account_from_key_material(&generated, &ksync_account);
     if(!account_save(app, &generated)) {
         copy_text(app->account_status, sizeof(app->account_status),
                   "Account creation failed.", strlen("Account creation failed."));
@@ -1734,6 +1807,15 @@ process_account_ready(UkuApp *app)
               "Create or import an account before starting a process.",
               strlen("Create or import an account before starting a process."));
     return 0;
+}
+
+static void generate_process_id(char *dst, size_t size);
+
+static void
+ensure_process_id(UkuApp *app)
+{
+    if(app != NULL && app->decision.id[0] == '\0')
+        generate_process_id(app->decision.id, sizeof(app->decision.id));
 }
 
 /* Anonymous participation: a throwaway keypair per process, stored in the
@@ -1791,7 +1873,10 @@ guest_identity_ensure(UkuApp *app)
 {
     KsyncAccount ksync_account;
 
-    if(app == NULL || app->decision.id[0] == '\0')
+    if(app == NULL)
+        return 0;
+    ensure_process_id(app);
+    if(app->decision.id[0] == '\0')
         return 0;
     if(app->guest.loaded && strcmp(app->guest_process_id, app->decision.id) == 0)
         return 1;
@@ -1800,10 +1885,64 @@ guest_identity_ensure(UkuApp *app)
         return 1;
     if(!CreateKsyncAccount(&ksync_account))
         return 0;
-    account_from_ksync(&app->guest, &ksync_account);
+    account_from_key_material(&app->guest, &ksync_account);
     app->guest.loaded = app->guest.public_id[0] != '\0';
     guest_identity_save(app);
     return app->guest.loaded;
+}
+
+static UkuAccount *
+process_owner_identity(UkuApp *app)
+{
+    UkuDecision *d;
+
+    if(app == NULL)
+        return NULL;
+    d = &app->decision;
+    ensure_process_id(app);
+    if(d->owner_user_id[0] != '\0') {
+        if(app->account.loaded && strcmp(app->account.public_id, d->owner_user_id) == 0)
+            return &app->account;
+        if(d->id[0] != '\0') {
+            if(!(app->guest.loaded && strcmp(app->guest_process_id, d->id) == 0))
+                guest_identity_load(app, d->id);
+            if(app->guest.loaded && strcmp(app->guest.public_id, d->owner_user_id) == 0)
+                return &app->guest;
+        }
+        copy_text(app->process_status, sizeof(app->process_status),
+                  "This device does not have the process owner key.",
+                  strlen("This device does not have the process owner key."));
+        return NULL;
+    }
+    if(app->account.loaded)
+        return &app->account;
+    if(!guest_identity_ensure(app)) {
+        copy_text(app->process_status, sizeof(app->process_status),
+                  "Could not create anonymous process identity.",
+                  strlen("Could not create anonymous process identity."));
+        return NULL;
+    }
+    return &app->guest;
+}
+
+static int
+process_owner_is_current(UkuApp *app)
+{
+    UkuDecision *d;
+
+    if(app == NULL)
+        return 0;
+    d = &app->decision;
+    if(d->owner_user_id[0] == '\0')
+        return 0;
+    if(app->account.loaded && strcmp(app->account.public_id, d->owner_user_id) == 0)
+        return 1;
+    if(d->id[0] == '\0')
+        return 0;
+    if(!(app->guest.loaded && strcmp(app->guest_process_id, d->id) == 0))
+        guest_identity_load(app, d->id);
+    return app->guest.loaded && strcmp(app->guest_process_id, d->id) == 0 &&
+           strcmp(app->guest.public_id, d->owner_user_id) == 0;
 }
 
 /* Requests made while guest_active is set authenticate as the guest identity
@@ -1853,7 +1992,9 @@ current_participant_identity(UkuApp *app, char *user_id, size_t user_id_size,
             copy_text(user_id, user_id_size, app->guest.public_id,
                       strlen(app->guest.public_id));
         if(display_name != NULL && display_name_size > 0)
-            copy_text(display_name, display_name_size, alias, strlen(alias));
+            copy_text(display_name, display_name_size,
+                      alias[0] != '\0' ? alias : "anonymous",
+                      strlen(alias[0] != '\0' ? alias : "anonymous"));
         return;
     }
     if(alias[0] != '\0') {
@@ -1881,7 +2022,7 @@ account_sign_hex(UkuApp *app, const uint8_t *message, size_t message_len,
     identity = request_identity(app);
     if(!identity->loaded)
         return 0;
-    account_to_ksync(identity, &ksync_account);
+    account_to_key_material(identity, &ksync_account);
     return SignKsyncAccountHex(&ksync_account, message, message_len, out_signature_hex,
                                        out_size);
 }
@@ -1896,9 +2037,9 @@ typedef struct UkuHttpHeaders {
 #if !defined(PLATFORM_WEB) && !defined(PLATFORM_ANDROID)
     struct curl_slist *native;
 #elif defined(PLATFORM_WEB)
-    char lines[8192];
+    char lines[16384];
 #else
-    char lines[8192];
+    char lines[16384];
     size_t len;
     const char *items[64];
     int count;
@@ -1984,6 +2125,17 @@ http_headers_append(UkuHttpHeaders *headers, const char *line)
     headers->len += len + 1;
 #endif
     return headers;
+}
+
+static UkuHttpHeaders *
+http_headers_append_user(UkuHttpHeaders *headers, const char *user_id)
+{
+    char line[96];
+
+    snprintf(line, sizeof(line), "X-Daochi-User: %s", user_id != NULL ? user_id : "");
+    headers = http_headers_append(headers, line);
+    snprintf(line, sizeof(line), "X-Inbe-User: %s", user_id != NULL ? user_id : "");
+    return http_headers_append(headers, line);
 }
 
 static void
@@ -2093,7 +2245,7 @@ extract_json_bool(const char *json, const char *key, int *out)
 }
 
 static sqlite3_int64
-parse_lyra_time(const char *text)
+parse_server_time(const char *text)
 {
     int year, month, day, hour, minute, second;
     struct tm tmv;
@@ -2129,6 +2281,10 @@ proposals_clear(UkuApp *app)
     memset(app->options, 0, sizeof(app->options));
     memset(app->proposals, 0, sizeof(app->proposals));
     memset(app->votes, 0, sizeof(app->votes));
+    memset(app->vote_prop_raw, UKU_SCORE_UNSET, sizeof(app->vote_prop_raw));
+    memset(app->vote_opt_raw, UKU_SCORE_UNSET, sizeof(app->vote_opt_raw));
+    for(int i = 0; i < UKU_MAX_VOTES; i++)
+        app->result_voter_included[i] = 1;
 }
 
 static int
@@ -2195,6 +2351,17 @@ proposal_add(UkuApp *app, const char *id, const char *title, const char *descrip
               description != NULL ? description : "",
               strlen(description != NULL ? description : ""));
     return app->proposal_count - 1;
+}
+
+static void
+proposal_set_display_name(UkuApp *app, int index, const char *display_name)
+{
+    if(app == NULL || index < 0 || index >= app->proposal_count ||
+       display_name == NULL || display_name[0] == '\0')
+        return;
+    copy_text(app->proposals[index].display_name,
+              sizeof(app->proposals[index].display_name),
+              display_name, strlen(display_name));
 }
 
 static void
@@ -2269,8 +2436,6 @@ static void apply_option_score(UkuApp *app, int option_index, int score, int cur
 static void apply_score(UkuApp *app, int proposal_index, int score, int current_user_vote);
 static void tally_recompute(UkuApp *app);
 
-#define UKU_SCORE_UNSET 127
-
 static int
 tally_included_count(const UkuApp *app)
 {
@@ -2283,6 +2448,128 @@ tally_included_count(const UkuApp *app)
     return count;
 }
 
+static int
+tally_included_ballot_count(const UkuApp *app)
+{
+    int count = 0;
+
+    if(app == NULL)
+        return 0;
+    for(int i = 0; i < app->vote_count; i++) {
+        if(app->result_voter_included[i] && app->votes[i].has_ballot)
+            count++;
+    }
+    return count;
+}
+
+static int
+participant_find(const UkuApp *app, const char *user_id)
+{
+    if(app == NULL || user_id == NULL || user_id[0] == '\0')
+        return -1;
+    for(int i = 0; i < app->vote_count; i++) {
+        if(strcmp(app->votes[i].voter_user_id, user_id) == 0)
+            return i;
+    }
+    return -1;
+}
+
+static int
+participant_add(UkuApp *app, const char *user_id, const char *display_name, int has_ballot)
+{
+    UkuVoteInfo *vote;
+    int index;
+
+    if(app == NULL || user_id == NULL || user_id[0] == '\0')
+        return -1;
+    index = participant_find(app, user_id);
+    if(index < 0) {
+        if(app->vote_count >= UKU_MAX_VOTES)
+            return -1;
+        index = app->vote_count++;
+        vote = &app->votes[index];
+        memset(vote, 0, sizeof(*vote));
+        copy_text(vote->voter_user_id, sizeof(vote->voter_user_id),
+                  user_id, strlen(user_id));
+        app->result_voter_included[index] = 1;
+        memset(app->vote_prop_raw[index], UKU_SCORE_UNSET, sizeof(app->vote_prop_raw[index]));
+        memset(app->vote_opt_raw[index], UKU_SCORE_UNSET, sizeof(app->vote_opt_raw[index]));
+    }
+    vote = &app->votes[index];
+    if(display_name != NULL && display_name[0] != '\0' && vote->display_name[0] == '\0')
+        copy_text(vote->display_name, sizeof(vote->display_name),
+                  display_name, strlen(display_name));
+    if(has_ballot)
+        vote->has_ballot = 1;
+    return index;
+}
+
+static int
+current_identity_is_participant(UkuApp *app)
+{
+    char user_id[65];
+
+    if(app == NULL)
+        return 0;
+    current_participant_identity(app, user_id, sizeof(user_id), NULL, 0);
+    return user_id[0] != '\0' && participant_find(app, user_id) >= 0;
+}
+
+static int
+access_rule_allows(UkuApp *app, const char *rule)
+{
+    if(rule == NULL || rule[0] == '\0' || strcmp(rule, "public") == 0)
+        return 1;
+    if(strcmp(rule, "logged_in") == 0)
+        return (app != NULL && app->account.loaded) || process_owner_is_current(app);
+    if(strcmp(rule, "participants") == 0 || strcmp(rule, "selected") == 0)
+        return process_owner_is_current(app) || current_identity_is_participant(app);
+    if(strcmp(rule, "owner") == 0 || strcmp(rule, "private") == 0)
+        return process_owner_is_current(app);
+    return 1;
+}
+
+static int
+can_read_proposals(UkuApp *app)
+{
+    if(app == NULL)
+        return 0;
+    decision_permission_defaults(&app->decision);
+    return access_rule_allows(app, app->decision.proposal_visibility);
+}
+
+static int
+can_submit_proposal(UkuApp *app)
+{
+    if(app == NULL)
+        return 0;
+    decision_permission_defaults(&app->decision);
+    return access_rule_allows(app, app->decision.proposal_access);
+}
+
+static int
+can_submit_vote(UkuApp *app)
+{
+    if(app == NULL)
+        return 0;
+    decision_permission_defaults(&app->decision);
+    return access_rule_allows(app, app->decision.voting_access);
+}
+
+static void
+add_proposal_authors_as_participants(UkuApp *app)
+{
+    if(app == NULL)
+        return;
+    for(int i = 0; i < app->proposal_count; i++) {
+        UkuProposal *proposal = &app->proposals[i];
+
+        if(proposal->author_user_id[0] != '\0')
+            participant_add(app, proposal->author_user_id,
+                            proposal->display_name, 0);
+    }
+}
+
 /* Recompute result totals from the raw per-voter score matrix, honoring the
    voter-subset selection. Voters default to included when votes reload. */
 static void
@@ -2290,7 +2577,7 @@ tally_recompute(UkuApp *app)
 {
     proposal_reset_totals(app);
     for(int v = 0; v < app->vote_count; v++) {
-        if(!app->result_voter_included[v])
+        if(!app->result_voter_included[v] || !app->votes[v].has_ballot)
             continue;
         for(int i = 0; i < app->proposal_count; i++) {
             if(app->vote_prop_raw[v][i] != UKU_SCORE_UNSET)
@@ -2303,7 +2590,7 @@ tally_recompute(UkuApp *app)
     }
     app->result_subset_active = 0;
     for(int v = 0; v < app->vote_count; v++) {
-        if(!app->result_voter_included[v])
+        if(app->votes[v].has_ballot && !app->result_voter_included[v])
             app->result_subset_active = 1;
     }
 }
@@ -2318,6 +2605,7 @@ parse_process_proposals(UkuApp *app, const char *json)
         char object[2048];
         char id[40];
         char author[65];
+        char display_name[80];
         char title[180];
         char description[420];
         size_t len;
@@ -2333,6 +2621,7 @@ parse_process_proposals(UkuApp *app, const char *json)
         memcpy(object, p, len);
         object[len] = '\0';
         author[0] = '\0';
+        display_name[0] = '\0';
         description[0] = '\0';
         if(extract_json_string(object, "id", id, sizeof(id)) &&
            extract_json_string(object, "title", title, sizeof(title))) {
@@ -2340,6 +2629,9 @@ parse_process_proposals(UkuApp *app, const char *json)
 
             extract_json_string(object, "description", description, sizeof(description));
             extract_json_string(object, "author_user_id_hash", author, sizeof(author));
+            if(!extract_json_string(object, "display_name", display_name, sizeof(display_name)))
+                extract_json_string(object, "author_display_name", display_name,
+                                    sizeof(display_name));
             index = proposal_find_equivalent(app, author, title, description);
             if(index >= 0) {
                 copy_text(app->proposals[index].id, sizeof(app->proposals[index].id), id, strlen(id));
@@ -2350,6 +2642,7 @@ parse_process_proposals(UkuApp *app, const char *json)
                 copy_text(app->proposals[index].author_user_id,
                           sizeof(app->proposals[index].author_user_id),
                           author, strlen(author));
+            proposal_set_display_name(app, index, display_name);
         }
         p = end + 1;
     }
@@ -2388,12 +2681,12 @@ parse_process_options(UkuApp *app, const char *json)
 }
 
 static void
-parse_vote_scores(UkuApp *app, const char *object, int current_user_vote)
+parse_vote_scores(UkuApp *app, const char *object, int vote_index, int current_user_vote)
 {
     const char *scores = strstr(object, "\"scores\"");
     const char *p;
 
-    if(scores == NULL)
+    if(scores == NULL || vote_index < 0 || vote_index >= UKU_MAX_VOTES)
         return;
     p = strchr(scores, '{');
     if(p == NULL)
@@ -2421,14 +2714,14 @@ parse_vote_scores(UkuApp *app, const char *object, int current_user_vote)
         if(process_type_has_options(app->decision.type)) {
             index = option_find(app, id);
             if(index >= 0) {
-                app->vote_opt_raw[app->vote_count][index] = (signed char)score;
+                app->vote_opt_raw[vote_index][index] = (signed char)score;
                 if(current_user_vote)
                     app->options[index].score = score;
             }
         } else {
             index = proposal_find(app, id);
             if(index >= 0) {
-                app->vote_prop_raw[app->vote_count][index] = (signed char)score;
+                app->vote_prop_raw[vote_index][index] = (signed char)score;
                 if(current_user_vote)
                     app->proposals[index].score = score;
             }
@@ -2455,9 +2748,13 @@ parse_process_votes(UkuApp *app, const char *json)
     while(p != NULL && *p != '\0' && *p != ']' && app->vote_count < UKU_MAX_VOTES) {
         const char *end;
         char object[4096];
-        UkuVoteInfo *vote;
         size_t len;
         int current_user_vote;
+        int vote_index;
+        char voter_user_id[65];
+        char display_name[80];
+        char reason[420];
+        char updated_at[64];
 
         while(*p != '\0' && *p != '{' && *p != ']')
             p++;
@@ -2469,25 +2766,37 @@ parse_process_votes(UkuApp *app, const char *json)
         len = UKU_MIN((size_t)(end - p + 1), sizeof(object) - 1);
         memcpy(object, p, len);
         object[len] = '\0';
-        vote = &app->votes[app->vote_count];
-        extract_json_string(object, "voter_user_id_hash", vote->voter_user_id, sizeof(vote->voter_user_id));
-        extract_json_string(object, "display_name", vote->display_name, sizeof(vote->display_name));
-        extract_json_string(object, "reason", vote->reason, sizeof(vote->reason));
-        extract_json_string(object, "updated_at", vote->updated_at, sizeof(vote->updated_at));
+        voter_user_id[0] = '\0';
+        display_name[0] = '\0';
+        reason[0] = '\0';
+        updated_at[0] = '\0';
+        extract_json_string(object, "voter_user_id_hash", voter_user_id, sizeof(voter_user_id));
+        extract_json_string(object, "display_name", display_name, sizeof(display_name));
+        extract_json_string(object, "reason", reason, sizeof(reason));
+        extract_json_string(object, "updated_at", updated_at, sizeof(updated_at));
+        vote_index = participant_add(app, voter_user_id, display_name, 1);
+        if(vote_index < 0) {
+            p = end + 1;
+            continue;
+        }
+        copy_text(app->votes[vote_index].reason, sizeof(app->votes[vote_index].reason),
+                  reason, strlen(reason));
+        copy_text(app->votes[vote_index].updated_at, sizeof(app->votes[vote_index].updated_at),
+                  updated_at, strlen(updated_at));
         {
             char current_user_id[65];
 
             current_participant_identity(app, current_user_id, sizeof(current_user_id),
                                          NULL, 0);
             current_user_vote = current_user_id[0] != '\0' &&
-                                strcmp(vote->voter_user_id, current_user_id) == 0;
+                                strcmp(voter_user_id, current_user_id) == 0;
         }
         if(current_user_vote)
             app->current_user_voted = 1;
-        parse_vote_scores(app, object, current_user_vote);
-        app->vote_count++;
+        parse_vote_scores(app, object, vote_index, current_user_vote);
         p = end + 1;
     }
+    add_proposal_authors_as_participants(app);
     app->tally_from_remote = 1;
     tally_recompute(app);
 }
@@ -2509,18 +2818,19 @@ join_url(char *out, size_t out_size, const char *base, const char *path)
 }
 
 static void
-canonical_message_hex(const char *nonce_hex, const char *method, const char *path,
-                      const char *body, char *out, size_t out_size)
+canonical_message_hex(const char *context, const char *nonce_hex, const char *method,
+                      const char *path, const char *body, char *out, size_t out_size)
 {
     char digest_hex[65];
 
     KsyncSha256Hex((const uint8_t *)body, strlen(body), digest_hex);
-    snprintf(out, out_size, "inbe-sync-v1\n%s\n%s\n%s\n%s\n", method, path, digest_hex, nonce_hex);
+    snprintf(out, out_size, "%s\n%s\n%s\n%s\n%s\n", context, method, path,
+             digest_hex, nonce_hex);
 }
 
 #if defined(PLATFORM_ANDROID)
 static int
-lyra_http_request(const char *method, const char *url, UkuHttpHeaders *headers,
+http_request(const char *method, const char *url, UkuHttpHeaders *headers,
                   const char *body, long *status_out, UkuHttpBuffer *response)
 {
     KsyncSyncBuffer sync_response = {0};
@@ -2546,7 +2856,7 @@ lyra_http_request(const char *method, const char *url, UkuHttpHeaders *headers,
 }
 #elif !defined(PLATFORM_WEB)
 static int
-lyra_http_request(const char *method, const char *url, UkuHttpHeaders *headers,
+http_request(const char *method, const char *url, UkuHttpHeaders *headers,
                   const char *body, long *status_out, UkuHttpBuffer *response)
 {
     CURL *curl;
@@ -2582,7 +2892,7 @@ lyra_http_request(const char *method, const char *url, UkuHttpHeaders *headers,
 }
 #else
 static int
-lyra_http_request(const char *method, const char *url, UkuHttpHeaders *headers,
+http_request(const char *method, const char *url, UkuHttpHeaders *headers,
                   const char *body, long *status_out, UkuHttpBuffer *response)
 {
     int ok;
@@ -2635,15 +2945,16 @@ lyra_http_request(const char *method, const char *url, UkuHttpHeaders *headers,
 #endif
 
 static int
-lyra_login(UkuApp *app, const char *base_url)
+login_remote(UkuApp *app, const char *base_url)
 {
     char url[512];
     char challenge_path[160];
     char nonce[80];
     char body[3100];
-    char message[3600];
-    char signature[4841];
-    char user_header[96];
+    char primary_message[3600];
+    char legacy_message[3600];
+    char primary_signature[4841];
+    char legacy_signature[4841];
     char account_alias[40];
     UkuHttpBuffer response = {0};
     UkuHttpHeaders *headers = NULL;
@@ -2656,7 +2967,7 @@ lyra_login(UkuApp *app, const char *base_url)
         return 0;
     snprintf(challenge_path, sizeof(challenge_path), "/api/v1/sync/challenge?user_id=%s", identity->public_id);
     join_url(url, sizeof(url), base_url, challenge_path);
-    if(!lyra_http_request("GET", url, NULL, NULL, &status, &response) || status != 200 ||
+    if(!http_request("GET", url, NULL, NULL, &status, &response) || status != 200 ||
        !extract_json_string(response.data, "nonce", nonce, sizeof(nonce)))
         goto cleanup;
     free(response.data);
@@ -2664,19 +2975,26 @@ lyra_login(UkuApp *app, const char *base_url)
 
     snprintf(body, sizeof(body), "{\"user_id_hash\":\"%s\",\"client_id\":\"uku-native-client\",\"public_key\":\"%s\"}",
              identity->public_id, identity->public_key_hex);
-    canonical_message_hex(nonce, "POST", "/api/v1/sync/login", body, message, sizeof(message));
-    if(!account_sign_hex(app, (const uint8_t *)message, strlen(message), signature, sizeof(signature)))
+    canonical_message_hex("daochi-sync-v1", nonce, "POST", "/api/v1/sync/login",
+                          body, primary_message, sizeof(primary_message));
+    canonical_message_hex("inbe-sync-v1", nonce, "POST", "/api/v1/sync/login",
+                          body, legacy_message, sizeof(legacy_message));
+    if(!account_sign_hex(app, (const uint8_t *)primary_message, strlen(primary_message),
+                         primary_signature, sizeof(primary_signature)) ||
+       !account_sign_hex(app, (const uint8_t *)legacy_message, strlen(legacy_message),
+                         legacy_signature, sizeof(legacy_signature)))
         goto cleanup;
     join_url(url, sizeof(url), base_url, "/api/v1/sync/login");
-    snprintf(user_header, sizeof(user_header), "X-Inbe-User: %s", identity->public_id);
     headers = http_headers_append(headers, "Content-Type: application/json");
-    headers = http_headers_append(headers, user_header);
+    headers = http_headers_append_user(headers, identity->public_id);
     {
         char sig_header[4880];
-        snprintf(sig_header, sizeof(sig_header), "X-Inbe-Signature: %s", signature);
+        snprintf(sig_header, sizeof(sig_header), "X-Daochi-Signature: %s", primary_signature);
+        headers = http_headers_append(headers, sig_header);
+        snprintf(sig_header, sizeof(sig_header), "X-Inbe-Signature: %s", legacy_signature);
         headers = http_headers_append(headers, sig_header);
     }
-    if(!lyra_http_request("POST", url, headers, body, &status, &response) || status != 200 ||
+    if(!http_request("POST", url, headers, body, &status, &response) || status != 200 ||
        !extract_json_string(response.data, "auth_token", identity->auth_token, sizeof(identity->auth_token)))
         goto cleanup;
     if(!app->guest_active &&
@@ -2698,10 +3016,14 @@ build_remote_process_json(UkuApp *app)
 {
     UkuHttpBuffer json = {0};
     UkuDecision *d = &app->decision;
+    UkuAccount *identity;
     char tmp[512];
 
+    identity = request_identity(app);
+    if(identity == NULL || !identity->loaded)
+        return NULL;
     if(!http_buffer_append(&json, "{\"user_id_hash\":", 16) ||
-       !json_append_string(&json, app->account.public_id) ||
+       !json_append_string(&json, identity->public_id) ||
        !http_buffer_append(&json, ",\"id\":", 6) ||
        !json_append_string(&json, d->id) ||
        !http_buffer_append(&json, ",\"type\":", 8) ||
@@ -2711,12 +3033,22 @@ build_remote_process_json(UkuApp *app)
        !http_buffer_append(&json, ",\"description\":", 15) ||
        !json_append_string(&json, d->description))
         goto fail;
+    decision_permission_defaults(d);
+    if(!http_buffer_append(&json, ",\"visibility\":", strlen(",\"visibility\":")) ||
+       !json_append_string(&json, d->visibility) ||
+       !http_buffer_append(&json, ",\"proposal_visibility\":", strlen(",\"proposal_visibility\":")) ||
+       !json_append_string(&json, d->proposal_visibility) ||
+       !http_buffer_append(&json, ",\"proposal_access\":", strlen(",\"proposal_access\":")) ||
+       !json_append_string(&json, d->proposal_access) ||
+       !http_buffer_append(&json, ",\"voting_access\":", strlen(",\"voting_access\":")) ||
+       !json_append_string(&json, d->voting_access))
+        goto fail;
     snprintf(tmp, sizeof(tmp),
-             ",\"visibility\":\"%s\",\"proposal_minutes\":%d,\"voting_minutes\":%d,\"negative_weight\":%d,\"quorum_percent\":%d,\"quorum_votes\":%d,\"require_vote_reason\":%s",
-             d->visibility[0] != '\0' ? d->visibility : "public",
+             ",\"proposal_minutes\":%d,\"voting_minutes\":%d,\"negative_weight\":%d,\"quorum_percent\":%d,\"quorum_votes\":%d,\"require_vote_reason\":%s",
              duration_minutes(d->proposal_days, d->proposal_hours, d->proposal_minutes),
              duration_minutes(d->voting_days, d->voting_hours, d->voting_minutes),
-             d->negative_weight, d->quorum_percent, d->quorum_votes, d->require_vote_reason ? "true" : "false");
+             d->negative_weight, d->quorum_percent, d->quorum_votes,
+             d->require_vote_reason ? "true" : "false");
     if(!http_buffer_append(&json, tmp, strlen(tmp)))
         goto fail;
     if(process_type_has_options(d->type)) {
@@ -2747,66 +3079,74 @@ fail:
 static void parse_process_detail(UkuApp *app, const char *json, const UkuText *text);
 
 static int
-lyra_create_process(UkuApp *app, const char *base_url)
+create_remote_process(UkuApp *app, const char *base_url)
 {
     char url[512];
-    char user_header[96];
     char auth_header[900];
-    char *body;
+    char *body = NULL;
     UkuHttpBuffer response = {0};
     UkuHttpHeaders *headers = NULL;
+    UkuAccount *identity;
     long status = 0;
+    int used_guest = 0;
     int ok = 0;
 
-    if(app == NULL || !app->account.loaded)
+    identity = process_owner_identity(app);
+    if(identity == NULL)
         return 0;
-    if(app->account.auth_token[0] == '\0' && !lyra_login(app, base_url))
-        return 0;
+    if(identity == &app->guest) {
+        app->guest_active = 1;
+        used_guest = 1;
+    }
+    if(identity->auth_token[0] == '\0' && !login_remote(app, base_url))
+        goto cleanup;
     body = build_remote_process_json(app);
     if(body == NULL)
-        return 0;
+        goto cleanup;
     join_url(url, sizeof(url), base_url, "/api/v1/processes");
-    snprintf(user_header, sizeof(user_header), "X-Inbe-User: %s", app->account.public_id);
-    snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s", app->account.auth_token);
+    snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s", identity->auth_token);
     headers = http_headers_append(headers, "Content-Type: application/json");
-    headers = http_headers_append(headers, user_header);
+    headers = http_headers_append_user(headers, identity->public_id);
     headers = http_headers_append(headers, auth_header);
-    if(lyra_http_request("POST", url, headers, body, &status, &response) && status == 201) {
+    if(http_request("POST", url, headers, body, &status, &response) && status == 201) {
         if(response.data != NULL)
             parse_process_detail(app, response.data, NULL);
         ok = 1;
     } else if(status == 401) {
-        app->account.auth_token[0] = '\0';
-        account_save(app, &app->account);
+        identity->auth_token[0] = '\0';
+        request_identity_persist(app);
         if(headers != NULL)
             http_headers_free(headers);
         headers = NULL;
         free(response.data);
         response = (UkuHttpBuffer){0};
-        if(lyra_login(app, base_url)) {
-            snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s", app->account.auth_token);
+        if(login_remote(app, base_url)) {
+            snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s", identity->auth_token);
             headers = http_headers_append(headers, "Content-Type: application/json");
-            headers = http_headers_append(headers, user_header);
+            headers = http_headers_append_user(headers, identity->public_id);
             headers = http_headers_append(headers, auth_header);
-            ok = lyra_http_request("POST", url, headers, body, &status, &response) && status == 201;
+            ok = http_request("POST", url, headers, body, &status, &response) && status == 201;
             if(ok && response.data != NULL)
                 parse_process_detail(app, response.data, NULL);
         }
     }
+
+cleanup:
     if(headers != NULL)
         http_headers_free(headers);
     free(response.data);
     free(body);
+    if(used_guest)
+        app->guest_active = 0;
     return ok;
 }
 
 static int
-lyra_authorized_json(UkuApp *app, const char *base_url, const char *method,
+authorized_json_request(UkuApp *app, const char *base_url, const char *method,
                      const char *path, const char *body, int ok_min, int ok_max,
                      UkuHttpBuffer *response)
 {
     char url[512];
-    char user_header[96];
     char auth_header[900];
     UkuHttpHeaders *headers = NULL;
     UkuAccount *identity;
@@ -2816,15 +3156,14 @@ lyra_authorized_json(UkuApp *app, const char *base_url, const char *method,
     identity = request_identity(app);
     if(app == NULL || !identity->loaded || path == NULL)
         return 0;
-    if(identity->auth_token[0] == '\0' && !lyra_login(app, base_url))
+    if(identity->auth_token[0] == '\0' && !login_remote(app, base_url))
         return 0;
     join_url(url, sizeof(url), base_url, path);
-    snprintf(user_header, sizeof(user_header), "X-Inbe-User: %s", identity->public_id);
     snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s", identity->auth_token);
     headers = http_headers_append(headers, "Content-Type: application/json");
-    headers = http_headers_append(headers, user_header);
+    headers = http_headers_append_user(headers, identity->public_id);
     headers = http_headers_append(headers, auth_header);
-    ok = lyra_http_request(method, url, headers, body, &status, response) &&
+    ok = http_request(method, url, headers, body, &status, response) &&
          status >= ok_min && status <= ok_max;
     if(!ok && status == 401) {
         if(headers != NULL)
@@ -2836,12 +3175,12 @@ lyra_authorized_json(UkuApp *app, const char *base_url, const char *method,
         }
         identity->auth_token[0] = '\0';
         request_identity_persist(app);
-        if(lyra_login(app, base_url)) {
+        if(login_remote(app, base_url)) {
             snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s", identity->auth_token);
             headers = http_headers_append(headers, "Content-Type: application/json");
-            headers = http_headers_append(headers, user_header);
+            headers = http_headers_append_user(headers, identity->public_id);
             headers = http_headers_append(headers, auth_header);
-            ok = lyra_http_request(method, url, headers, body, &status, response) &&
+            ok = http_request(method, url, headers, body, &status, response) &&
                  status >= ok_min && status <= ok_max;
         }
     }
@@ -2849,6 +3188,9 @@ lyra_authorized_json(UkuApp *app, const char *base_url, const char *method,
         http_headers_free(headers);
     return ok;
 }
+
+static void update_local_address(UkuApp *app, UkuDecision *d);
+static void remember_current_process_row(UkuApp *app);
 
 static void
 parse_process_detail(UkuApp *app, const char *json, const UkuText *text)
@@ -2860,13 +3202,19 @@ parse_process_detail(UkuApp *app, const char *json, const UkuText *text)
     if(app == NULL || json == NULL)
         return;
     if(extract_json_string(json, "id", app->decision.id, sizeof(app->decision.id)))
-        snprintf(app->decision.local_address, sizeof(app->decision.local_address),
-                 "/app/%s/collect", app->decision.id);
+        update_local_address(app, &app->decision);
     extract_json_string(json, "owner_user_id_hash", app->decision.owner_user_id,
                         sizeof(app->decision.owner_user_id));
     if(!extract_json_string(json, "visibility", app->decision.visibility,
                             sizeof(app->decision.visibility)))
         copy_text(app->decision.visibility, sizeof(app->decision.visibility), "public", strlen("public"));
+    extract_json_string(json, "proposal_visibility", app->decision.proposal_visibility,
+                        sizeof(app->decision.proposal_visibility));
+    extract_json_string(json, "proposal_access", app->decision.proposal_access,
+                        sizeof(app->decision.proposal_access));
+    extract_json_string(json, "voting_access", app->decision.voting_access,
+                        sizeof(app->decision.voting_access));
+    decision_permission_defaults(&app->decision);
     if(extract_json_string(json, "type", type_key, sizeof(type_key)))
         app->decision.type = process_type_from_key(type_key);
     extract_json_string(json, "title", app->decision.topic, sizeof(app->decision.topic));
@@ -2891,7 +3239,7 @@ parse_process_detail(UkuApp *app, const char *json, const UkuText *text)
     if(!extract_json_int(json, "quorum_votes", &app->decision.quorum_votes))
         app->decision.quorum_votes = 0;
     if(extract_json_string(json, "created_at", created_at, sizeof(created_at)))
-        app->decision.created_at = parse_lyra_time(created_at);
+        app->decision.created_at = parse_server_time(created_at);
     if(text != NULL && app->decision.type == UKU_PROCESS_TYPE_CONSENT)
         load_default_proposals(app, text);
     else
@@ -2899,12 +3247,13 @@ parse_process_detail(UkuApp *app, const char *json, const UkuText *text)
     parse_process_options(app, json);
     parse_process_proposals(app, json);
     parse_process_votes(app, json);
+    remember_current_process_row(app);
     app->process_detail_loaded = 1;
     app->process_detail_loading_failed = 0;
 }
 
 static int
-lyra_fetch_process_detail(UkuApp *app, const char *base_url, const UkuText *text)
+fetch_process_detail(UkuApp *app, const char *base_url, const UkuText *text)
 {
     char path[128];
     char url[512];
@@ -2918,7 +3267,7 @@ lyra_fetch_process_detail(UkuApp *app, const char *base_url, const UkuText *text
         return 0;
     snprintf(path, sizeof(path), "/api/v1/processes/%s", app->decision.id);
     join_url(url, sizeof(url), base_url, path);
-    if(lyra_http_request("GET", url, NULL, NULL, &status, &response) && status == 200 &&
+    if(http_request("GET", url, NULL, NULL, &status, &response) && status == 200 &&
        response.data != NULL) {
         parse_process_detail(app, response.data, text);
         ok = 1;
@@ -2929,49 +3278,71 @@ lyra_fetch_process_detail(UkuApp *app, const char *base_url, const UkuText *text
 }
 
 static int
-lyra_update_process_visibility(UkuApp *app, const char *base_url, const char *visibility)
+update_process_visibility(UkuApp *app, const char *base_url, const char *visibility)
 {
     char path[128];
     UkuHttpBuffer body = {0};
     UkuHttpBuffer response = {0};
+    UkuAccount *identity;
+    int used_guest = 0;
     int ok = 0;
 
-    if(app == NULL || visibility == NULL || app->decision.id[0] == '\0' || !app->account.loaded)
+    if(app == NULL || visibility == NULL || app->decision.id[0] == '\0')
         return 0;
+    identity = process_owner_identity(app);
+    if(identity == NULL)
+        return 0;
+    if(identity == &app->guest) {
+        app->guest_active = 1;
+        used_guest = 1;
+    }
     if(!http_buffer_append(&body, "{\"user_id_hash\":", strlen("{\"user_id_hash\":")) ||
-       !json_append_string(&body, app->account.public_id) ||
+       !json_append_string(&body, identity->public_id) ||
        !http_buffer_append(&body, ",\"visibility\":", strlen(",\"visibility\":")) ||
        !json_append_string(&body, visibility) ||
        !http_buffer_append(&body, "}", 1))
         goto cleanup;
     snprintf(path, sizeof(path), "/api/v1/processes/%s", app->decision.id);
-    ok = lyra_authorized_json(app, base_url, "PATCH", path, body.data, 200, 299, &response);
+    ok = authorized_json_request(app, base_url, "PATCH", path, body.data, 200, 299, &response);
     if(ok && response.data != NULL)
         parse_process_detail(app, response.data, NULL);
 
 cleanup:
+    if(used_guest)
+        app->guest_active = 0;
     free(body.data);
     free(response.data);
     return ok;
 }
 
 static int
-lyra_delete_process(UkuApp *app, const char *base_url)
+delete_process(UkuApp *app, const char *base_url)
 {
     char path[128];
     UkuHttpBuffer response = {0};
+    UkuAccount *identity;
+    int used_guest = 0;
     int ok;
 
-    if(app == NULL || app->decision.id[0] == '\0' || !app->account.loaded)
+    if(app == NULL || app->decision.id[0] == '\0')
         return 0;
+    identity = process_owner_identity(app);
+    if(identity == NULL)
+        return 0;
+    if(identity == &app->guest) {
+        app->guest_active = 1;
+        used_guest = 1;
+    }
     snprintf(path, sizeof(path), "/api/v1/processes/%s", app->decision.id);
-    ok = lyra_authorized_json(app, base_url, "DELETE", path, NULL, 200, 299, &response);
+    ok = authorized_json_request(app, base_url, "DELETE", path, NULL, 200, 299, &response);
+    if(used_guest)
+        app->guest_active = 0;
     free(response.data);
     return ok;
 }
 
 static int
-lyra_export_process(UkuApp *app, const char *base_url)
+export_process(UkuApp *app, const char *base_url)
 {
     char path[128];
     char url[512];
@@ -2983,7 +3354,7 @@ lyra_export_process(UkuApp *app, const char *base_url)
         return 0;
     snprintf(path, sizeof(path), "/api/v1/processes/%s/export", app->decision.id);
     join_url(url, sizeof(url), base_url, path);
-    if(lyra_http_request("GET", url, NULL, NULL, &status, &response) && status == 200 &&
+    if(http_request("GET", url, NULL, NULL, &status, &response) && status == 200 &&
        response.data != NULL) {
         SetClipboardText(response.data);
         ok = 1;
@@ -2993,7 +3364,7 @@ lyra_export_process(UkuApp *app, const char *base_url)
 }
 
 static int
-lyra_delete_proposal(UkuApp *app, const char *base_url, const char *proposal_id)
+delete_proposal(UkuApp *app, const char *base_url, const char *proposal_id)
 {
     char path[180];
     UkuHttpBuffer response = {0};
@@ -3003,7 +3374,7 @@ lyra_delete_proposal(UkuApp *app, const char *base_url, const char *proposal_id)
         return 0;
     snprintf(path, sizeof(path), "/api/v1/processes/%s/proposals/%s",
              app->decision.id, proposal_id);
-    ok = lyra_authorized_json(app, base_url, "DELETE", path, NULL, 200, 299, &response);
+    ok = authorized_json_request(app, base_url, "DELETE", path, NULL, 200, 299, &response);
     if(ok && response.data != NULL)
         parse_process_detail(app, response.data, NULL);
     free(response.data);
@@ -3011,13 +3382,14 @@ lyra_delete_proposal(UkuApp *app, const char *base_url, const char *proposal_id)
 }
 
 static int
-lyra_submit_proposal_text(UkuApp *app, const char *base_url, const char *title,
+submit_proposal_text(UkuApp *app, const char *base_url, const char *title,
                           const char *description, char *remote_id, size_t remote_id_size)
 {
     char path[128];
     UkuHttpBuffer body = {0};
     UkuHttpBuffer response = {0};
     UkuAccount *identity;
+    char display_name[65];
     int local_index;
     int used_guest = 0;
     int ok = 0;
@@ -3026,6 +3398,8 @@ lyra_submit_proposal_text(UkuApp *app, const char *base_url, const char *title,
         remote_id[0] = '\0';
     if(app == NULL || app->decision.id[0] == '\0' || !has_non_space(title))
         return 0;
+    if(!can_submit_proposal(app))
+        return 0;
     if(!app->account.loaded) {
         if(!guest_identity_ensure(app))
             return 0;
@@ -3033,9 +3407,12 @@ lyra_submit_proposal_text(UkuApp *app, const char *base_url, const char *title,
         used_guest = 1;
     }
     identity = request_identity(app);
+    current_participant_identity(app, NULL, 0, display_name, sizeof(display_name));
     local_index = proposal_find_equivalent(app, identity->public_id, title, description);
     if(!http_buffer_append(&body, "{\"user_id_hash\":", strlen("{\"user_id_hash\":")) ||
        !json_append_string(&body, identity->public_id) ||
+       !http_buffer_append(&body, ",\"display_name\":", strlen(",\"display_name\":")) ||
+       !json_append_string(&body, display_name) ||
        !http_buffer_append(&body, ",\"title\":", strlen(",\"title\":")) ||
        !json_append_string(&body, title) ||
        !http_buffer_append(&body, ",\"description\":", strlen(",\"description\":")) ||
@@ -3043,7 +3420,7 @@ lyra_submit_proposal_text(UkuApp *app, const char *base_url, const char *title,
        !http_buffer_append(&body, "}", 1))
         goto cleanup;
     snprintf(path, sizeof(path), "/api/v1/processes/%s/proposals", app->decision.id);
-    ok = lyra_authorized_json(app, base_url, "POST", path, body.data, 200, 299, &response);
+    ok = authorized_json_request(app, base_url, "POST", path, body.data, 200, 299, &response);
     if(ok && response.data != NULL) {
         parse_process_detail(app, response.data, NULL);
         if(remote_id != NULL && remote_id_size > 0 && local_index >= 0 &&
@@ -3061,9 +3438,9 @@ cleanup:
 }
 
 static int
-lyra_submit_proposal(UkuApp *app, const char *base_url)
+submit_proposal(UkuApp *app, const char *base_url)
 {
-    int ok = lyra_submit_proposal_text(app, base_url, app->proposal_title,
+    int ok = submit_proposal_text(app, base_url, app->proposal_title,
                                        app->proposal_description, NULL, 0);
 
     if(ok) {
@@ -3074,7 +3451,7 @@ lyra_submit_proposal(UkuApp *app, const char *base_url)
 }
 
 static int
-lyra_submit_vote(UkuApp *app, const char *base_url)
+submit_vote(UkuApp *app, const char *base_url)
 {
     char path[128];
     UkuHttpBuffer body = {0};
@@ -3088,6 +3465,8 @@ lyra_submit_vote(UkuApp *app, const char *base_url)
     if(app == NULL || app->decision.id[0] == '\0' ||
        (!process_type_has_options(app->decision.type) && app->proposal_count <= 0) ||
        (process_type_has_options(app->decision.type) && app->option_count <= 0))
+        return 0;
+    if(!can_submit_vote(app))
         return 0;
     if(!app->account.loaded) {
         if(!guest_identity_ensure(app))
@@ -3127,7 +3506,7 @@ lyra_submit_vote(UkuApp *app, const char *base_url)
        !http_buffer_append(&body, "}", 1))
         goto cleanup;
     snprintf(path, sizeof(path), "/api/v1/processes/%s/votes", app->decision.id);
-    ok = lyra_authorized_json(app, base_url, "POST", path, body.data, 200, 299, &response);
+    ok = authorized_json_request(app, base_url, "POST", path, body.data, 200, 299, &response);
     if(!ok && response.data != NULL &&
        strstr(response.data, "display name taken") != NULL)
         app->vote_name_taken = 1;
@@ -3143,10 +3522,9 @@ cleanup:
 }
 
 static int
-lyra_register_alias(UkuApp *app, const char *base_url, const char *alias)
+register_alias(UkuApp *app, const char *base_url, const char *alias)
 {
     char url[512];
-    char user_header[96];
     char auth_header[900];
     char saved_alias[40];
     UkuHttpBuffer body = {0};
@@ -3159,7 +3537,7 @@ lyra_register_alias(UkuApp *app, const char *base_url, const char *alias)
         return 0;
     app->account.auth_token[0] = '\0';
     account_save(app, &app->account);
-    if(!lyra_login(app, base_url))
+    if(!login_remote(app, base_url))
         return 0;
     if(!http_buffer_append(&body, "{\"user_id_hash\":", strlen("{\"user_id_hash\":")) ||
        !json_append_string(&body, app->account.public_id) ||
@@ -3169,12 +3547,11 @@ lyra_register_alias(UkuApp *app, const char *base_url, const char *alias)
         goto cleanup;
 
     join_url(url, sizeof(url), base_url, "/api/v1/account/alias");
-    snprintf(user_header, sizeof(user_header), "X-Inbe-User: %s", app->account.public_id);
     snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s", app->account.auth_token);
     headers = http_headers_append(headers, "Content-Type: application/json");
-    headers = http_headers_append(headers, user_header);
+    headers = http_headers_append_user(headers, app->account.public_id);
     headers = http_headers_append(headers, auth_header);
-    if(!lyra_http_request("POST", url, headers, body.data, &status, &response) ||
+    if(!http_request("POST", url, headers, body.data, &status, &response) ||
        status < 200 || status >= 300)
         goto cleanup;
     if(extract_json_string(response.data, "alias", saved_alias, sizeof(saved_alias)) &&
@@ -3192,20 +3569,20 @@ cleanup:
 }
 
 static void
-lyra_fetch_public_processes(UkuApp *app, const char *base_url)
+fetch_public_processes(UkuApp *app, const char *base_url)
 {
     char url[512];
     UkuHttpBuffer response = {0};
     long status = 0;
     const char *p;
 
-    if(app == NULL || app->remote_processes_loaded)
+    if(app == NULL || app->public_processes_loaded)
         return;
-    app->remote_processes_loaded = 1;
+    app->public_processes_loaded = 1;
     if(!sync_url_valid(base_url))
         return;
     join_url(url, sizeof(url), base_url, "/api/v1/processes");
-    if(!lyra_http_request("GET", url, NULL, NULL, &status, &response) || status != 200 ||
+    if(!http_request("GET", url, NULL, NULL, &status, &response) || status != 200 ||
        response.data == NULL)
         goto cleanup;
 
@@ -3232,13 +3609,36 @@ lyra_fetch_public_processes(UkuApp *app, const char *base_url)
         if(process_type_uses_negative_weight(row.type))
             row.negative_weight = negative_weight_normalize(row.negative_weight);
         extract_json_int(p, "quorum_votes", &row.quorum_votes);
+        extract_json_string(p, "owner_user_id_hash", row.owner_user_id,
+                            sizeof(row.owner_user_id));
         copy_text(row.visibility, sizeof(row.visibility), "public", strlen("public"));
+        extract_json_string(p, "visibility", row.visibility, sizeof(row.visibility));
+        extract_json_string(p, "proposal_visibility", row.proposal_visibility,
+                            sizeof(row.proposal_visibility));
+        extract_json_string(p, "proposal_access", row.proposal_access,
+                            sizeof(row.proposal_access));
+        extract_json_string(p, "voting_access", row.voting_access,
+                            sizeof(row.voting_access));
+        row_permission_defaults(&row);
         snprintf(row.local_address, sizeof(row.local_address), "/app/%s/collect", row.id);
         if(extract_json_string(p, "created_at", created_at, sizeof(created_at)))
-            row.created_at = parse_lyra_time(created_at);
+            row.created_at = parse_server_time(created_at);
         else
             row.created_at = (sqlite3_int64)time(NULL);
-        app->processes[app->process_count++] = row;
+        {
+            int existing = -1;
+
+            for(int i = 0; i < app->process_count; i++) {
+                if(strcmp(app->processes[i].id, row.id) == 0) {
+                    existing = i;
+                    break;
+                }
+            }
+            if(existing >= 0)
+                app->processes[existing] = row;
+            else if(app->process_count < UKU_MAX_PROCESSES)
+                app->processes[app->process_count++] = row;
+        }
         p = end + 1;
     }
 
@@ -3259,7 +3659,7 @@ account_refresh_alias_once(UkuApp *app)
     app->account_alias_lookup_attempted = 1;
     app->account.auth_token[0] = '\0';
     account_save(app, &app->account);
-    lyra_login(app, app->server_url);
+    login_remote(app, app->server_url);
 }
 static void
 account_open_alias_modal(UkuApp *app)
@@ -3293,13 +3693,15 @@ generate_process_id(char *dst, size_t size)
 
 static int
 db_insert_proposal(sqlite3 *db, const char *process_id, const char *author_user_id,
-                   const char *title, const char *description, sqlite3_int64 created_at,
+                   const char *display_name, const char *title,
+                   const char *description, sqlite3_int64 created_at,
                    int synced, char *proposal_id, size_t proposal_id_size)
 {
 #if defined(PLATFORM_WEB)
     (void)db;
     (void)process_id;
     (void)author_user_id;
+    (void)display_name;
     (void)title;
     (void)description;
     (void)created_at;
@@ -3313,16 +3715,17 @@ db_insert_proposal(sqlite3 *db, const char *process_id, const char *author_user_
     sqlite3_int64 id;
 
     if(sqlite3_prepare_v2(db,
-                          "insert into proposals(process_id, author_user_id, title, description, created_at, synced) values(?, ?, ?, ?, ?, ?)",
+                          "insert into proposals(process_id, author_user_id, display_name, title, description, created_at, synced) values(?, ?, ?, ?, ?, ?, ?)",
                           -1, &stmt, NULL) != SQLITE_OK)
         return 0;
 
     sqlite3_bind_text(stmt, 1, process_id, -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 2, author_user_id != NULL ? author_user_id : "", -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 3, title, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 4, description, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int64(stmt, 5, created_at);
-    sqlite3_bind_int(stmt, 6, synced ? 1 : 0);
+    sqlite3_bind_text(stmt, 3, display_name != NULL ? display_name : "", -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, title, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 5, description, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(stmt, 6, created_at);
+    sqlite3_bind_int(stmt, 7, synced ? 1 : 0);
     ok = sqlite3_step(stmt) == SQLITE_DONE;
     id = sqlite3_last_insert_rowid(db);
     sqlite3_finalize(stmt);
@@ -3419,12 +3822,15 @@ web_save_processes(const UkuApp *app)
                                "%d" UKU_WEB_FIELD_SEP "%d" UKU_WEB_FIELD_SEP
                                "%d" UKU_WEB_FIELD_SEP "%s" UKU_WEB_FIELD_SEP
                                "%s" UKU_WEB_FIELD_SEP "%lld" UKU_WEB_FIELD_SEP
-                               "%d\n",
+                               "%d" UKU_WEB_FIELD_SEP "%s" UKU_WEB_FIELD_SEP
+                               "%s" UKU_WEB_FIELD_SEP "%s" UKU_WEB_FIELD_SEP "%s\n",
                                row->id, (int)row->type, row->topic, row->description,
                                row->proposal_minutes, row->voting_minutes,
                                row->negative_weight, row->visibility,
                                row->local_address, (long long)row->created_at,
-                               row->quorum_votes);
+                               row->quorum_votes, row->owner_user_id,
+                               row->proposal_visibility, row->proposal_access,
+                               row->voting_access);
 
         if(written < 0 || (size_t)written >= sizeof(buffer) - used)
             break;
@@ -3446,7 +3852,7 @@ web_load_processes(UkuApp *app)
     cursor = buffer;
     while(cursor != NULL && *cursor != '\0' && count < UKU_MAX_PROCESSES) {
         char *line = cursor;
-        char *fields[12] = {0};
+        char *fields[15] = {0};
         int field = 0;
         char *next = strchr(cursor, '\n');
 
@@ -3458,7 +3864,7 @@ web_load_processes(UkuApp *app)
         }
         fields[field++] = line;
         for(char *p = line; *p != '\0'; p++) {
-            if(*p == UKU_WEB_FIELD_SEP[0] && field < 12) {
+            if(*p == UKU_WEB_FIELD_SEP[0] && field < 15) {
                 *p = '\0';
                 fields[field++] = p + 1;
             }
@@ -3480,36 +3886,159 @@ web_load_processes(UkuApp *app)
                 row->negative_weight = negative_weight_normalize(row->negative_weight);
             if(field >= 11)
                 row->quorum_votes = atoi(fields[10]);
+            if(field >= 12)
+                copy_text(row->owner_user_id, sizeof(row->owner_user_id),
+                          fields[11], strlen(fields[11]));
+            if(field >= 13)
+                copy_text(row->proposal_visibility, sizeof(row->proposal_visibility),
+                          fields[12], strlen(fields[12]));
+            if(field >= 14)
+                copy_text(row->proposal_access, sizeof(row->proposal_access),
+                          fields[13], strlen(fields[13]));
+            if(field >= 15)
+                copy_text(row->voting_access, sizeof(row->voting_access),
+                          fields[14], strlen(fields[14]));
             copy_text(row->visibility, sizeof(row->visibility), fields[7], strlen(fields[7]));
             copy_text(row->local_address, sizeof(row->local_address), fields[8], strlen(fields[8]));
             row->created_at = strtoll(fields[9], NULL, 10);
+            row_permission_defaults(row);
         }
     }
     app->process_count = count;
 }
 #endif
 
+static void
+remember_current_process_row(UkuApp *app)
+{
+    UkuDecision *d;
+
+    if(app == NULL || app->decision.id[0] == '\0')
+        return;
+    d = &app->decision;
+    update_local_address(app, d);
+    decision_permission_defaults(d);
+#if defined(PLATFORM_WEB)
+    {
+        int existing = -1;
+
+        for(int i = 0; i < app->process_count; i++) {
+            if(strcmp(app->processes[i].id, d->id) == 0) {
+                existing = i;
+                break;
+            }
+        }
+        if(existing < 0 && app->process_count < UKU_MAX_PROCESSES)
+            existing = app->process_count++;
+        if(existing >= 0) {
+            UkuProcessRow *row = &app->processes[existing];
+
+            memset(row, 0, sizeof(*row));
+            copy_text(row->id, sizeof(row->id), d->id, strlen(d->id));
+            copy_text(row->local_address, sizeof(row->local_address),
+                      d->local_address, strlen(d->local_address));
+            copy_text(row->owner_user_id, sizeof(row->owner_user_id),
+                      d->owner_user_id, strlen(d->owner_user_id));
+            copy_text(row->topic, sizeof(row->topic), d->topic, strlen(d->topic));
+            copy_text(row->description, sizeof(row->description),
+                      d->description, strlen(d->description));
+            copy_text(row->visibility, sizeof(row->visibility),
+                      d->visibility, strlen(d->visibility));
+            copy_text(row->proposal_visibility, sizeof(row->proposal_visibility),
+                      d->proposal_visibility, strlen(d->proposal_visibility));
+            copy_text(row->proposal_access, sizeof(row->proposal_access),
+                      d->proposal_access, strlen(d->proposal_access));
+            copy_text(row->voting_access, sizeof(row->voting_access),
+                      d->voting_access, strlen(d->voting_access));
+            row_permission_defaults(row);
+            row->type = d->type;
+            row->proposal_minutes = duration_minutes(d->proposal_days, d->proposal_hours,
+                                                     d->proposal_minutes);
+            row->voting_minutes = duration_minutes(d->voting_days, d->voting_hours,
+                                                   d->voting_minutes);
+            row->negative_weight = d->negative_weight;
+            row->quorum_votes = d->quorum_votes;
+            row->created_at = d->created_at;
+            web_save_processes(app);
+        }
+    }
+#else
+    {
+        sqlite3_stmt *stmt = NULL;
+        int proposal_minutes;
+        int voting_minutes;
+
+        if(app->db == NULL || !has_non_space(d->topic))
+            return;
+        proposal_minutes = duration_minutes(d->proposal_days, d->proposal_hours,
+                                            d->proposal_minutes);
+        voting_minutes = duration_minutes(d->voting_days, d->voting_hours,
+                                          d->voting_minutes);
+        if(sqlite3_prepare_v2(app->db,
+                              "insert into processes(id, type, phase, topic, description, proposal_minutes, voting_minutes, negative_weight, quorum_votes, visibility, proposal_visibility, proposal_access, voting_access, local_address, created_at, synced, owner_user_id)"
+                              " values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)"
+                              " on conflict(id) do update set "
+                              "type=excluded.type, phase=excluded.phase, topic=excluded.topic, "
+                              "description=excluded.description, proposal_minutes=excluded.proposal_minutes, "
+                              "voting_minutes=excluded.voting_minutes, negative_weight=excluded.negative_weight, "
+                              "quorum_votes=excluded.quorum_votes, visibility=excluded.visibility, "
+                              "proposal_visibility=excluded.proposal_visibility, proposal_access=excluded.proposal_access, "
+                              "voting_access=excluded.voting_access, "
+                              "local_address=excluded.local_address, created_at=excluded.created_at, "
+                              "synced=case when processes.synced=0 then 0 else 1 end, "
+                              "owner_user_id=excluded.owner_user_id",
+                              -1, &stmt, NULL) != SQLITE_OK)
+            return;
+        sqlite3_bind_text(stmt, 1, d->id, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 2, process_type_key(d->type), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 3, "published", -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 4, d->topic, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 5, d->description, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int(stmt, 6, proposal_minutes);
+        sqlite3_bind_int(stmt, 7, voting_minutes);
+        sqlite3_bind_int(stmt, 8, d->negative_weight);
+        sqlite3_bind_int(stmt, 9, d->quorum_votes);
+        sqlite3_bind_text(stmt, 10, d->visibility, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 11, d->proposal_visibility, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 12, d->proposal_access, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 13, d->voting_access, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 14, d->local_address, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int64(stmt, 15, d->created_at);
+        sqlite3_bind_text(stmt, 16, d->owner_user_id, -1, SQLITE_TRANSIENT);
+        sqlite3_step(stmt);
+        sqlite3_finalize(stmt);
+    }
+#endif
+}
+
 static int
 db_save_process(UkuApp *app, const UkuText *text)
 {
 #if defined(PLATFORM_WEB)
     UkuDecision *d = &app->decision;
+    UkuAccount *identity;
     sqlite3_int64 now = (sqlite3_int64)time(NULL);
     UkuProcessRow row = {0};
 
     (void)text;
-    if(app->db == NULL || !app->account.loaded)
+    if(app->db == NULL)
         return 0;
-    generate_process_id(d->id, sizeof(d->id));
-    snprintf(d->local_address, sizeof(d->local_address), "/app/%s/collect", d->id);
+    ensure_process_id(app);
+    identity = process_owner_identity(app);
+    if(identity == NULL)
+        return 0;
+    update_local_address(app, d);
     d->created_at = now;
     if(d->visibility[0] == '\0')
         copy_text(d->visibility, sizeof(d->visibility), "public", strlen("public"));
+    decision_permission_defaults(d);
     copy_text(d->owner_user_id, sizeof(d->owner_user_id),
-              app->account.public_id, strlen(app->account.public_id));
+              identity->public_id, strlen(identity->public_id));
 
     copy_text(row.id, sizeof(row.id), d->id, strlen(d->id));
     copy_text(row.local_address, sizeof(row.local_address), d->local_address, strlen(d->local_address));
+    copy_text(row.owner_user_id, sizeof(row.owner_user_id),
+              d->owner_user_id, strlen(d->owner_user_id));
     copy_text(row.topic, sizeof(row.topic), d->topic, strlen(d->topic));
     copy_text(row.description, sizeof(row.description), d->description, strlen(d->description));
     row.type = d->type;
@@ -3518,6 +4047,13 @@ db_save_process(UkuApp *app, const UkuText *text)
     row.negative_weight = d->negative_weight;
     row.quorum_votes = d->quorum_votes;
     copy_text(row.visibility, sizeof(row.visibility), d->visibility, strlen(d->visibility));
+    copy_text(row.proposal_visibility, sizeof(row.proposal_visibility),
+              d->proposal_visibility, strlen(d->proposal_visibility));
+    copy_text(row.proposal_access, sizeof(row.proposal_access),
+              d->proposal_access, strlen(d->proposal_access));
+    copy_text(row.voting_access, sizeof(row.voting_access),
+              d->voting_access, strlen(d->voting_access));
+    row_permission_defaults(&row);
     row.created_at = now;
 
     if(app->process_count < UKU_MAX_PROCESSES)
@@ -3530,27 +4066,34 @@ db_save_process(UkuApp *app, const UkuText *text)
     return 1;
 #else
     UkuDecision *d = &app->decision;
+    UkuAccount *identity;
+    char display_name[65];
     sqlite3_stmt *stmt = NULL;
     sqlite3_int64 now = (sqlite3_int64)time(NULL);
     int ok = 0;
 
-    if(app->db == NULL || !app->account.loaded)
+    if(app->db == NULL)
+        return 0;
+    ensure_process_id(app);
+    identity = process_owner_identity(app);
+    if(identity == NULL)
         return 0;
 
-    generate_process_id(d->id, sizeof(d->id));
-    snprintf(d->local_address, sizeof(d->local_address), "/app/%s/collect", d->id);
+    update_local_address(app, d);
     d->created_at = now;
     if(d->visibility[0] == '\0')
         copy_text(d->visibility, sizeof(d->visibility), "public", strlen("public"));
+    decision_permission_defaults(d);
     copy_text(d->owner_user_id, sizeof(d->owner_user_id),
-              app->account.public_id, strlen(app->account.public_id));
+              identity->public_id, strlen(identity->public_id));
+    current_participant_identity(app, NULL, 0, display_name, sizeof(display_name));
 
     if(sqlite3_exec(app->db, "begin immediate", NULL, NULL, NULL) != SQLITE_OK)
         return 0;
 
     if(sqlite3_prepare_v2(app->db,
-                          "insert into processes(id, type, phase, topic, description, proposal_minutes, voting_minutes, negative_weight, quorum_votes, visibility, local_address, created_at, synced)"
-                          " values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
+                          "insert into processes(id, type, phase, topic, description, proposal_minutes, voting_minutes, negative_weight, quorum_votes, visibility, proposal_visibility, proposal_access, voting_access, local_address, created_at, synced, owner_user_id)"
+                          " values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)",
                           -1, &stmt, NULL) != SQLITE_OK)
         goto cleanup;
 
@@ -3564,8 +4107,12 @@ db_save_process(UkuApp *app, const UkuText *text)
     sqlite3_bind_int(stmt, 8, d->negative_weight);
     sqlite3_bind_int(stmt, 9, d->quorum_votes);
     sqlite3_bind_text(stmt, 10, d->visibility, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 11, d->local_address, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int64(stmt, 12, now);
+    sqlite3_bind_text(stmt, 11, d->proposal_visibility, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 12, d->proposal_access, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 13, d->voting_access, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 14, d->local_address, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(stmt, 15, now);
+    sqlite3_bind_text(stmt, 16, d->owner_user_id, -1, SQLITE_TRANSIENT);
 
     if(sqlite3_step(stmt) != SQLITE_DONE)
         goto cleanup;
@@ -3582,17 +4129,20 @@ db_save_process(UkuApp *app, const UkuText *text)
     if(d->type == UKU_PROCESS_TYPE_CONSENT) {
         if(app->proposal_count > 0) {
             for(int i = 0; i < app->proposal_count; i++) {
-                if(!db_insert_proposal(app->db, d->id, app->account.public_id,
+                if(!db_insert_proposal(app->db, d->id, identity->public_id,
+                                       display_name,
                                        app->proposals[i].title,
                                        app->proposals[i].description,
                                        now, 1, NULL, 0))
                     goto cleanup;
             }
         } else {
-            if(!db_insert_proposal(app->db, d->id, app->account.public_id, text->status_quo_title,
+            if(!db_insert_proposal(app->db, d->id, identity->public_id, "",
+                                   text->status_quo_title,
                                    text->status_quo_description, now, 1, NULL, 0))
                 goto cleanup;
-            if(!db_insert_proposal(app->db, d->id, app->account.public_id, text->repeat_process_title,
+            if(!db_insert_proposal(app->db, d->id, identity->public_id, "",
+                                   text->repeat_process_title,
                                    text->repeat_process_description, now, 1, NULL, 0))
                 goto cleanup;
         }
@@ -3623,7 +4173,7 @@ db_load_processes(UkuApp *app)
         return;
 
     if(sqlite3_prepare_v2(app->db,
-                          "select id, type, topic, description, proposal_minutes, voting_minutes, negative_weight, visibility, local_address, created_at, quorum_votes "
+                          "select id, type, topic, description, proposal_minutes, voting_minutes, negative_weight, visibility, local_address, created_at, quorum_votes, owner_user_id, proposal_visibility, proposal_access, voting_access "
                           "from processes order by created_at desc limit ?",
                           -1, &stmt, NULL) != SQLITE_OK)
         return;
@@ -3637,12 +4187,21 @@ db_load_processes(UkuApp *app)
         const unsigned char *description = sqlite3_column_text(stmt, 3);
         const unsigned char *visibility = sqlite3_column_text(stmt, 7);
         const unsigned char *address = sqlite3_column_text(stmt, 8);
+        const unsigned char *owner = sqlite3_column_text(stmt, 11);
+        const unsigned char *proposal_visibility = sqlite3_column_text(stmt, 12);
+        const unsigned char *proposal_access = sqlite3_column_text(stmt, 13);
+        const unsigned char *voting_access = sqlite3_column_text(stmt, 14);
 
         copy_text(row->id, sizeof(row->id), (const char *)(id != NULL ? id : (const unsigned char *)""), strlen((const char *)(id != NULL ? id : (const unsigned char *)"")));
+        copy_text(row->owner_user_id, sizeof(row->owner_user_id), (const char *)(owner != NULL ? owner : (const unsigned char *)""), strlen((const char *)(owner != NULL ? owner : (const unsigned char *)"")));
         row->type = process_type_from_key((const char *)(type != NULL ? type : (const unsigned char *)"consent"));
         copy_text(row->topic, sizeof(row->topic), (const char *)(topic != NULL ? topic : (const unsigned char *)""), strlen((const char *)(topic != NULL ? topic : (const unsigned char *)"")));
         copy_text(row->description, sizeof(row->description), (const char *)(description != NULL ? description : (const unsigned char *)""), strlen((const char *)(description != NULL ? description : (const unsigned char *)"")));
         copy_text(row->visibility, sizeof(row->visibility), (const char *)(visibility != NULL ? visibility : (const unsigned char *)"public"), strlen((const char *)(visibility != NULL ? visibility : (const unsigned char *)"public")));
+        copy_text(row->proposal_visibility, sizeof(row->proposal_visibility), (const char *)(proposal_visibility != NULL ? proposal_visibility : (const unsigned char *)"public"), strlen((const char *)(proposal_visibility != NULL ? proposal_visibility : (const unsigned char *)"public")));
+        copy_text(row->proposal_access, sizeof(row->proposal_access), (const char *)(proposal_access != NULL ? proposal_access : (const unsigned char *)"public"), strlen((const char *)(proposal_access != NULL ? proposal_access : (const unsigned char *)"public")));
+        copy_text(row->voting_access, sizeof(row->voting_access), (const char *)(voting_access != NULL ? voting_access : (const unsigned char *)"public"), strlen((const char *)(voting_access != NULL ? voting_access : (const unsigned char *)"public")));
+        row_permission_defaults(row);
         copy_text(row->local_address, sizeof(row->local_address), (const char *)(address != NULL ? address : (const unsigned char *)""), strlen((const char *)(address != NULL ? address : (const unsigned char *)"")));
         row->proposal_minutes = sqlite3_column_int(stmt, 4);
         row->voting_minutes = sqlite3_column_int(stmt, 5);
@@ -3743,15 +4302,28 @@ db_load_process_detail(UkuApp *app, const UkuText *text)
                 break;
             }
         }
-        if(existing < 0 && app->process_count < UKU_MAX_PROCESSES) {
-            UkuProcessRow *row = &app->processes[app->process_count++];
+        if(existing < 0 && app->process_count < UKU_MAX_PROCESSES)
+            existing = app->process_count++;
+        if(existing >= 0) {
+            UkuProcessRow *row = &app->processes[existing];
 
             memset(row, 0, sizeof(*row));
             copy_text(row->id, sizeof(row->id), d->id, strlen(d->id));
-            snprintf(row->local_address, sizeof(row->local_address), "/app/%s/collect", d->id);
+            update_local_address(app, d);
+            copy_text(row->local_address, sizeof(row->local_address),
+                      d->local_address, strlen(d->local_address));
+            copy_text(row->owner_user_id, sizeof(row->owner_user_id),
+                      d->owner_user_id, strlen(d->owner_user_id));
             copy_text(row->topic, sizeof(row->topic), d->topic, strlen(d->topic));
             copy_text(row->description, sizeof(row->description), d->description, strlen(d->description));
             copy_text(row->visibility, sizeof(row->visibility), d->visibility, strlen(d->visibility));
+            copy_text(row->proposal_visibility, sizeof(row->proposal_visibility),
+                      d->proposal_visibility, strlen(d->proposal_visibility));
+            copy_text(row->proposal_access, sizeof(row->proposal_access),
+                      d->proposal_access, strlen(d->proposal_access));
+            copy_text(row->voting_access, sizeof(row->voting_access),
+                      d->voting_access, strlen(d->voting_access));
+            row_permission_defaults(row);
             row->type = d->type;
             row->proposal_minutes = duration_minutes(d->proposal_days, d->proposal_hours, d->proposal_minutes);
             row->voting_minutes = duration_minutes(d->voting_days, d->voting_hours, d->voting_minutes);
@@ -3794,7 +4366,7 @@ db_load_process_detail(UkuApp *app, const UkuText *text)
     stmt = NULL;
 
     if(sqlite3_prepare_v2(app->db,
-                          "select id, author_user_id, remote_id, title, description from proposals where process_id=? order by created_at, id",
+                          "select id, author_user_id, remote_id, title, description, display_name from proposals where process_id=? order by created_at, id",
                           -1, &stmt, NULL) == SQLITE_OK) {
         sqlite3_bind_text(stmt, 1, app->decision.id, -1, SQLITE_TRANSIENT);
         while(app->proposal_count < UKU_MAX_PROPOSALS && sqlite3_step(stmt) == SQLITE_ROW) {
@@ -3803,6 +4375,7 @@ db_load_process_detail(UkuApp *app, const UkuText *text)
             const unsigned char *remote_id = sqlite3_column_text(stmt, 2);
             const unsigned char *title = sqlite3_column_text(stmt, 3);
             const unsigned char *description = sqlite3_column_text(stmt, 4);
+            const unsigned char *display_name = sqlite3_column_text(stmt, 5);
             int index;
 
             if(remote_id != NULL && remote_id[0] != '\0')
@@ -3817,6 +4390,9 @@ db_load_process_detail(UkuApp *app, const UkuText *text)
                           sizeof(app->proposals[index].author_user_id),
                           (const char *)(author != NULL ? author : (const unsigned char *)""),
                           strlen((const char *)(author != NULL ? author : (const unsigned char *)"")));
+            proposal_set_display_name(app, index,
+                                      (const char *)(display_name != NULL ? display_name
+                                                     : (const unsigned char *)""));
         }
     }
     if(stmt != NULL)
@@ -3849,6 +4425,7 @@ db_load_process_detail(UkuApp *app, const UkuText *text)
                       (const char *)(reason != NULL ? reason : (const unsigned char *)""),
                       strlen((const char *)(reason != NULL ? reason : (const unsigned char *)"")));
             snprintf(vote->updated_at, sizeof(vote->updated_at), "%lld", (long long)updated);
+            vote->has_ballot = 1;
             {
                 char current_user_id[65];
 
@@ -3866,28 +4443,40 @@ db_load_process_detail(UkuApp *app, const UkuText *text)
     }
     if(stmt != NULL)
         sqlite3_finalize(stmt);
+    add_proposal_authors_as_participants(app);
 #endif
 }
 
 static int
-db_save_local_proposal(UkuApp *app)
+db_save_local_proposal(UkuApp *app, char *local_id, size_t local_id_size)
 {
     char id[40];
     char author_user_id[65];
+    char display_name[65];
     sqlite3_int64 now = (sqlite3_int64)time(NULL);
     int index;
 
+    if(local_id != NULL && local_id_size > 0)
+        local_id[0] = '\0';
     if(app == NULL || app->decision.id[0] == '\0' || !has_non_space(app->proposal_title))
         return 0;
-    current_participant_identity(app, author_user_id, sizeof(author_user_id), NULL, 0);
-    if(!db_insert_proposal(app->db, app->decision.id, author_user_id,
+    if(!can_submit_proposal(app))
+        return 0;
+    current_participant_identity(app, author_user_id, sizeof(author_user_id),
+                                 display_name, sizeof(display_name));
+    if(!db_insert_proposal(app->db, app->decision.id, author_user_id, display_name,
                            app->proposal_title, app->proposal_description, now,
                            0, id, sizeof(id)))
         return 0;
+    if(local_id != NULL && local_id_size > 0)
+        copy_text(local_id, local_id_size, id, strlen(id));
     index = proposal_add(app, id, app->proposal_title, app->proposal_description);
-    if(index >= 0)
+    if(index >= 0) {
         copy_text(app->proposals[index].author_user_id, sizeof(app->proposals[index].author_user_id),
                   author_user_id, strlen(author_user_id));
+        proposal_set_display_name(app, index, display_name);
+        participant_add(app, author_user_id, display_name, 0);
+    }
     return 1;
 }
 
@@ -3921,7 +4510,7 @@ serialize_current_scores(UkuApp *app, char *out, size_t out_size)
 }
 
 static int
-lyra_submit_vote_scores(UkuApp *app, const char *base_url, const char *scores,
+submit_vote_scores(UkuApp *app, const char *base_url, const char *scores,
                         const char *display_name, const char *reason)
 {
     char path[128];
@@ -3973,7 +4562,7 @@ lyra_submit_vote_scores(UkuApp *app, const char *base_url, const char *scores,
        !http_buffer_append(&body, "}", 1))
         goto cleanup;
     snprintf(path, sizeof(path), "/api/v1/processes/%s/votes", app->decision.id);
-    ok = lyra_authorized_json(app, base_url, "POST", path, body.data, 200, 299, &response);
+    ok = authorized_json_request(app, base_url, "POST", path, body.data, 200, 299, &response);
     if(ok && response.data != NULL)
         parse_process_detail(app, response.data, NULL);
 
@@ -4160,32 +4749,47 @@ sync_pending_process_detail(UkuApp *app)
 #else
     sqlite3_stmt *stmt = NULL;
 
-    if(app == NULL || app->db == NULL || !app->account.loaded || app->decision.id[0] == '\0')
+    if(app == NULL || app->db == NULL || app->decision.id[0] == '\0')
         return;
     if(!sync_url_valid(app->server_url))
         return;
     if(!db_process_synced(app, app->decision.id)) {
-        if(!lyra_create_process(app, app->server_url))
+        if(process_owner_identity(app) == NULL)
+            return;
+        if(!create_remote_process(app, app->server_url))
             return;
         db_mark_process_synced(app, app->decision.id);
     }
     if(sqlite3_prepare_v2(app->db,
-                          "select id, title, description from proposals where process_id=? and synced=0 order by created_at, id",
+                          "select id, title, description, display_name from proposals where process_id=? and synced=0 order by created_at, id",
                           -1, &stmt, NULL) == SQLITE_OK) {
         sqlite3_bind_text(stmt, 1, app->decision.id, -1, SQLITE_TRANSIENT);
         while(sqlite3_step(stmt) == SQLITE_ROW) {
             sqlite3_int64 rowid = sqlite3_column_int64(stmt, 0);
             const unsigned char *title = sqlite3_column_text(stmt, 1);
             const unsigned char *description = sqlite3_column_text(stmt, 2);
+            const unsigned char *display_name = sqlite3_column_text(stmt, 3);
             char local_id[40];
             char remote_id[40];
+            char saved_alias[40];
 
             snprintf(local_id, sizeof(local_id), "local-%lld", (long long)rowid);
-            if(!lyra_submit_proposal_text(app, app->server_url,
+            copy_text(saved_alias, sizeof(saved_alias), app->alias_input,
+                      strlen(app->alias_input));
+            if(display_name != NULL && display_name[0] != '\0')
+                copy_text(app->alias_input, sizeof(app->alias_input),
+                          (const char *)display_name,
+                          strlen((const char *)display_name));
+            if(!submit_proposal_text(app, app->server_url,
                                           (const char *)(title != NULL ? title : (const unsigned char *)""),
                                           (const char *)(description != NULL ? description : (const unsigned char *)""),
-                                          remote_id, sizeof(remote_id)))
+                                          remote_id, sizeof(remote_id))) {
+                copy_text(app->alias_input, sizeof(app->alias_input),
+                          saved_alias, strlen(saved_alias));
                 break;
+            }
+            copy_text(app->alias_input, sizeof(app->alias_input),
+                      saved_alias, strlen(saved_alias));
             if(remote_id[0] != '\0' && db_mark_proposal_synced(app, rowid, remote_id))
                 db_rewrite_vote_score_id(app, app->decision.id, local_id, remote_id);
         }
@@ -4205,7 +4809,7 @@ sync_pending_process_detail(UkuApp *app)
             const unsigned char *scores = sqlite3_column_text(stmt, 3);
             sqlite3_stmt *update_stmt = NULL;
 
-            if(!lyra_submit_vote_scores(app, app->server_url,
+            if(!submit_vote_scores(app, app->server_url,
                                         (const char *)(scores != NULL ? scores : (const unsigned char *)""),
                                         (const char *)(display != NULL ? display : (const unsigned char *)""),
                                         (const char *)(reason != NULL ? reason : (const unsigned char *)"")))
@@ -4237,6 +4841,8 @@ db_save_local_vote(UkuApp *app)
 
     if(app == NULL)
         return 0;
+    if(!can_submit_vote(app))
+        return 0;
     current_participant_identity(app, voter_user_id, sizeof(voter_user_id),
                                  display_name, sizeof(display_name));
     for(int i = 0; i < app->vote_count; i++) {
@@ -4254,6 +4860,7 @@ db_save_local_vote(UkuApp *app)
     copy_text(vote->display_name, sizeof(vote->display_name), display_name,
               strlen(display_name));
     copy_text(vote->reason, sizeof(vote->reason), app->vote_reason, strlen(app->vote_reason));
+    vote->has_ballot = 1;
     app->current_user_voted = 1;
     return 1;
 #else
@@ -4265,6 +4872,8 @@ db_save_local_vote(UkuApp *app)
     int ok;
 
     if(app == NULL || app->db == NULL || app->decision.id[0] == '\0')
+        return 0;
+    if(!can_submit_vote(app))
         return 0;
     current_participant_identity(app, voter_user_id, sizeof(voter_user_id),
                                  display_name, sizeof(display_name));
@@ -4300,6 +4909,8 @@ open_process_row(UkuApp *app, const UkuProcessRow *row)
     memset(d, 0, sizeof(*d));
     copy_text(d->id, sizeof(d->id), row->id, strlen(row->id));
     copy_text(d->local_address, sizeof(d->local_address), row->local_address, strlen(row->local_address));
+    copy_text(d->owner_user_id, sizeof(d->owner_user_id),
+              row->owner_user_id, strlen(row->owner_user_id));
     copy_text(d->topic, sizeof(d->topic), row->topic, strlen(row->topic));
     copy_text(d->description, sizeof(d->description), row->description, strlen(row->description));
     d->type = row->type;
@@ -4317,6 +4928,16 @@ open_process_row(UkuApp *app, const UkuProcessRow *row)
     copy_text(d->visibility, sizeof(d->visibility),
               row->visibility[0] != '\0' ? row->visibility : "public",
               strlen(row->visibility[0] != '\0' ? row->visibility : "public"));
+    copy_text(d->proposal_visibility, sizeof(d->proposal_visibility),
+              row->proposal_visibility[0] != '\0' ? row->proposal_visibility : "public",
+              strlen(row->proposal_visibility[0] != '\0' ? row->proposal_visibility : "public"));
+    copy_text(d->proposal_access, sizeof(d->proposal_access),
+              row->proposal_access[0] != '\0' ? row->proposal_access : "public",
+              strlen(row->proposal_access[0] != '\0' ? row->proposal_access : "public"));
+    copy_text(d->voting_access, sizeof(d->voting_access),
+              row->voting_access[0] != '\0' ? row->voting_access : "public",
+              strlen(row->voting_access[0] != '\0' ? row->voting_access : "public"));
+    decision_permission_defaults(d);
     proposals_clear(app);
     db_load_process_detail(app, NULL);
     app->process_detail_loaded = 0;
@@ -4400,7 +5021,7 @@ open_process_id(UkuApp *app, const char *id)
 #endif
     memset(d, 0, sizeof(*d));
     copy_text(d->id, sizeof(d->id), id, strlen(id));
-    snprintf(d->local_address, sizeof(d->local_address), "/app/%s/collect", d->id);
+    update_local_address(app, d);
     copy_text(d->visibility, sizeof(d->visibility), "public", strlen("public"));
     d->type = UKU_PROCESS_TYPE_CONSENT;
     d->require_vote_reason = 1;
@@ -4639,13 +5260,13 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
     int icon = !IsUIDesktopMode() ? ScaleUIPx(22) : ScaleUIPx(24);
     int gap = ScaleUIPx(8);
     int brand_w = 0;
+    int brand_font = ClampUIPx(15, 15, 18);
     int button_x = view_w - pad - icon;
     int search_left;
     int search_right;
     int search_available;
     int search_x;
     int search_w;
-    int search_group_w;
     int field_h = ScaleUIPx(30);
     int field_y = (h - field_h) / 2;
     int *focused = &app->field_focused[UKU_FIELD_JOIN_PROCESS];
@@ -4800,13 +5421,18 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
         button_x -= icon + gap;
     }
 
-    search_left = pad + brand_w + gap;
+    brand_w = TextWidth(text->home_title, brand_font);
+    draw_text_font(app->font, fit_tail(app->font, text->home_title,
+                                       brand_font, view_w / 3),
+                   pad, GetUIControlTextY(text->home_title, 0, h, brand_font),
+                   brand_font, GetThemeText());
+
+    search_left = pad + brand_w + ScaleUIPx(22);
     search_right = button_x - gap;
     search_available = search_right - search_left;
-    search_w = UKU_MIN(ScaleUIPx(240), search_available - icon - gap);
+    search_w = UKU_MIN(ScaleUIPx(420), search_available - icon - gap);
     if(search_w >= ScaleUIPx(120)) {
-        search_group_w = search_w + gap + icon;
-        search_x = search_left + (search_available - search_group_w) / 2;
+        search_x = search_left;
         TextField((TextFieldProps){
             .bounds = {(float)search_x, (float)field_y, (float)search_w, (float)field_h},
             .text = app->join_process_input,
@@ -5173,7 +5799,7 @@ init_decision(UkuApp *app, const UkuText *text)
 {
     UkuDecision *d = &app->decision;
 
-    copy_text(d->visibility, sizeof(d->visibility), "public", strlen("public"));
+    decision_permission_defaults(d);
     d->type = UKU_PROCESS_TYPE_CONSENT;
     d->proposal_hours = 1;
     d->voting_hours = 1;
@@ -5192,6 +5818,7 @@ reset_decision(UkuApp *app, const UkuText *text)
     app->proposal_title[0] = '\0';
     app->proposal_description[0] = '\0';
     init_decision(app, text);
+    app->create_draft_saved = 0;
     app->create_scroll = 0;
     app->create_max_scroll = 0;
     app->create_scrollbar_visible = 0;
@@ -5205,10 +5832,22 @@ start_new_process_flow(UkuApp *app, const UkuText *text)
 {
     if(app == NULL)
         return;
-    reset_decision(app, text);
+    if(!app->create_draft_saved)
+        reset_decision(app, text);
     app->screen = UKU_SCREEN_CREATE;
-    app->create_step = UKU_CREATE_STEP_SETUP;
     app->active_field = UKU_FIELD_NONE;
+    ClearUIFocus();
+}
+
+static void
+create_return_to_dashboard(UkuApp *app)
+{
+    if(app == NULL)
+        return;
+    app->create_draft_saved = 1;
+    app->screen = UKU_SCREEN_HOME;
+    app->active_field = UKU_FIELD_NONE;
+    app->negative_dropdown_open = 0;
     ClearUIFocus();
 }
 
@@ -5437,57 +6076,105 @@ format_process_timer(char *dst, size_t size, const UkuText *text, sqlite3_int64 
 
 static int
 draw_empty_state(UkuApp *app, Font font, const char *message, int x, int y, int w,
-                 int body_font, int small_font, int *cta_clicked)
+                 int view_h, int body_font, int small_font, int *cta_clicked)
 {
     int mobile = !IsUIDesktopMode();
     int icon = mobile ? ScaleUIPx(24) : ScaleUIPx(40);
     int btn_w = mobile ? ScaleUIPx(168) : ScaleUIPx(220);
-    int h = mobile ? ScaleUIPx(132) : ScaleUIPx(190);
+    int h = mobile ? ScaleUIPx(132) : clampi(view_h / 3, ScaleUIPx(220), ScaleUIPx(300));
+    int pad = mobile ? ScaleUIPx(18) : ScaleUIPx(34);
+    int title_font = mobile ? body_font : ClampUIPx(20, 20, 26);
+    int title_line_h = title_font + ScaleUIPx(8);
+    int body_line_h = small_font + ScaleUIPx(7);
     Rectangle card = {(float)x, (float)y, (float)w, (float)h};
 
-    DrawRectangleRounded(card, 0.04f, 10, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(card, 0.04f, 10, ScaleUIPx(1), Fade(GetThemeText(), 0.16f));
+    DrawRectangleRounded(card, 0.035f, 10, GetThemeSurface());
+    DrawRectangleRoundedLinesEx(card, 0.035f, 10, ScaleUIPx(1), Fade(GetThemeText(), 0.16f));
     {
         Texture2D icon_texture = app->icons[UI_ICON_TYPE_GLOBE];
 
-        if(!mobile)
-            DrawTexture(icon_texture,
-                        x + w / 2 - icon_texture.width / 2,
-                        y + ScaleUIPx(18) + (icon - icon_texture.height) / 2,
-                        WHITE);
-        else
+        if(!mobile && w >= ScaleUIPx(700)) {
+            int icon_size = ScaleUIPx(64);
+            int icon_x = x + w - pad - icon_size;
+            int icon_y = y + pad;
+
+            DrawRectangleRounded((Rectangle){(float)icon_x, (float)icon_y,
+                                             (float)icon_size, (float)icon_size},
+                                 0.18f, 12, Fade(GetThemeButton(), 0.18f));
+            DrawTexturePro(icon_texture,
+                           (Rectangle){0, 0, (float)icon_texture.width, (float)icon_texture.height},
+                           (Rectangle){(float)(icon_x + ScaleUIPx(14)),
+                                       (float)(icon_y + ScaleUIPx(14)),
+                                       (float)(icon_size - ScaleUIPx(28)),
+                                       (float)(icon_size - ScaleUIPx(28))},
+                           (Vector2){0}, 0.0f, WHITE);
+        } else {
             DrawTexturePro(icon_texture,
                            (Rectangle){0, 0, (float)icon_texture.width, (float)icon_texture.height},
                            (Rectangle){(float)(x + ScaleUIPx(18)), (float)(y + ScaleUIPx(18)),
                                        (float)icon, (float)icon},
                            (Vector2){0}, 0.0f, WHITE);
+        }
     }
     {
-        int text_x = mobile ? x + ScaleUIPx(54) : x;
-        int text_w = mobile ? w - ScaleUIPx(72) : w;
-        int text_y = mobile ? y + ScaleUIPx(18) : y + ScaleUIPx(68);
+        int text_x = mobile ? x + ScaleUIPx(54) : x + pad;
+        int text_w = mobile ? w - ScaleUIPx(72) : w - pad * 2;
+        int text_y = mobile ? y + ScaleUIPx(18) : y + pad;
+
+        if(!mobile && w >= ScaleUIPx(700))
+            text_w -= ScaleUIPx(108);
 
         if(mobile) {
-            draw_text_font(font, message, text_x, text_y, body_font, GetThemeText());
+            draw_wrapped_text(font, message, text_x, text_y, text_w,
+                              title_font, title_line_h, GetThemeText());
             draw_wrapped_text(font, tr(app, "Start one and share the link with your group."),
-                              text_x, text_y + body_font + ScaleUIPx(6), text_w,
-                              small_font, small_font + ScaleUIPx(4),
+                              text_x, text_y + title_line_h + ScaleUIPx(6), text_w,
+                              small_font, body_line_h,
                               Fade(GetThemeText(), 0.75f));
         } else {
-            draw_centered_text(font, message, x + w / 2, text_y, body_font, GetThemeText());
-            text_y += body_font + ScaleUIPx(7);
-            draw_centered_wrapped_text(font, tr(app, "Start one and share the link with your group."),
-                                       x + w / 2, text_y, w - ScaleUIPx(36),
-                                       small_font, small_font + ScaleUIPx(4),
-                                       Fade(GetThemeText(), 0.75f));
+            text_y = draw_wrapped_text(font, message, text_x, text_y, text_w,
+                                       title_font, title_line_h, GetThemeText());
+            text_y += ScaleUIPx(8);
+            draw_wrapped_text(font, tr(app, "Start one and share the link with your group."),
+                              text_x, text_y, text_w, small_font, body_line_h,
+                              Fade(GetThemeText(), 0.75f));
         }
     }
     draw_compact_button(app, font,
-                        mobile ? x + ScaleUIPx(54) : x + (w - btn_w) / 2,
-                        y + h - ScaleUIPx(46),
+                        mobile ? x + ScaleUIPx(54) : x + pad,
+                        y + h - ScaleUIPx(52),
                         btn_w, ScaleUIPx(600), ScaleUIPx(36),
                         tr(app, "Make New Process"), 1, UKU_FOCUS_DASHBOARD_NEW, cta_clicked);
     return y + h + ScaleUIPx(12);
+}
+
+static void
+get_dashboard_column(int view_w, int side, int *x, int *w)
+{
+    int max_w = IsUIDesktopMode() ? ScaleUIPx(980) : ScaleUIPx(640);
+    int min_side = IsUIDesktopMode() ? ScaleUIPx(32) : side;
+    int available = view_w - min_side * 2;
+
+    if(available < ScaleUIPx(260))
+        available = view_w - side * 2;
+    if(available < ScaleUIPx(220))
+        available = view_w;
+    *w = UKU_MIN(max_w, available);
+    if(*w < ScaleUIPx(220))
+        *w = view_w - side * 2;
+    *x = (view_w - *w) / 2;
+    if(*x < side)
+        *x = side;
+}
+
+static int
+dashboard_row_visible(const UkuApp *app, const UkuProcessRow *row)
+{
+    if(app == NULL || row == NULL)
+        return 0;
+    if(!app->dashboard_filter_public)
+        return 1;
+    return strcmp(row->visibility, "public") == 0;
 }
 
 static void
@@ -5576,20 +6263,23 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
         db_load_processes(app);
         app->remote_processes_loaded = 1;
     }
+    if(app->dashboard_filter_public && !app->public_processes_loaded)
+        fetch_public_processes(app, app->server_url);
     if(!IsUIDesktopMode() && app->dashboard_menu_open)
         top_h += ScaleUIPx(212);
     viewport_y = top_h;
     viewport_h = view_h - viewport_y;
     y = viewport_y + ScaleUIPx(14) - app->dashboard_scroll;
-    GetUICenteredColumn(640, side, &content_x, &content_w);
+    get_dashboard_column(view_w, side, &content_x, &content_w);
     app->dashboard_scroll = clampi(app->dashboard_scroll - (int)(GetMouseWheelMove() * ScaleUIPx(44)),
                                    0, app->dashboard_max_scroll);
 
     {
         int history_clicked = 0;
+        int *history_target = !IsUIDesktopMode() ? &history_clicked : NULL;
 
         draw_dashboard_top_bar(app, text, view_w, &join_clicked, &new_clicked,
-                               &settings_clicked, &account_clicked, &history_clicked,
+                               &settings_clicked, &account_clicked, history_target,
                                &scan_clicked);
         if(history_clicked) {
             app->screen = UKU_SCREEN_HISTORY;
@@ -5628,38 +6318,101 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
 
     BeginScissorMode(0, viewport_y, view_w, viewport_h);
     {
+        int mine_clicked = 0;
+        int public_clicked = 0;
+        int filter_gap = ScaleUIPx(8);
+        int filter_w = (content_w - filter_gap) / 2;
+
+        draw_visibility_button(app, content_x, y, filter_w,
+                               tr(app, "dashboard_filter_mine"),
+                               !app->dashboard_filter_public,
+                               UKU_FOCUS_DASHBOARD_FILTER_MINE,
+                               &mine_clicked);
+        draw_visibility_button(app, content_x + filter_w + filter_gap, y,
+                               filter_w, tr(app, "dashboard_filter_public"),
+                               app->dashboard_filter_public,
+                               UKU_FOCUS_DASHBOARD_FILTER_PUBLIC,
+                               &public_clicked);
+        if(mine_clicked && app->dashboard_filter_public) {
+            app->dashboard_filter_public = 0;
+            db_load_processes(app);
+            app->remote_processes_loaded = 1;
+            app->dashboard_scroll = 0;
+            UIConsumeRelease();
+        }
+        if(public_clicked && !app->dashboard_filter_public) {
+            app->dashboard_filter_public = 1;
+            app->public_processes_loaded = 0;
+            db_load_processes(app);
+            app->remote_processes_loaded = 1;
+            fetch_public_processes(app, app->server_url);
+            app->dashboard_scroll = 0;
+            UIConsumeRelease();
+        }
+        y += ScaleUIPx(34);
+    }
+    {
         /* quiet section header: small label with a hairline rule */
-        int label_w = measure_text_font(font, tr(app, "Currently In Progress"), small_font);
+        const char *section_label = app->dashboard_filter_public
+            ? tr(app, "dashboard_public_label")
+            : tr(app, "Currently In Progress");
+        int label_w = measure_text_font(font, section_label, small_font);
         int rule_y = y + small_font / 2;
 
-        draw_text_font(font, tr(app, "Currently In Progress"), content_x, y, small_font, Fade(GetThemeText(), 0.75f));
+        draw_text_font(font, section_label, content_x, y, small_font, Fade(GetThemeText(), 0.75f));
         DrawRectangle(content_x + label_w + ScaleUIPx(10), rule_y,
                       content_w - label_w - ScaleUIPx(10), 1, Fade(GetThemeText(), 0.16f));
         y += small_font + ScaleUIPx(16);
     }
 
     if(app->process_count <= 0) {
-        int cta_clicked = 0;
+        if(app->dashboard_filter_public) {
+            Rectangle empty = {(float)content_x, (float)y,
+                               (float)content_w, (float)ScaleUIPx(54)};
 
-        y = draw_empty_state(app, font, text->dashboard_empty, content_x, y,
-                             content_w, body_font, small_font, &cta_clicked);
-        if(cta_clicked)
-            start_new_process_flow(app, text);
+            DrawRectangleRounded(empty, 0.07f, 10, GetThemeSurface());
+            draw_centered_text(font, tr(app, "dashboard_public_empty"),
+                               content_x + content_w / 2, y + ScaleUIPx(19),
+                               small_font, Fade(GetThemeText(), 0.65f));
+            y += ScaleUIPx(66);
+        } else {
+            int cta_clicked = 0;
+
+            y = draw_empty_state(app, font, text->dashboard_empty, content_x, y,
+                                 content_w, view_h, body_font, small_font,
+                                 &cta_clicked);
+            if(cta_clicked)
+                start_new_process_flow(app, text);
+        }
     } else {
         int card_h = ScaleUIPx(92);
         int gap = ScaleUIPx(8);
         int active_count = 0;
         int completed_count = 0;
+        int visible_count = 0;
 
         for(int i = 0; i < app->process_count; i++) {
             UkuProcessRow *row = &app->processes[i];
+            if(!dashboard_row_visible(app, row))
+                continue;
+            visible_count++;
             if(process_phase(row->created_at, row->proposal_minutes,
                              row->voting_minutes, now, NULL) != UKU_PROCESS_RESULTS)
                 active_count++;
             else
                 completed_count++;
         }
-        if(active_count <= 0) {
+        if(visible_count <= 0) {
+            Rectangle empty = {(float)content_x, (float)y,
+                               (float)content_w, (float)ScaleUIPx(54)};
+
+            DrawRectangleRounded(empty, 0.07f, 10, GetThemeSurface());
+            draw_centered_text(font, tr(app, "dashboard_public_empty"),
+                               content_x + content_w / 2, y + ScaleUIPx(19),
+                               small_font, Fade(GetThemeText(), 0.65f));
+            y += ScaleUIPx(66);
+        } else {
+            if(active_count <= 0) {
             Rectangle empty = {(float)content_x, (float)y, (float)content_w, (float)ScaleUIPx(46)};
 
             DrawRectangleRounded(empty, 0.07f, 10, GetThemeSurface());
@@ -5680,6 +6433,8 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
             char timer[128];
             int open = 0;
 
+            if(!dashboard_row_visible(app, row))
+                continue;
             if(process_phase(row->created_at, row->proposal_minutes,
                              row->voting_minutes, now, NULL) == UKU_PROCESS_RESULTS)
                 continue;
@@ -5720,66 +6475,102 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
             y += card_h + gap;
         }
         y += ScaleUIPx(8);
-        {
-            int label_w = measure_text_font(font, tr(app, "Completed Processes"), small_font);
-            int rule_y = y + small_font / 2;
-
-            draw_text_font(font, tr(app, "Completed Processes"), content_x, y, small_font,
-                           Fade(GetThemeText(), 0.75f));
-            DrawRectangle(content_x + label_w + ScaleUIPx(10), rule_y,
-                          content_w - label_w - ScaleUIPx(10), 1, Fade(GetThemeText(), 0.16f));
-            y += small_font + ScaleUIPx(16);
-        }
-        if(completed_count <= 0) {
-            Rectangle empty = {(float)content_x, (float)y, (float)content_w, (float)ScaleUIPx(46)};
-
-            DrawRectangleRounded(empty, 0.07f, 10, GetThemeSurface());
-            draw_centered_text(font, tr(app, "Completed processes will appear here."),
-                               content_x + content_w / 2, y + ScaleUIPx(16),
-                               small_font, Fade(GetThemeText(), 0.65f));
-            y += ScaleUIPx(58);
-        }
-        for(int i = 0; i < app->process_count; i++) {
-            UkuProcessRow *row = &app->processes[i];
-            Rectangle card = {(float)content_x, (float)y, (float)content_w, (float)card_h};
+        if(completed_count > 0) {
+            int summary_h = ScaleUIPx(58);
+            int icon_box = ScaleUIPx(34);
+            int summary_focus = UKU_FOCUS_HISTORY_BACK;
+            Rectangle summary = {(float)content_x, (float)y, (float)content_w, (float)summary_h};
             Vector2 mouse = GetMousePosition();
-            int focus_id = UKU_FOCUS_DASHBOARD_PROCESS_BASE + i + UKU_MAX_PROCESSES;
-            int hovered = CheckCollisionPointRec(mouse, card);
-            int focused = RegisterUIFocus(focus_id, card);
-            char meta[160];
-            char created[32];
-            int open = 0;
+            int hovered = CheckCollisionPointRec(mouse, summary);
+            int focused = RegisterUIFocus(summary_focus, summary);
+            int summary_clicked = (hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
+                                  IsUIFocusActivatePressed(summary_focus);
+            char count_text[80];
+            Texture2D icon_texture = app->icons[UI_ICON_TYPE_TIMELINE];
 
-            if(process_phase(row->created_at, row->proposal_minutes,
-                             row->voting_minutes, now, NULL) != UKU_PROCESS_RESULTS)
-                continue;
-            if(y + card_h < viewport_y || y > viewport_y + viewport_h) {
-                y += card_h + gap;
-                continue;
+            if(summary_clicked) {
+                app->dashboard_completed_expanded = !app->dashboard_completed_expanded;
+                UIConsumeRelease();
             }
-
             if(hovered)
                 app->cursor_clickable = 1;
-            DrawRectangleRounded(card, 0.07f, 10, GetThemeSurface());
-            DrawRectangleRoundedLinesEx(card, 0.07f, 10, ScaleUIPx(1),
-                                        focused || hovered ? GetThemeButton() : Fade(GetThemeText(), 0.45f));
-            draw_text_font(font, fit_tail(font, row->topic, body_font, content_w - ScaleUIPx(24)),
-                           content_x + ScaleUIPx(12), y + ScaleUIPx(9), body_font, GetThemeText());
-            format_created_at(created, sizeof(created), row->created_at);
-            snprintf(meta, sizeof(meta), "%s | %s | %s", tr(app, "Finished"),
-                     process_type_label(row->type), created);
-            draw_text_font(font, fit_tail(font, meta, small_font, content_w - ScaleUIPx(24)),
-                           content_x + ScaleUIPx(12), y + ScaleUIPx(33), small_font,
-                           Fade(GetThemeText(), 0.75f));
-            if(row->description[0] != '\0')
-                draw_text_font(font, fit_tail(font, row->description, small_font, content_w - ScaleUIPx(24)),
-                               content_x + ScaleUIPx(12), y + ScaleUIPx(56), small_font,
-                               GetThemeText());
-            open = (hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
-                   IsUIFocusActivatePressed(focus_id);
-            if(open)
-                open_process_row(app, row);
-            y += card_h + gap;
+            snprintf(count_text, sizeof(count_text), "%d %s", completed_count,
+                     completed_count == 1 ? tr(app, "Finished") : tr(app, "Finished"));
+            DrawRectangleRounded(summary, 0.05f, 10, GetThemeSurface());
+            DrawRectangleRoundedLinesEx(summary, 0.05f, 10, ScaleUIPx(focused ? 2 : 1),
+                                        focused || hovered ? GetThemeButton()
+                                                          : Fade(GetThemeText(), 0.28f));
+            DrawRectangleRounded((Rectangle){(float)(content_x + ScaleUIPx(12)),
+                                             (float)(y + (summary_h - icon_box) / 2),
+                                             (float)icon_box, (float)icon_box},
+                                 0.18f, 10, Fade(GetThemeButton(), 0.18f));
+            if(icon_texture.id != 0)
+                DrawTexturePro(icon_texture,
+                               (Rectangle){0, 0, (float)icon_texture.width, (float)icon_texture.height},
+                               (Rectangle){(float)(content_x + ScaleUIPx(19)),
+                                           (float)(y + (summary_h - icon_box) / 2 + ScaleUIPx(7)),
+                                           (float)(icon_box - ScaleUIPx(14)),
+                                           (float)(icon_box - ScaleUIPx(14))},
+                               (Vector2){0}, 0.0f, WHITE);
+            draw_text_font(font, tr(app, "Completed Processes"),
+                           content_x + ScaleUIPx(58), y + ScaleUIPx(10),
+                           body_font, GetThemeText());
+            draw_text_font(font, count_text,
+                           content_x + ScaleUIPx(58), y + ScaleUIPx(33),
+                           small_font, Fade(GetThemeText(), 0.72f));
+            draw_centered_text(font, app->dashboard_completed_expanded ? "-" : "+",
+                               content_x + content_w - ScaleUIPx(22),
+                               GetUIControlTextY("+", y, summary_h, body_font),
+                               body_font, GetThemeButton());
+            y += summary_h + ScaleUIPx(10);
+
+            if(app->dashboard_completed_expanded) {
+                for(int i = 0; i < app->process_count; i++) {
+                    UkuProcessRow *row = &app->processes[i];
+                    Rectangle card = {(float)content_x, (float)y, (float)content_w, (float)card_h};
+                    Vector2 mouse = GetMousePosition();
+                    int focus_id = UKU_FOCUS_DASHBOARD_PROCESS_BASE + i + UKU_MAX_PROCESSES;
+                    int hovered = CheckCollisionPointRec(mouse, card);
+                    int focused = RegisterUIFocus(focus_id, card);
+                    char meta[160];
+                    char created[32];
+                    int open = 0;
+
+                    if(!dashboard_row_visible(app, row))
+                        continue;
+                    if(process_phase(row->created_at, row->proposal_minutes,
+                                     row->voting_minutes, now, NULL) != UKU_PROCESS_RESULTS)
+                        continue;
+                    if(y + card_h < viewport_y || y > viewport_y + viewport_h) {
+                        y += card_h + gap;
+                        continue;
+                    }
+
+                    if(hovered)
+                        app->cursor_clickable = 1;
+                    DrawRectangleRounded(card, 0.07f, 10, GetThemeSurface());
+                    DrawRectangleRoundedLinesEx(card, 0.07f, 10, ScaleUIPx(1),
+                                                focused || hovered ? GetThemeButton() : Fade(GetThemeText(), 0.45f));
+                    draw_text_font(font, fit_tail(font, row->topic, body_font, content_w - ScaleUIPx(24)),
+                                   content_x + ScaleUIPx(12), y + ScaleUIPx(9), body_font, GetThemeText());
+                    format_created_at(created, sizeof(created), row->created_at);
+                    snprintf(meta, sizeof(meta), "%s | %s | %s", tr(app, "Finished"),
+                             process_type_label(row->type), created);
+                    draw_text_font(font, fit_tail(font, meta, small_font, content_w - ScaleUIPx(24)),
+                                   content_x + ScaleUIPx(12), y + ScaleUIPx(33), small_font,
+                                   Fade(GetThemeText(), 0.75f));
+                    if(row->description[0] != '\0')
+                        draw_text_font(font, fit_tail(font, row->description, small_font, content_w - ScaleUIPx(24)),
+                                       content_x + ScaleUIPx(12), y + ScaleUIPx(56), small_font,
+                                       GetThemeText());
+                    open = (hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
+                           IsUIFocusActivatePressed(focus_id);
+                    if(open)
+                        open_process_row(app, row);
+                    y += card_h + gap;
+                }
+            }
+        }
         }
     }
     EndScissorMode();
@@ -5832,13 +6623,8 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
     draw_top_bar(app, text->create_title, 1, UKU_FOCUS_CREATE_BACK, &back_clicked,
                  0, NULL, 0, NULL, 0, NULL, 0, NULL, view_w);
     if(back_clicked) {
-        if(app->create_step == UKU_CREATE_STEP_SETUP) {
-            app->screen = UKU_SCREEN_HOME;
-            app->active_field = UKU_FIELD_NONE;
-            ClearUIFocus();
-        } else {
-            create_go_to_step(app, create_previous_step(app));
-        }
+        create_return_to_dashboard(app);
+        return;
     }
 
     BeginScissorMode(0, viewport_y, view_w, viewport_h);
@@ -5872,9 +6658,19 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
         int public_clicked = 0;
         int private_clicked = 0;
         int unlisted_clicked = 0;
+        int prop_public_clicked = 0;
+        int prop_participants_clicked = 0;
+        int prop_owner_clicked = 0;
+        int submit_public_clicked = 0;
+        int submit_logged_clicked = 0;
+        int submit_participants_clicked = 0;
+        int vote_public_clicked = 0;
+        int vote_logged_clicked = 0;
+        int vote_participants_clicked = 0;
         int option_gap = ScaleUIPx(6);
         int option_w = (content_w - option_gap * 2) / 3;
 
+        decision_permission_defaults(d);
         y += ScaleUIPx(8);
         draw_centered_text(font, "Rules", content_x + content_w / 2, y,
                            title_font, GetThemeText());
@@ -5920,6 +6716,94 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
             copy_text(d->visibility, sizeof(d->visibility), "unlisted", strlen("unlisted"));
         y += ScaleUIPx(56);
 
+        if(process_type_has_proposals(d->type)) {
+            draw_text_font(font, tr(app, "Proposal visibility"), content_x, y,
+                           body_font, GetThemeText());
+            y += body_font + ScaleUIPx(8);
+            draw_visibility_button(app, content_x, y, option_w, tr(app, "Public"),
+                                   strcmp(d->proposal_visibility, "public") == 0,
+                                   UKU_FOCUS_PROPOSAL_VISIBILITY_PUBLIC,
+                                   &prop_public_clicked);
+            draw_visibility_button(app, content_x + option_w + option_gap, y,
+                                   option_w, tr(app, "Participants"),
+                                   strcmp(d->proposal_visibility, "participants") == 0,
+                                   UKU_FOCUS_PROPOSAL_VISIBILITY_PARTICIPANTS,
+                                   &prop_participants_clicked);
+            draw_visibility_button(app, content_x + (option_w + option_gap) * 2,
+                                   y, option_w, tr(app, "Owner only"),
+                                   strcmp(d->proposal_visibility, "owner") == 0,
+                                   UKU_FOCUS_PROPOSAL_VISIBILITY_OWNER,
+                                   &prop_owner_clicked);
+            if(prop_public_clicked)
+                copy_text(d->proposal_visibility, sizeof(d->proposal_visibility),
+                          "public", strlen("public"));
+            if(prop_participants_clicked)
+                copy_text(d->proposal_visibility, sizeof(d->proposal_visibility),
+                          "participants", strlen("participants"));
+            if(prop_owner_clicked)
+                copy_text(d->proposal_visibility, sizeof(d->proposal_visibility),
+                          "owner", strlen("owner"));
+            y += ScaleUIPx(48);
+
+            draw_text_font(font, tr(app, "Who can add proposals"), content_x, y,
+                           body_font, GetThemeText());
+            y += body_font + ScaleUIPx(8);
+            draw_visibility_button(app, content_x, y, option_w, tr(app, "Public"),
+                                   strcmp(d->proposal_access, "public") == 0,
+                                   UKU_FOCUS_PROPOSAL_ACCESS_PUBLIC,
+                                   &submit_public_clicked);
+            draw_visibility_button(app, content_x + option_w + option_gap, y,
+                                   option_w, tr(app, "Logged in"),
+                                   strcmp(d->proposal_access, "logged_in") == 0,
+                                   UKU_FOCUS_PROPOSAL_ACCESS_LOGGED_IN,
+                                   &submit_logged_clicked);
+            draw_visibility_button(app, content_x + (option_w + option_gap) * 2,
+                                   y, option_w, tr(app, "Participants"),
+                                   strcmp(d->proposal_access, "participants") == 0,
+                                   UKU_FOCUS_PROPOSAL_ACCESS_PARTICIPANTS,
+                                   &submit_participants_clicked);
+            if(submit_public_clicked)
+                copy_text(d->proposal_access, sizeof(d->proposal_access),
+                          "public", strlen("public"));
+            if(submit_logged_clicked)
+                copy_text(d->proposal_access, sizeof(d->proposal_access),
+                          "logged_in", strlen("logged_in"));
+            if(submit_participants_clicked)
+                copy_text(d->proposal_access, sizeof(d->proposal_access),
+                          "participants", strlen("participants"));
+            y += ScaleUIPx(48);
+        }
+
+        if(process_type_has_voting(d->type)) {
+            draw_text_font(font, tr(app, "Who can vote"), content_x, y,
+                           body_font, GetThemeText());
+            y += body_font + ScaleUIPx(8);
+            draw_visibility_button(app, content_x, y, option_w, tr(app, "Public"),
+                                   strcmp(d->voting_access, "public") == 0,
+                                   UKU_FOCUS_VOTING_ACCESS_PUBLIC,
+                                   &vote_public_clicked);
+            draw_visibility_button(app, content_x + option_w + option_gap, y,
+                                   option_w, tr(app, "Logged in"),
+                                   strcmp(d->voting_access, "logged_in") == 0,
+                                   UKU_FOCUS_VOTING_ACCESS_LOGGED_IN,
+                                   &vote_logged_clicked);
+            draw_visibility_button(app, content_x + (option_w + option_gap) * 2,
+                                   y, option_w, tr(app, "Participants"),
+                                   strcmp(d->voting_access, "participants") == 0,
+                                   UKU_FOCUS_VOTING_ACCESS_PARTICIPANTS,
+                                   &vote_participants_clicked);
+            if(vote_public_clicked)
+                copy_text(d->voting_access, sizeof(d->voting_access),
+                          "public", strlen("public"));
+            if(vote_logged_clicked)
+                copy_text(d->voting_access, sizeof(d->voting_access),
+                          "logged_in", strlen("logged_in"));
+            if(vote_participants_clicked)
+                copy_text(d->voting_access, sizeof(d->voting_access),
+                          "participants", strlen("participants"));
+            y += ScaleUIPx(56);
+        }
+
         draw_compact_button(app, font, content_x, y, ScaleUIPx(130), ScaleUIPx(130),
                             ScaleUIPx(34), text->back_button, 0,
                             UKU_FOCUS_CREATE_PREVIOUS, &previous_clicked);
@@ -5934,32 +6818,11 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
                                    : UKU_CREATE_STEP_TIMING);
     } else if(app->create_step == UKU_CREATE_STEP_PROPOSALS) {
         int add_clicked = 0;
-        int template_status_clicked = 0;
-        int template_repeat_clicked = 0;
-        int template_gap = ScaleUIPx(8);
-        int template_w = (content_w - template_gap) / 2;
 
         y += ScaleUIPx(8);
         draw_centered_text(font, "Add proposals", content_x + content_w / 2, y,
                            title_font, GetThemeText());
         y += title_font + ScaleUIPx(22);
-
-        draw_compact_button(app, font, content_x, y, template_w, template_w,
-                            ScaleUIPx(32), text->status_quo_title, 0,
-                            UKU_FOCUS_PROPOSAL_TEMPLATE_STATUS_QUO,
-                            &template_status_clicked);
-        draw_compact_button(app, font, content_x + template_w + template_gap, y,
-                            template_w, template_w, ScaleUIPx(32),
-                            text->repeat_process_title, 0,
-                            UKU_FOCUS_PROPOSAL_TEMPLATE_REPEAT_PROCESS,
-                            &template_repeat_clicked);
-        if(template_status_clicked)
-            create_add_draft_proposal(app, text->status_quo_title,
-                                      text->status_quo_description);
-        if(template_repeat_clicked)
-            create_add_draft_proposal(app, text->repeat_process_title,
-                                      text->repeat_process_description);
-        y += ScaleUIPx(42);
 
         y = draw_text_field(app, font, tr(app, "Title"), tr(app, "Proposal title"),
                             app->proposal_title, sizeof(app->proposal_title),
@@ -5969,12 +6832,23 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
                             app->proposal_description, sizeof(app->proposal_description),
                             UKU_FIELD_PROPOSAL_DESCRIPTION, UKU_FOCUS_PROPOSAL_DESCRIPTION,
                             content_x, y, content_w, ScaleUIPx(80));
+        if(has_non_space(app->proposal_description) &&
+           !has_non_space(app->proposal_title)) {
+            y = draw_wrapped_text(font, text->proposal_title_warning,
+                                  content_x, y - ScaleUIPx(6), content_w,
+                                  small_font, small_font + ScaleUIPx(4),
+                                  GetThemeButton());
+            y += ScaleUIPx(8);
+        }
         draw_compact_button(app, font, content_x, y, content_w, ScaleUIPx(180),
                             ScaleUIPx(34), tr(app, "Add Proposal"), 1,
                             UKU_FOCUS_PROPOSAL_SUBMIT, &add_clicked);
         if(add_clicked) {
-            if(create_add_draft_proposal(app, app->proposal_title,
-                                         app->proposal_description)) {
+            if(!has_non_space(app->proposal_title) &&
+               has_non_space(app->proposal_description)) {
+                ShowToast(text->proposal_title_warning);
+            } else if(create_add_draft_proposal(app, app->proposal_title,
+                                                app->proposal_description)) {
                 app->proposal_title[0] = '\0';
                 app->proposal_description[0] = '\0';
             } else {
@@ -6111,6 +6985,22 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
         snprintf(value, sizeof(value), "Visibility: %s", d->visibility);
         draw_text_font(font, value, content_x, y, body_font, GetThemeText());
         y += body_font + ScaleUIPx(10);
+        if(process_type_has_proposals(d->type)) {
+            snprintf(value, sizeof(value), "%s: %s", tr(app, "Proposal visibility"),
+                     d->proposal_visibility);
+            draw_text_font(font, value, content_x, y, body_font, GetThemeText());
+            y += body_font + ScaleUIPx(10);
+            snprintf(value, sizeof(value), "%s: %s", tr(app, "Who can add proposals"),
+                     d->proposal_access);
+            draw_text_font(font, value, content_x, y, body_font, GetThemeText());
+            y += body_font + ScaleUIPx(10);
+        }
+        if(process_type_has_voting(d->type)) {
+            snprintf(value, sizeof(value), "%s: %s", tr(app, "Who can vote"),
+                     d->voting_access);
+            draw_text_font(font, value, content_x, y, body_font, GetThemeText());
+            y += body_font + ScaleUIPx(10);
+        }
         if(process_type_uses_negative_weight(d->type)) {
             char weight_label[96];
 
@@ -6178,15 +7068,14 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
             d->remote_error = 0;
             if(proposal_error)
                 ShowToast(tr(app, "Add at least one proposal."));
-            if(!process_account_ready(app)) {
-                d->db_error = 1;
-            } else if(!d->topic_error && !proposal_error) {
+            if(!d->topic_error && !proposal_error) {
                 d->submitted = db_save_process(app, text);
                 d->db_error = !d->submitted;
                 if(d->submitted) {
-                    d->remote_error = !lyra_create_process(app, app->server_url);
+                    d->remote_error = !create_remote_process(app, app->server_url);
                     if(!d->remote_error)
                         db_mark_process_synced(app, d->id);
+                    app->create_draft_saved = 0;
                     app->remote_processes_loaded = 0;
                     app->process_detail_loaded = 0;
                     app->process_detail_loading_failed = 0;
@@ -6243,6 +7132,8 @@ draw_proposal_card(UkuApp *app, Font font, const UkuProposal *proposal,
     int edit_clicked = 0;
     Rectangle card;
 
+    if(proposal->display_name[0] != '\0')
+        h += ScaleUIPx(18);
     if(proposal->description[0] != '\0')
         h += ScaleUIPx(20);
     can_delete = app->account.loaded && proposal->author_user_id[0] != '\0' &&
@@ -6253,8 +7144,15 @@ draw_proposal_card(UkuApp *app, Font font, const UkuProposal *proposal,
     draw_text_font(font, fit_tail(font, proposal->title, body_font,
                                   w - (can_delete ? ScaleUIPx(76) : ScaleUIPx(24))),
                    x + ScaleUIPx(10), y + ScaleUIPx(8), body_font, GetThemeText());
+    if(proposal->display_name[0] != '\0')
+        draw_text_font(font, fit_tail(font, proposal->display_name, small_font,
+                                      w - ScaleUIPx(24)),
+                       x + ScaleUIPx(10), y + ScaleUIPx(30), small_font,
+                       Fade(GetThemeText(), 0.68f));
     if(proposal->description[0] != '\0')
-        draw_wrapped_text(font, proposal->description, x + ScaleUIPx(10), y + ScaleUIPx(32),
+        draw_wrapped_text(font, proposal->description, x + ScaleUIPx(10),
+                          y + (proposal->display_name[0] != '\0' ? ScaleUIPx(48)
+                                                                  : ScaleUIPx(32)),
                           w - ScaleUIPx(20), small_font, line_h, GetThemeText());
     if(can_delete) {
         int icon_y = y + ScaleUIPx(6);
@@ -6274,7 +7172,7 @@ draw_proposal_card(UkuApp *app, Font font, const UkuProposal *proposal,
                       proposal->description, strlen(proposal->description));
         }
         if(delete_clicked) {
-            app->proposal_submit_failed = !lyra_delete_proposal(app, app->server_url, proposal->id);
+            app->proposal_submit_failed = !delete_proposal(app, app->server_url, proposal->id);
             app->proposal_submit_ok = !app->proposal_submit_failed;
         }
     }
@@ -6562,7 +7460,7 @@ uku_verdict(const UkuApp *app, int *winner_index)
 {
     int indices[UKU_MAX_PROPOSALS];
     const UkuProposal *leader;
-    int included = tally_included_count(app);
+    int included = tally_included_ballot_count(app);
 
     if(winner_index != NULL)
         *winner_index = -1;
@@ -6594,7 +7492,7 @@ format_verdict_text(UkuApp *app, UkuVerdict verdict, int winner_index,
     switch(verdict) {
     case UKU_VERDICT_NO_QUORUM:
         snprintf(out, out_size, tr(app, "No quorum yet - %d of %d ballots cast"),
-                 tally_included_count(app), app->decision.quorum_votes);
+                 tally_included_ballot_count(app), app->decision.quorum_votes);
         break;
     case UKU_VERDICT_ALL_RESISTED:
         snprintf(out, out_size, tr(app, "Every option meets resistance - least resisted prevails: %s"),
@@ -6679,7 +7577,8 @@ draw_participant_list(UkuApp *app, Font font, int x, int y, int w, int body_font
         }
         if(name == NULL || name[0] == '\0')
             name = tr(app, "anonymous");
-        snprintf(row, sizeof(row), "%s%s", name,
+        snprintf(row, sizeof(row), "%s%s%s", name,
+                 vote->has_ballot ? "" : tr(app, " (proposal)"),
                  app->account.loaded && strcmp(vote->voter_user_id, app->account.public_id) == 0 ? tr(app, " (you)") : "");
         draw_text_font(font, fit_tail(font, row, small_font, w - ScaleUIPx(24)),
                        x + ScaleUIPx(12) + (app->tally_from_remote ? box + ScaleUIPx(8) : 0), y, small_font,
@@ -6810,7 +7709,10 @@ build_share_url(UkuApp *app, const UkuDecision *d, char *out, size_t out_size)
 #if defined(PLATFORM_WEB)
     {
         const char *href = emscripten_run_script_string(
-            "(location.origin + location.pathname) || ''");
+            "(() => {"
+            "  const path = location.pathname || '/';"
+            "  return (location.origin || '') + path;"
+            "})()");
 
         if(href != NULL && href[0] != '\0')
             base = href;
@@ -6818,9 +7720,21 @@ build_share_url(UkuApp *app, const UkuDecision *d, char *out, size_t out_size)
 #endif
     size_t len = strlen(base);
 
-    while(len > 0 && base[len - 1] == '/')
+    while(len > 0 && (base[len - 1] == '/' || base[len - 1] == '#'))
         len--;
+#if defined(PLATFORM_WEB)
+    snprintf(out, out_size, "%.*s/#/app/%s/", (int)len, base, d->id);
+#else
     snprintf(out, out_size, "%.*s/app/%s/", (int)len, base, d->id);
+#endif
+}
+
+static void
+update_local_address(UkuApp *app, UkuDecision *d)
+{
+    if(app == NULL || d == NULL || d->id[0] == '\0')
+        return;
+    build_share_url(app, d, d->local_address, sizeof(d->local_address));
 }
 
 static void
@@ -6897,6 +7811,15 @@ qr_ensure(UkuApp *app, const UkuDecision *d, const char *url)
 }
 
 static int
+qr_panel_height(UkuApp *app, int small_font)
+{
+    int panel_pad = ScaleUIPx(12);
+    int qr_h = app != NULL && app->qr_loaded ? app->qr_texture.height : ScaleUIPx(160);
+
+    return qr_h + panel_pad * 2 + small_font + ScaleUIPx(6);
+}
+
+static int
 share_text(UkuApp *app, const char *text, const char *title)
 {
 #if defined(PLATFORM_ANDROID)
@@ -6934,11 +7857,78 @@ share_file(UkuApp *app, const char *path, const char *mime_type,
 #if defined(PLATFORM_ANDROID)
     (void)app;
     return android_bridge_share_file(path, mime_type, title, extra_text);
+#elif defined(PLATFORM_WEB)
+    (void)app;
+    return EM_ASM_INT({
+        try {
+            const path = UTF8ToString($0);
+            const mime = UTF8ToString($1);
+            const title = $2 ? UTF8ToString($2) : "";
+            const text = $3 ? UTF8ToString($3) : "";
+            const bytes = FS.readFile(path);
+            const name = path.split('/').pop() || 'uku-qr.png';
+            const file = new File([bytes], name, {type: mime || 'image/png'});
+            const download = () => {
+                const blob = new Blob([bytes], {type: mime || 'image/png'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = name;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 30000);
+            };
+            if(navigator.canShare && navigator.canShare({files: [file]})) {
+                navigator.share({files: [file], title, text}).catch(download);
+            } else {
+                download();
+            }
+            return 1;
+        } catch(e) {
+            console.error('Uku QR share failed', e);
+            return 0;
+        }
+    }, path, mime_type != NULL ? mime_type : "image/png",
+       title != NULL ? title : "", extra_text != NULL ? extra_text : "");
 #else
     (void)mime_type;
     (void)title;
     (void)extra_text;
     (void)app;
+    return path != NULL && FileExists(path);
+#endif
+}
+
+static int
+save_file(UkuApp *app, const char *path, const char *mime_type)
+{
+#if defined(PLATFORM_WEB)
+    (void)app;
+    return EM_ASM_INT({
+        try {
+            const path = UTF8ToString($0);
+            const mime = UTF8ToString($1);
+            const bytes = FS.readFile(path);
+            const name = path.split('/').pop() || 'uku-qr.png';
+            const blob = new Blob([bytes], {type: mime || 'image/png'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = name;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 30000);
+            return 1;
+        } catch(e) {
+            console.error('Uku file save failed', e);
+            return 0;
+        }
+    }, path, mime_type != NULL ? mime_type : "application/octet-stream");
+#else
+    (void)app;
+    (void)mime_type;
     return path != NULL && FileExists(path);
 #endif
 }
@@ -6949,7 +7939,7 @@ qr_draw(UkuApp *app, Font font, const char *url, int x, int y, int w, int body_f
     int panel_pad = ScaleUIPx(12);
     int qr_w = app->qr_loaded ? app->qr_texture.width : ScaleUIPx(160);
     int qr_h = app->qr_loaded ? app->qr_texture.height : ScaleUIPx(160);
-    int panel_h = qr_h + panel_pad * 2 + small_font + ScaleUIPx(6);
+    int panel_h = qr_panel_height(app, small_font);
     Rectangle panel = {(float)x, (float)y, (float)w, (float)panel_h};
     Vector2 mouse = GetMousePosition();
     int hovered = CheckCollisionPointRec(mouse, panel);
@@ -7023,7 +8013,7 @@ build_results_text(UkuApp *app, char *out, size_t out_size)
     used = strlen(out);
     if(app->decision.quorum_votes > 0)
         snprintf(out + used, out_size - used, "%s: %d/%d\n", tr(app, "Quorum"),
-                 tally_included_count(app), app->decision.quorum_votes);
+                 tally_included_ballot_count(app), app->decision.quorum_votes);
 }
 
 static void
@@ -7053,6 +8043,9 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     int content_bottom;
     int content_h;
     int is_owner;
+    int proposal_read_allowed;
+    int proposal_submit_allowed;
+    int vote_submit_allowed;
     int result_indices[UKU_MAX_PROPOSALS];
     Font font = app->font;
     UkuDecision *d = &app->decision;
@@ -7077,10 +8070,10 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
         if(app->collect_refresh_requested || now_sec - app->collect_last_fetch >= 5) {
             app->collect_refresh_requested = 0;
             app->collect_last_fetch = now_sec;
-            lyra_fetch_process_detail(app, app->server_url, text);
+            fetch_process_detail(app, app->server_url, text);
         }
     }
-    if(app->account.loaded && !app->pending_sync_attempted) {
+    if(process_owner_is_current(app) && !app->pending_sync_attempted) {
         app->pending_sync_attempted = 1;
         sync_pending_process_detail(app);
     }
@@ -7089,8 +8082,11 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     proposal_total = duration_minutes(d->proposal_days, d->proposal_hours, d->proposal_minutes);
     voting_total = duration_minutes(d->voting_days, d->voting_hours, d->voting_minutes);
     phase = process_phase(d->created_at, proposal_total, voting_total, now, NULL);
-    is_owner = app->account.loaded && d->owner_user_id[0] != '\0' &&
-               strcmp(app->account.public_id, d->owner_user_id) == 0;
+    is_owner = process_owner_is_current(app);
+    decision_permission_defaults(d);
+    proposal_read_allowed = can_read_proposals(app);
+    proposal_submit_allowed = can_submit_proposal(app);
+    vote_submit_allowed = can_submit_vote(app);
 
     draw_top_bar(app, text->collect_title, 1, UKU_FOCUS_COLLECT_BACK, &back_clicked,
                  0, NULL, 0, NULL, 0, NULL, 0, NULL, view_w);
@@ -7173,6 +8169,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
         y += ScaleUIPx(38);
     }
 
+    update_local_address(app, d);
     draw_text_font(font, text->local_address_label, content_x, y, small_font, Fade(GetThemeText(), 0.75f));
     y += small_font + ScaleUIPx(6);
     link_box_w = TextWidth(d->local_address, body_font) + ScaleUIPx(20);
@@ -7244,7 +8241,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
             qr_action_y = y;
             if(app->qr_loaded)
                 qr_draw(app, font, share_url, content_x, qr_action_y, content_w, body_font, small_font);
-            y += (app->qr_loaded ? app->qr_texture.height : ScaleUIPx(160)) + ScaleUIPx(52);
+            y += qr_panel_height(app, small_font) + ScaleUIPx(8);
             qr_actions_y = y;
             qr_action_w = (content_w - gap) / 2;
             draw_compact_button(app, font, content_x, qr_actions_y,
@@ -7256,7 +8253,8 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                                 tr(app, "Share QR code"), 0,
                                 UKU_FOCUS_QR_SHARE_IMAGE, &qr_share_clicked);
             if(qr_save_clicked) {
-                if(app->qr_file_ready && app->qr_file_path[0] != '\0' && FileExists(app->qr_file_path)) {
+                if(app->qr_file_ready && app->qr_file_path[0] != '\0' &&
+                   save_file(app, app->qr_file_path, "image/png")) {
                     ShowToast(tr(app, "QR code saved."));
                 } else
                     ShowToast(tr(app, "Could not create QR code."));
@@ -7278,7 +8276,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
         draw_compact_button(app, font, content_x, y, content_w, ScaleUIPx(230), ScaleUIPx(34),
                             tr(app, "Export decision packet"), 0, UKU_FOCUS_PROCESS_EXPORT, &export_clicked);
         if(export_clicked) {
-            app->process_export_failed = !lyra_export_process(app, app->server_url);
+            app->process_export_failed = !export_process(app, app->server_url);
             copy_text(app->process_status, sizeof(app->process_status),
                       tr(app, app->process_export_failed ? "Could not export decision packet." : "Decision packet copied."),
                       strlen(tr(app, app->process_export_failed ? "Could not export decision packet." : "Decision packet copied.")));
@@ -7288,7 +8286,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
         draw_compact_button(app, font, content_x, y, content_w, ScaleUIPx(190), ScaleUIPx(34),
                             tr(app, "Archive process"), 0, UKU_FOCUS_PROCESS_DELETE, &delete_process_clicked);
         if(delete_process_clicked) {
-            app->process_update_failed = !lyra_delete_process(app, app->server_url);
+            app->process_update_failed = !delete_process(app, app->server_url);
             if(!app->process_update_failed) {
                 app->remote_processes_loaded = 0;
                 app->screen = UKU_SCREEN_HOME;
@@ -7306,13 +8304,14 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     }
 
     if(process_type_has_proposals(d->type) && phase == UKU_PROCESS_PROPOSAL) {
-        int template_status_clicked = 0;
-        int template_repeat_clicked = 0;
-        int template_gap = ScaleUIPx(8);
-        int template_w = (content_w - template_gap) / 2;
-
         draw_text_font(font, tr(app, "Add proposal"), content_x, y, body_font, GetThemeText());
         y += body_font + ScaleUIPx(8);
+        if(!proposal_submit_allowed) {
+            y = draw_wrapped_text(font, tr(app, "You do not have permission to add proposals to this process."),
+                                  content_x, y, content_w, small_font, line_h,
+                                  Fade(GetThemeText(), 0.75f));
+            y += ScaleUIPx(12);
+        } else {
         if(!app->account.loaded) {
             y = draw_text_field(app, font, tr(app, "Your name or persistent alias"),
                                 tr(app, "anonymous"),
@@ -7321,27 +8320,6 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                                 content_x, y, content_w, ScaleUIPx(36));
             alias_normalize(app->alias_input);
         }
-        draw_compact_button(app, font, content_x, y, template_w, template_w,
-                            ScaleUIPx(32), text->status_quo_title, 0,
-                            UKU_FOCUS_PROPOSAL_TEMPLATE_STATUS_QUO,
-                            &template_status_clicked);
-        draw_compact_button(app, font, content_x + template_w + template_gap, y,
-                            template_w, template_w, ScaleUIPx(32), text->repeat_process_title,
-                            0, UKU_FOCUS_PROPOSAL_TEMPLATE_REPEAT_PROCESS,
-                            &template_repeat_clicked);
-        if(template_status_clicked) {
-            copy_text(app->proposal_title, sizeof(app->proposal_title),
-                      text->status_quo_title, strlen(text->status_quo_title));
-            copy_text(app->proposal_description, sizeof(app->proposal_description),
-                      text->status_quo_description, strlen(text->status_quo_description));
-        }
-        if(template_repeat_clicked) {
-            copy_text(app->proposal_title, sizeof(app->proposal_title),
-                      text->repeat_process_title, strlen(text->repeat_process_title));
-            copy_text(app->proposal_description, sizeof(app->proposal_description),
-                      text->repeat_process_description, strlen(text->repeat_process_description));
-        }
-        y += ScaleUIPx(42);
         y = draw_text_field(app, font, tr(app, "Title"), tr(app, "Proposal title"),
                             app->proposal_title, sizeof(app->proposal_title),
                             UKU_FIELD_PROPOSAL_TITLE, UKU_FOCUS_PROPOSAL_TITLE,
@@ -7350,15 +8328,40 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                             app->proposal_description, sizeof(app->proposal_description),
                             UKU_FIELD_PROPOSAL_DESCRIPTION, UKU_FOCUS_PROPOSAL_DESCRIPTION,
                             content_x, y, content_w, ScaleUIPx(68));
+        if(has_non_space(app->proposal_description) &&
+           !has_non_space(app->proposal_title)) {
+            y = draw_wrapped_text(font, text->proposal_title_warning,
+                                  content_x, y - ScaleUIPx(6), content_w,
+                                  small_font, line_h, GetThemeButton());
+            y += ScaleUIPx(8);
+        }
         draw_compact_button(app, font, content_x, y, content_w, ScaleUIPx(210),
                             ScaleUIPx(34), tr(app, "Submit proposal"), 1,
                             UKU_FOCUS_PROPOSAL_SUBMIT, &submit_clicked);
         if(submit_clicked) {
+            char local_id[40];
+            char remote_id[40];
+
             app->proposal_submit_ok = 0;
             app->proposal_submit_failed = 0;
-            if(db_save_local_proposal(app)) {
+            local_id[0] = '\0';
+            remote_id[0] = '\0';
+            if(!has_non_space(app->proposal_title) &&
+               has_non_space(app->proposal_description)) {
+                app->proposal_submit_failed = 1;
+                ShowToast(text->proposal_title_warning);
+            } else if(db_save_local_proposal(app, local_id, sizeof(local_id))) {
                 app->pending_sync_attempted = 0;
-                app->proposal_submit_failed = !lyra_submit_proposal(app, app->server_url);
+                app->proposal_submit_failed = !submit_proposal_text(
+                    app, app->server_url, app->proposal_title,
+                    app->proposal_description, remote_id, sizeof(remote_id));
+                if(!app->proposal_submit_failed && remote_id[0] != '\0' &&
+                   strncmp(local_id, "local-", 6) == 0) {
+                    sqlite3_int64 rowid = (sqlite3_int64)strtoll(local_id + 6, NULL, 10);
+
+                    if(rowid > 0)
+                        db_mark_proposal_synced(app, rowid, remote_id);
+                }
                 app->proposal_submit_ok = 1;
                 app->proposal_title[0] = '\0';
                 app->proposal_description[0] = '\0';
@@ -7369,6 +8372,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                 app->proposal_submit_failed = 1;
                 ShowToast(tr(app, "Could not submit proposal."));
             }
+        }
         }
         y += ScaleUIPx(42);
         if(app->proposal_submit_ok)
@@ -7383,6 +8387,17 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     } else if(process_type_has_voting(d->type) && phase == UKU_PROCESS_VOTING) {
         draw_text_font(font, tr(app, "Your ballot"), content_x, y, body_font, GetThemeText());
         y += body_font + ScaleUIPx(8);
+        if(!vote_submit_allowed) {
+            y = draw_wrapped_text(font, tr(app, "You do not have permission to vote in this process."),
+                                  content_x, y, content_w, small_font, line_h,
+                                  Fade(GetThemeText(), 0.75f));
+            y += ScaleUIPx(12);
+        } else if(!proposal_read_allowed && !process_type_has_options(d->type)) {
+            y = draw_wrapped_text(font, tr(app, "You do not have permission to view proposals in this process."),
+                                  content_x, y, content_w, small_font, line_h,
+                                  Fade(GetThemeText(), 0.75f));
+            y += ScaleUIPx(12);
+        } else {
         if(!app->account.loaded) {
             y = draw_text_field(app, font, tr(app, "Your name or persistent alias"),
                                 tr(app, "anonymous"),
@@ -7421,7 +8436,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
             app->vote_name_taken = 0;
             if(db_save_local_vote(app)) {
                 app->pending_sync_attempted = 0;
-                app->vote_submit_failed = !lyra_submit_vote(app, app->server_url);
+                app->vote_submit_failed = !submit_vote(app, app->server_url);
                 app->vote_submit_ok = 1;
                 if(app->vote_name_taken)
                     ShowToast(tr(app, "That name is already taken in this process. Choose another."));
@@ -7433,6 +8448,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                 app->vote_submit_failed = 1;
                 ShowToast(tr(app, "Could not submit vote."));
             }
+        }
         }
         y += ScaleUIPx(42);
         if(app->vote_submit_ok && app->vote_name_taken)
@@ -7451,7 +8467,11 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
         draw_text_font(font, tr(app, d->type == UKU_PROCESS_TYPE_COLLECTION ? "Collected proposals" : "Results"),
                        content_x, y, body_font, GetThemeText());
         y += body_font + ScaleUIPx(8);
-        if(process_type_has_options(d->type)) {
+        if(!proposal_read_allowed && !process_type_has_options(d->type)) {
+            y = draw_wrapped_text(font, tr(app, "You do not have permission to view proposals in this process."),
+                                  content_x, y, content_w, small_font, line_h,
+                                  Fade(GetThemeText(), 0.75f));
+        } else if(process_type_has_options(d->type)) {
             for(int i = 0; i < app->option_count; i++)
                 y = draw_option_result_row(app, font, &app->options[i], i + 1,
                                            content_x, y, content_w,
@@ -7495,7 +8515,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     if(process_type_has_voting(d->type))
         y = draw_participant_list(app, font, content_x, y, content_w, body_font, small_font);
 
-    if(process_type_has_proposals(d->type)) {
+    if(process_type_has_proposals(d->type) && proposal_read_allowed) {
         draw_text_font(font, tr(app, "Proposals"), content_x, y, body_font, GetThemeText());
         y += body_font + ScaleUIPx(8);
         for(int i = 0; i < app->proposal_count; i++)
@@ -7666,7 +8686,7 @@ draw_account_setup_modal(UkuApp *app, const UkuText *text, int view_w, int view_
     if(save_clicked) {
         setting_save_int(app, UKU_ACCOUNT_PFP_KEY, app->account_pfp_icon);
         if(alias_valid(app->alias_input))
-            lyra_register_alias(app, app->server_url, app->alias_input);
+            register_alias(app, app->server_url, app->alias_input);
         app->account_setup_modal_open = 0;
         app->active_field = UKU_FIELD_NONE;
         if(app->account_setup_start_process) {
@@ -7783,7 +8803,7 @@ draw_alias_modal(UkuApp *app, int view_w, int view_h)
     } else if(save_clicked) {
         alias_normalize(app->alias_input);
         if(alias_valid(app->alias_input) &&
-           lyra_register_alias(app, app->server_url, app->alias_input)) {
+           register_alias(app, app->server_url, app->alias_input)) {
             copy_text(app->account_status, sizeof(app->account_status),
                       "Alias saved.", strlen("Alias saved."));
             app->account_alias_modal_open = 0;
@@ -8019,6 +9039,7 @@ draw_app_frame(void *userdata)
 #endif
     int view_w = GetScreenWidth();
     int view_h = GetScreenHeight();
+    float ui_scale;
 #if defined(PLATFORM_ANDROID)
     SyncAndroidSurfaceSize(&view_w, &view_h);
     {
@@ -8029,7 +9050,14 @@ draw_app_frame(void *userdata)
 #endif
 
     UpdateUIDPI(view_w, view_h);
-    SetUIScale(ui_dpi_state.ui_scale_clamped);
+    ui_scale = ui_dpi_state.ui_scale_clamped;
+#if defined(PLATFORM_WEB)
+    if(view_w >= 720 && ui_scale > 1.0f)
+        ui_scale = 1.0f;
+    else if(view_w >= 560 && ui_scale > 1.1f)
+        ui_scale = 1.1f;
+#endif
+    SetUIScale(ui_scale);
     BeginUIFrame(view_w, view_h, GetUIScale());
     SetUICursorClickable(&app->cursor_clickable);
     ApplyCurrentUITheme();
@@ -8158,7 +9186,7 @@ main(void)
 #if defined(PLATFORM_WEB)
     frame_context.app = &app;
     frame_context.text = &text;
-    emscripten_set_main_loop_arg(draw_app_frame, &frame_context, 0, 0);
+    emscripten_set_main_loop_arg(draw_app_frame, &frame_context, 0, 1);
 #else
     frame_context.app = &app;
     frame_context.text = &text;

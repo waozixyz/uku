@@ -31,6 +31,18 @@ Noch keine aktiven Prozesse.
 [dashboard_recent_label]
 Aktive Prozesse
 ---
+[dashboard_filter_mine]
+Meine
+---
+[dashboard_filter_public]
+Öffentlich
+---
+[dashboard_public_label]
+Öffentliche Prozesse
+---
+[dashboard_public_empty]
+Keine öffentlichen Prozesse gefunden.
+---
 [manual_title]
 Anleitung
 ---
@@ -54,6 +66,9 @@ Was soll diese Gruppe entscheiden?
 ---
 [topic_error]
 Zum Starten des Prozesses eine Fragestellung ergänzen.
+---
+[proposal_title_warning]
+Ergänze einen Vorschlagstitel, bevor du Details hinzufügst.
 ---
 [description_label]
 Beschreibung (optional)
@@ -492,4 +507,31 @@ Kein Konto nötig - dein Name hält die Stimmen auseinander.
 ---
 [That name is already taken in this process. Choose another.]
 Dieser Name ist in diesem Prozess bereits vergeben. Wähle einen anderen.
+---
+[Proposal visibility]
+Vorschläge sichtbar für
+---
+[Who can add proposals]
+Wer Vorschläge hinzufügen kann
+---
+[Who can vote]
+Wer abstimmen kann
+---
+[Logged in]
+Angemeldet
+---
+[Owner only]
+Nur Besitzer
+---
+[ (proposal)]
+ (Vorschlag)
+---
+[You do not have permission to add proposals to this process.]
+Du hast keine Berechtigung, in diesem Prozess Vorschläge hinzuzufügen.
+---
+[You do not have permission to vote in this process.]
+Du hast keine Berechtigung, in diesem Prozess abzustimmen.
+---
+[You do not have permission to view proposals in this process.]
+Du hast keine Berechtigung, die Vorschläge in diesem Prozess zu sehen.
 ---

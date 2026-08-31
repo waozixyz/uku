@@ -1,6 +1,12 @@
 # Uku
 
+<p align="center">
+  <img src="assets/app/readme-square-630x500.png" alt="Ukuvota" width="630">
+</p>
+
 Website: https://uku.waozi.xyz
+
+Itch: https://waozi.itch.io/ukuvota
 
 Native Ukuvota client — collective decisions without hidden resistance.
 Groups score every option from -3 to +3; negative scores are weighted so
@@ -33,7 +39,11 @@ Web build (needs Emscripten):
 ```sh
 make web
 make run          # local dev server
+make itch         # static itch.io HTML5 package
 ```
+
+If `butler` is logged in, `make itch-push` uploads the HTML5 package to
+`waozi/ukuvota:html5`.
 
 Android (via Gradle, see `droid/`):
 

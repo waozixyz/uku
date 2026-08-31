@@ -31,6 +31,18 @@ No active processes yet.
 [dashboard_recent_label]
 Active Processes
 ---
+[dashboard_filter_mine]
+Mine
+---
+[dashboard_filter_public]
+Public
+---
+[dashboard_public_label]
+Public Processes
+---
+[dashboard_public_empty]
+No public processes found.
+---
 [manual_title]
 Manual
 ---
@@ -54,6 +66,9 @@ What should this group decide?
 ---
 [topic_error]
 Add a topic question to start the process.
+---
+[proposal_title_warning]
+Add a proposal title before adding details.
 ---
 [description_label]
 Description (optional)
@@ -264,4 +279,31 @@ No account needed - your name keeps votes apart.
 ---
 [That name is already taken in this process. Choose another.]
 That name is already taken in this process. Choose another.
+---
+[Proposal visibility]
+Proposal visibility
+---
+[Who can add proposals]
+Who can add proposals
+---
+[Who can vote]
+Who can vote
+---
+[Logged in]
+Logged in
+---
+[Owner only]
+Owner only
+---
+[ (proposal)]
+ (proposal)
+---
+[You do not have permission to add proposals to this process.]
+You do not have permission to add proposals to this process.
+---
+[You do not have permission to vote in this process.]
+You do not have permission to vote in this process.
+---
+[You do not have permission to view proposals in this process.]
+You do not have permission to view proposals in this process.
 ---

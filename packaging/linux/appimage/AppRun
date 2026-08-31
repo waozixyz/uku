@@ -1,0 +1,16 @@
+#!/bin/sh
+HERE="${APPDIR:-$(dirname "$(readlink -f "$0")")}"
+LOADER_X86="$HERE/usr/lib/ld-linux-x86-64.so.2"
+LOADER_ARM64="$HERE/usr/lib/ld-linux-aarch64.so.1"
+SYSTEM_LIBRARY_PATH="/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu:/lib64:/usr/lib64:/lib:/usr/lib"
+LIBRARY_PATH="$HERE/usr/lib:$HERE/usr/bin:$SYSTEM_LIBRARY_PATH"
+
+if [ -x "$LOADER_X86" ]; then
+	exec "$LOADER_X86" --library-path "$LIBRARY_PATH${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$HERE/usr/bin/uku" "$@"
+fi
+
+if [ -x "$LOADER_ARM64" ]; then
+	exec "$LOADER_ARM64" --library-path "$LIBRARY_PATH${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$HERE/usr/bin/uku" "$@"
+fi
+
+exec "$HERE/usr/bin/uku" "$@"

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>xyz.waozi.uku</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>BSD-3-Clause</project_license>
+  <name>Uku</name>
+  <summary>Collective decisions without hidden resistance</summary>
+  <description>
+    <p>Uku is a free, open-source collective decision app for score voting, consent checks, proposals, and explicit status quo options.</p>
+    <p>Groups can score options from -3 to +3, keep resistance visible, and include Status quo and Repeat process as explicit choices.</p>
+  </description>
+  <launchable type="desktop-id">xyz.waozi.uku.desktop</launchable>
+  <categories>
+    <category>Office</category>
+    <category>Utility</category>
+  </categories>
+  <url type="homepage">https://uku.waozi.xyz/</url>
+  <url type="bugtracker">https://github.com/waozixyz/uku/issues</url>
+  <developer id="xyz.waozi">
+    <name>waozi</name>
+  </developer>
+  <provides>
+    <binary>uku</binary>
+  </provides>
+  <releases>
+    <release version="0.1.0" date="2026-08-31"/>
+  </releases>
+  <content_rating type="oars-1.1"/>
+</component>

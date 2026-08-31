@@ -5,13 +5,15 @@ on:
     branches:
       - master
   pull_request:
+    branches:
+      - master
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -19,8 +21,6 @@ jobs:
     name: Submodule URLs are public HTTPS
     runs-on: ubuntu-latest
     steps:
-      # Plain checkout on purpose: the guard must not depend on fetching
-      # the submodules it validates (an SSH URL would break that fetch).
       - name: Checkout Repository
         uses: actions/checkout@v4
 
@@ -36,28 +36,117 @@ jobs:
           fi
           echo "all submodule URLs HTTPS - ok"
 
-  build-linux:
-    name: Build Linux x86_64
+  test:
+    name: Test
     runs-on: ubuntu-latest
+    needs: guard-submodule-urls
+    timeout-minutes: 60
+    env:
+      APT_CACHE_DIR: /tmp/apt-cache
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 1
 
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential cmake pkg-config \
-            libsdl2-dev libsqlite3-dev libcurl4-openssl-dev
-
-      - name: Build
-        run: make linux-x86_64
-
-      - name: Upload binary
-        uses: actions/upload-artifact@v4
+      - name: Cache Test apt packages
+        uses: actions/cache@v4
         with:
-          name: uku-linux-x86_64
-          path: build/linux/uku-linux-x86_64
-          if-no-files-found: error
+          path: ${{ env.APT_CACHE_DIR }}
+          key: test-apt-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/apt/test-packages.txt') }}
+          restore-keys: |
+            test-apt-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Install Test Dependencies
+        timeout-minutes: 15
+        run: .github/scripts/install-apt-packages.sh .github/apt/test-packages.txt
+
+      - name: Run Tests
+        run: make test
+
+  build-web:
+    name: Build Web
+    runs-on: ubuntu-latest
+    needs: test
+    timeout-minutes: 60
+    env:
+      APT_CACHE_DIR: /tmp/apt-cache
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Cache Web apt packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.APT_CACHE_DIR }}
+          key: web-apt-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/apt/web-packages.txt') }}
+          restore-keys: |
+            web-apt-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Install Web Dependencies
+        timeout-minutes: 15
+        run: .github/scripts/install-apt-packages.sh .github/apt/web-packages.txt
+
+      - name: Set up Emscripten
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$HOME/emsdk"
+          "$HOME/emsdk/emsdk" install latest
+          "$HOME/emsdk/emsdk" activate latest
+          echo "EMSDK=$HOME/emsdk" >> "$GITHUB_ENV"
+          echo "EM_CONFIG=$HOME/emsdk/.emscripten" >> "$GITHUB_ENV"
+          echo "$HOME/emsdk" >> "$GITHUB_PATH"
+          echo "$HOME/emsdk/upstream/emscripten" >> "$GITHUB_PATH"
+
+      - name: Build Web ZIP
+        run: |
+          set -euo pipefail
+          make web
+          test -f build/dist/uku-web.zip
+
+  build-android-debug:
+    name: Build Android Debug
+    runs-on: ubuntu-latest
+    needs: test
+    timeout-minutes: 60
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Cache Android SDK packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.ANDROID_HOME }}/platforms/android-36
+            ${{ env.ANDROID_HOME }}/build-tools/34.0.0
+            ${{ env.ANDROID_HOME }}/ndk/28.2.13676358
+            ${{ env.ANDROID_HOME }}/cmake/3.22.1
+          key: android-sdk-${{ runner.os }}-${{ runner.arch }}-api36-bt34-ndk28-cmake322
+          restore-keys: |
+            android-sdk-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Install Android SDK Components
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;34.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
+
+      - name: Build Android Debug APK
+        run: make android-debug-ci

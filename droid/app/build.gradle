@@ -12,17 +12,31 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
 
+    def keystorePropsFile = rootProject.file("local.properties")
+    def keystoreProps = new Properties()
+    if (keystorePropsFile.exists()) {
+        keystoreProps.load(new FileInputStream(keystorePropsFile))
+    }
+
+    def getKeystorePath = { -> project.findProperty('keystore.path') ?: keystoreProps['keystore.path'] ?: System.getenv("HOME") + "/.android/uku-release.keystore" }
+    def getKeystoreAlias = { -> project.findProperty('keystore.alias') ?: keystoreProps['keystore.alias'] ?: "uku-key" }
+    def releasePassword = project.findProperty('keystore.password') ?: System.getenv("KEYSTORE_PASSWORD") ?: ""
+
+    signingConfigs {
+        release {
+            storeFile getKeystorePath() ? file(getKeystorePath()) : null
+            storePassword releasePassword
+            keyAlias getKeystoreAlias()
+            keyPassword releasePassword
+        }
+    }
+
     defaultConfig {
         applicationId 'xyz.waozi.uku'
         minSdk 21
         targetSdk 36
         versionCode 1
         versionName "0.1.0"
-
-        def abis = project.findProperty('abi') ?: 'armeabi-v7a,arm64-v8a'
-        ndk {
-            abis.split(',').collect { it.trim() }.each { abiFilters it }
-        }
     }
 
     buildTypes {
@@ -30,6 +44,7 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
+            signingConfig project.hasProperty('fDroidBuild') ? null : signingConfigs.release
             minifyEnabled false
         }
     }
@@ -48,5 +63,29 @@ android {
         jniLibs {
             useLegacyPackaging = true
         }
+    }
+
+    splits {
+        abi {
+            enable true
+            reset()
+            def onlyAbi = (project.findProperty('uku.onlyAbi') ?: '').toString()
+            if (onlyAbi) {
+                include onlyAbi
+                universalApk false
+            } else {
+                include 'arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64'
+                universalApk true
+            }
+        }
+    }
+}
+
+gradle.taskGraph.whenReady { taskGraph ->
+    def signedTasks = [":app:assembleRelease", ":app:bundleRelease"]
+    if (signedTasks.any { taskGraph.hasTask(it) }
+        && !project.findProperty('keystore.password')
+        && !project.hasProperty('fDroidBuild')) {
+        throw new GradleException("Use: make android-release-ci PASSWORD=your-password")
     }
 }

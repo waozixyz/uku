@@ -1,0 +1,75 @@
+name: Itch
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: itch-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy HTML5 To Itch
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      APT_CACHE_DIR: /tmp/apt-cache
+      BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Cache Web apt packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.APT_CACHE_DIR }}
+          key: web-apt-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/apt/web-packages.txt') }}
+          restore-keys: |
+            web-apt-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Install Web Dependencies
+        timeout-minutes: 15
+        run: .github/scripts/install-apt-packages.sh .github/apt/web-packages.txt
+
+      - name: Set Up Emscripten
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$HOME/emsdk"
+          "$HOME/emsdk/emsdk" install latest
+          "$HOME/emsdk/emsdk" activate latest
+          echo "EMSDK=$HOME/emsdk" >> "$GITHUB_ENV"
+          echo "EM_CONFIG=$HOME/emsdk/.emscripten" >> "$GITHUB_ENV"
+          echo "$HOME/emsdk" >> "$GITHUB_PATH"
+          echo "$HOME/emsdk/upstream/emscripten" >> "$GITHUB_PATH"
+
+      - name: Build Itch Package
+        run: |
+          set -euo pipefail
+          make itch
+          test -f build/dist/uku-itch-html5.zip
+
+      - name: Install Butler
+        run: |
+          set -euo pipefail
+          curl -fL -o "$RUNNER_TEMP/butler.zip" \
+            https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
+          python3 -m zipfile -e "$RUNNER_TEMP/butler.zip" "$RUNNER_TEMP/butler"
+          chmod +x "$RUNNER_TEMP/butler/butler"
+
+      - name: Push To Itch
+        run: |
+          set -euo pipefail
+          if [ -z "${BUTLER_API_KEY:-}" ]; then
+            echo "::error::Set the BUTLER_API_KEY repository secret to enable itch deployment."
+            exit 1
+          fi
+          "$RUNNER_TEMP/butler/butler" push build/dist/uku-itch-html5.zip waozi/ukuvota:html5

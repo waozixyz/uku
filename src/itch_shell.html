@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ukuvota</title>
+  <style>
+    :root {
+      --app-background: #f8f5ef;
+      --ink: #25342f;
+      --accent: #d94f3d;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: var(--app-background);
+      color: var(--ink);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    #canvas-frame {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+      background: var(--app-background);
+    }
+
+    canvas.emscripten {
+      position: absolute;
+      inset: 0;
+      width: 100% !important;
+      height: 100% !important;
+      max-width: none !important;
+      max-height: none !important;
+      border: 0;
+      outline: 0;
+      background: var(--app-background);
+    }
+
+    #status {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      box-sizing: border-box;
+      color: rgba(37, 52, 47, 0.76);
+      font-size: 13px;
+      line-height: 1.35;
+      pointer-events: none;
+    }
+
+    #status.is-hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-frame">
+    <canvas class="emscripten" id="canvas" width="320" height="560" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+    <div id="status">Downloading...</div>
+  </div>
+  <script>
+    var statusElement = document.getElementById("status");
+    var Module = {
+      canvas: document.getElementById("canvas"),
+      cacheBust: "WEB_CACHE_BUSTER",
+      setStatus: function(text) {
+        if (!statusElement) return;
+        if (!text || text.indexOf("Running") === 0) {
+          statusElement.className = "is-hidden";
+        } else {
+          statusElement.textContent = text;
+        }
+      },
+      monitorRunDependencies: function(left) {
+        Module.setStatus(left ? "Preparing..." : "Starting...");
+      },
+      locateFile: function(path, prefix) {
+        if (path === "index.wasm" || path === "index.data") {
+          return (prefix || "") + path + "?v=" + this.cacheBust;
+        }
+        return (prefix || "") + path;
+      }
+    };
+    globalThis.Module = Module;
+  </script>
+  {{{ SCRIPT }}}
+</body>
+</html>
