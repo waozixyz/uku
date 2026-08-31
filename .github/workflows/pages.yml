@@ -37,7 +37,12 @@ jobs:
           "$HOME/emsdk/emsdk" activate latest
           echo "EMSDK=$HOME/emsdk" >> "$GITHUB_ENV"
           echo "EM_CONFIG=$HOME/emsdk/.emscripten" >> "$GITHUB_ENV"
-          echo "$HOME/emsdk/upstream/emscripten" >> "$GITHUB_PATH"
+          mkdir -p "$HOME/emscripten-bin"
+          ln -sf "$HOME/emsdk/upstream/emscripten/emcc" "$HOME/emscripten-bin/emcc"
+          ln -sf "$HOME/emsdk/upstream/emscripten/em++" "$HOME/emscripten-bin/em++"
+          ln -sf "$HOME/emsdk/upstream/emscripten/emar" "$HOME/emscripten-bin/emar"
+          ln -sf "$HOME/emsdk/upstream/emscripten/emcmake" "$HOME/emscripten-bin/emcmake"
+          echo "$HOME/emscripten-bin" >> "$GITHUB_PATH"
 
       - name: Build Site
         run: |
