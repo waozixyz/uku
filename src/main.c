@@ -8158,7 +8158,7 @@ main(void)
 #if defined(PLATFORM_WEB)
     frame_context.app = &app;
     frame_context.text = &text;
-    emscripten_set_main_loop_arg(draw_app_frame, &frame_context, 0, 1);
+    emscripten_set_main_loop_arg(draw_app_frame, &frame_context, 0, 0);
 #else
     frame_context.app = &app;
     frame_context.text = &text;
