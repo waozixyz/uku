@@ -13,6 +13,7 @@ KRYON_MAKE_DIR := $(KRYON_DIR)/mk/
 # Prefer system libcurl; fall back to the kryon-vendored static build when
 # no pkg-config metadata is installed (e.g. on omega, which has no nix).
 KRYON_USE_SYSTEM_CURL := $(if $(shell pkg-config --exists libcurl 2>/dev/null && echo y),1,0)
+CMAKE ?= $(if $(wildcard /usr/bin/cmake),/usr/bin/cmake,cmake)
 
 # System sqlite3 via pkg-config, or a local build in ~/.local/sqlite3.
 ifeq ($(shell pkg-config --exists sqlite3 2>/dev/null && echo y),y)
@@ -37,8 +38,14 @@ WEB_DEV_PORT ?= 8080
 XVFB_TMPDIR ?= $(BUILD_OBJ_DIR)/xvfb
 BRAVE_BROWSER ?= brave-browser
 WEB_ONLY_GOALS := web web-itch itch itch-push site run clean-web font-subsets font-bundle-check
+NON_NATIVE_GOALS := $(WEB_ONLY_GOALS) \
+	android-copy-assets android-copy-apks android-copy-bundle \
+	android-copy-debug-apks android-copy-release-apks \
+	android-copy-release-artifacts android-debug android-debug-ci \
+	android-install android-install-release android-release android-release-ci \
+	android-bundle $(FONT_FILES)
 
-ifeq ($(filter-out $(WEB_ONLY_GOALS),$(MAKECMDGOALS)),)
+ifeq ($(filter-out $(NON_NATIVE_GOALS),$(MAKECMDGOALS)),)
 KRYON_BACKEND := canvas
 RAY_CFLAGS ?= -DPLATFORM_WEB
 RAY_LDLIBS ?= -lm
@@ -163,7 +170,7 @@ KRYON_NATIVE_CFLAGS := $(KRYON_LIBOQS_INCLUDE) $(KRYON_CURL_CFLAGS) $(SQLITE_CFL
 KRYON_NATIVE_LDLIBS := $(KRYON_LIBOQS_A) $(KRYON_CURL_LDLIBS) $(KRYON_CURL_TRANSITIVE_LDLIBS) $(SQLITE_LDLIBS)
 endif
 
-ifneq ($(filter-out $(WEB_ONLY_GOALS),$(MAKECMDGOALS)),)
+ifneq ($(filter-out $(NON_NATIVE_GOALS),$(MAKECMDGOALS)),)
 include $(KRYON_MAKE_DIR)native.mk
 else
 run:

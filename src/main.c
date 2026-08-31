@@ -5290,17 +5290,66 @@ draw_fixed_button(UkuApp *app, int x, int y, int w, int h, const char *label,
         *clicked = 1;
 }
 
-static void
-draw_visibility_button(UkuApp *app, int x, int y, int w, const char *label,
-                       int selected, int focus_id, int *clicked)
+static int
+draw_segmented_index(int x, int y, int w, int id, const char **labels,
+                     int count, int *selected_index, int *changed)
 {
-    *clicked = 0;
-    if(StyledButton(x, y, w, ScaleUIPx(20), label,
-                    selected ? ButtonStylePrimary : ButtonStyleSecondary,
-                    0, NULL))
-        *clicked = 1;
-    (void)app;
-    (void)focus_id;
+    SegmentOption options[8];
+    SegmentedControlProps control;
+    SegmentedControlResult result;
+    int option_count = count;
+
+    if(changed != NULL)
+        *changed = 0;
+    if(option_count > (int)(sizeof(options) / sizeof(options[0])))
+        option_count = (int)(sizeof(options) / sizeof(options[0]));
+    for(int i = 0; i < option_count; i++) {
+        options[i].label = labels[i];
+        options[i].disabled = 0;
+    }
+
+    memset(&control, 0, sizeof(control));
+    control.bounds = (Rectangle){(float)x, (float)y, (float)w, 0.0f};
+    control.id = id;
+    control.options = options;
+    control.option_count = option_count;
+    control.selected_index = selected_index;
+    control.gap = ScaleUIPx(6);
+    control.height = ScaleUIPx(30);
+    control.min_item_width = ScaleUIPx(92);
+    control.max_item_width = ScaleUIPx(220);
+    control.wrap = 1;
+    result = SegmentedControl(control);
+    if(changed != NULL)
+        *changed = result.changed;
+    return result.height;
+}
+
+static int
+draw_segmented_text_choice(int x, int y, int w, int id,
+                           const char **labels, const char **values,
+                           int count, char *target, size_t target_size,
+                           int *changed)
+{
+    int selected = -1;
+    int height;
+
+    if(target != NULL) {
+        for(int i = 0; i < count; i++) {
+            if(values[i] != NULL && strcmp(target, values[i]) == 0) {
+                selected = i;
+                break;
+            }
+        }
+    }
+    height = draw_segmented_index(x, y, w, id, labels, count, &selected,
+                                  changed);
+    if(changed != NULL && *changed && selected >= 0 && selected < count &&
+       target != NULL && values[selected] != NULL) {
+        copy_text(target, target_size, values[selected],
+                  strlen(values[selected]));
+    }
+    return height;
 }
 
 static int
@@ -6066,25 +6115,23 @@ static int
 draw_phase_mode_selector(UkuApp *app, Font font, int x, int y, int w, const UkuText *text)
 {
     int label_font = ClampUIPx(12, 12, 14);
-    int gap = ScaleUIPx(8);
-    int btn_h = ScaleUIPx(30);
-    int btn_w = (w - gap) / 2;
-    int proposal_clicked = 0;
-    int voting_clicked = 0;
+    const char *labels[] = {
+        "Proposal + Voting Phase",
+        "Voting Phase only"
+    };
+    int selected = create_voting_only(app) ? 1 : 0;
+    int changed = 0;
+    int control_h;
 
     draw_text_font(font, "Process phases", x, y, label_font, GetThemeText());
     y += label_font + ScaleUIPx(8);
-    draw_visibility_button(app, x, y, btn_w, "Proposal + Voting Phase",
-                           !create_voting_only(app), UKU_FOCUS_PROCESS_TYPE_BASE,
-                           &proposal_clicked);
-    draw_visibility_button(app, x + btn_w + gap, y, btn_w, "Voting Phase only",
-                           create_voting_only(app), UKU_FOCUS_PROCESS_TYPE_BASE + 1,
-                           &voting_clicked);
-    if(proposal_clicked)
+    control_h = draw_segmented_index(x, y, w, UKU_FOCUS_PROCESS_TYPE_BASE,
+                                     labels, 2, &selected, &changed);
+    if(changed && selected == 0)
         create_set_proposal_and_voting(app);
-    if(voting_clicked)
+    if(changed && selected == 1)
         create_set_voting_only(app, text);
-    return y + btn_h + ScaleUIPx(14);
+    return y + control_h + ScaleUIPx(14);
 }
 
 static void
@@ -6440,29 +6487,25 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
 
     BeginScissorMode(0, viewport_y, view_w, viewport_h);
     {
-        int mine_clicked = 0;
-        int public_clicked = 0;
-        int filter_gap = ScaleUIPx(8);
-        int filter_w = (content_w - filter_gap) / 2;
+        const char *filter_labels[] = {
+            tr(app, "dashboard_filter_mine"),
+            tr(app, "dashboard_filter_public")
+        };
+        int selected = app->dashboard_filter_public ? 1 : 0;
+        int changed = 0;
+        int filter_h = draw_segmented_index(content_x, y, content_w,
+                                            UKU_FOCUS_DASHBOARD_FILTER_MINE,
+                                            filter_labels, 2, &selected,
+                                            &changed);
 
-        draw_visibility_button(app, content_x, y, filter_w,
-                               tr(app, "dashboard_filter_mine"),
-                               !app->dashboard_filter_public,
-                               UKU_FOCUS_DASHBOARD_FILTER_MINE,
-                               &mine_clicked);
-        draw_visibility_button(app, content_x + filter_w + filter_gap, y,
-                               filter_w, tr(app, "dashboard_filter_public"),
-                               app->dashboard_filter_public,
-                               UKU_FOCUS_DASHBOARD_FILTER_PUBLIC,
-                               &public_clicked);
-        if(mine_clicked && app->dashboard_filter_public) {
+        if(changed && selected == 0 && app->dashboard_filter_public) {
             app->dashboard_filter_public = 0;
             db_load_processes(app);
             app->remote_processes_loaded = 1;
             app->dashboard_scroll = 0;
             UIConsumeRelease();
         }
-        if(public_clicked && !app->dashboard_filter_public) {
+        if(changed && selected == 1 && !app->dashboard_filter_public) {
             app->dashboard_filter_public = 1;
             app->public_processes_loaded = 0;
             db_load_processes(app);
@@ -6471,7 +6514,7 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
             app->dashboard_scroll = 0;
             UIConsumeRelease();
         }
-        y += ScaleUIPx(34);
+        y += filter_h + ScaleUIPx(12);
     }
     {
         /* quiet section header: small label with a hairline rule */
@@ -6777,20 +6820,29 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
                 create_go_to_step(app, UKU_CREATE_STEP_RULES);
         }
     } else if(app->create_step == UKU_CREATE_STEP_RULES) {
-        int public_clicked = 0;
-        int private_clicked = 0;
-        int unlisted_clicked = 0;
-        int prop_public_clicked = 0;
-        int prop_participants_clicked = 0;
-        int prop_owner_clicked = 0;
-        int submit_public_clicked = 0;
-        int submit_logged_clicked = 0;
-        int submit_participants_clicked = 0;
-        int vote_public_clicked = 0;
-        int vote_logged_clicked = 0;
-        int vote_participants_clicked = 0;
-        int option_gap = ScaleUIPx(6);
-        int option_w = (content_w - option_gap * 2) / 3;
+        const char *visibility_labels[] = {"Public", "Private", "Unlisted"};
+        const char *visibility_values[] = {"public", "private", "unlisted"};
+        const char *proposal_visibility_labels[] = {
+            tr(app, "Public"),
+            tr(app, "Participants"),
+            tr(app, "Owner only")
+        };
+        const char *proposal_visibility_values[] = {
+            "public",
+            "participants",
+            "owner"
+        };
+        const char *access_labels[] = {
+            tr(app, "Public"),
+            tr(app, "Logged in"),
+            tr(app, "Participants")
+        };
+        const char *access_values[] = {
+            "public",
+            "logged_in",
+            "participants"
+        };
+        int choice_changed = 0;
 
         decision_permission_defaults(d);
         y += ScaleUIPx(8);
@@ -6819,111 +6871,49 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
 
         draw_text_font(font, "Visibility", content_x, y, body_font, GetThemeText());
         y += body_font + ScaleUIPx(8);
-        draw_visibility_button(app, content_x, y, option_w, "Public",
-                               strcmp(d->visibility, "public") == 0,
-                               UKU_FOCUS_PROCESS_PUBLIC, &public_clicked);
-        draw_visibility_button(app, content_x + option_w + option_gap, y,
-                               option_w, "Private",
-                               strcmp(d->visibility, "private") == 0,
-                               UKU_FOCUS_PROCESS_PRIVATE, &private_clicked);
-        draw_visibility_button(app, content_x + (option_w + option_gap) * 2,
-                               y, option_w, "Unlisted",
-                               strcmp(d->visibility, "unlisted") == 0,
-                               UKU_FOCUS_PROCESS_UNLISTED, &unlisted_clicked);
-        if(public_clicked)
-            copy_text(d->visibility, sizeof(d->visibility), "public", strlen("public"));
-        if(private_clicked)
-            copy_text(d->visibility, sizeof(d->visibility), "private", strlen("private"));
-        if(unlisted_clicked)
-            copy_text(d->visibility, sizeof(d->visibility), "unlisted", strlen("unlisted"));
-        y += ScaleUIPx(56);
+        y += draw_segmented_text_choice(content_x, y, content_w,
+                                        UKU_FOCUS_PROCESS_PUBLIC,
+                                        visibility_labels, visibility_values, 3,
+                                        d->visibility, sizeof(d->visibility),
+                                        &choice_changed);
+        y += ScaleUIPx(18);
 
         if(process_type_has_proposals(d->type)) {
             draw_text_font(font, tr(app, "Proposal visibility"), content_x, y,
                            body_font, GetThemeText());
             y += body_font + ScaleUIPx(8);
-            draw_visibility_button(app, content_x, y, option_w, tr(app, "Public"),
-                                   strcmp(d->proposal_visibility, "public") == 0,
-                                   UKU_FOCUS_PROPOSAL_VISIBILITY_PUBLIC,
-                                   &prop_public_clicked);
-            draw_visibility_button(app, content_x + option_w + option_gap, y,
-                                   option_w, tr(app, "Participants"),
-                                   strcmp(d->proposal_visibility, "participants") == 0,
-                                   UKU_FOCUS_PROPOSAL_VISIBILITY_PARTICIPANTS,
-                                   &prop_participants_clicked);
-            draw_visibility_button(app, content_x + (option_w + option_gap) * 2,
-                                   y, option_w, tr(app, "Owner only"),
-                                   strcmp(d->proposal_visibility, "owner") == 0,
-                                   UKU_FOCUS_PROPOSAL_VISIBILITY_OWNER,
-                                   &prop_owner_clicked);
-            if(prop_public_clicked)
-                copy_text(d->proposal_visibility, sizeof(d->proposal_visibility),
-                          "public", strlen("public"));
-            if(prop_participants_clicked)
-                copy_text(d->proposal_visibility, sizeof(d->proposal_visibility),
-                          "participants", strlen("participants"));
-            if(prop_owner_clicked)
-                copy_text(d->proposal_visibility, sizeof(d->proposal_visibility),
-                          "owner", strlen("owner"));
-            y += ScaleUIPx(48);
+            y += draw_segmented_text_choice(content_x, y, content_w,
+                                            UKU_FOCUS_PROPOSAL_VISIBILITY_PUBLIC,
+                                            proposal_visibility_labels,
+                                            proposal_visibility_values, 3,
+                                            d->proposal_visibility,
+                                            sizeof(d->proposal_visibility),
+                                            &choice_changed);
+            y += ScaleUIPx(18);
 
             draw_text_font(font, tr(app, "Who can add proposals"), content_x, y,
                            body_font, GetThemeText());
             y += body_font + ScaleUIPx(8);
-            draw_visibility_button(app, content_x, y, option_w, tr(app, "Public"),
-                                   strcmp(d->proposal_access, "public") == 0,
-                                   UKU_FOCUS_PROPOSAL_ACCESS_PUBLIC,
-                                   &submit_public_clicked);
-            draw_visibility_button(app, content_x + option_w + option_gap, y,
-                                   option_w, tr(app, "Logged in"),
-                                   strcmp(d->proposal_access, "logged_in") == 0,
-                                   UKU_FOCUS_PROPOSAL_ACCESS_LOGGED_IN,
-                                   &submit_logged_clicked);
-            draw_visibility_button(app, content_x + (option_w + option_gap) * 2,
-                                   y, option_w, tr(app, "Participants"),
-                                   strcmp(d->proposal_access, "participants") == 0,
-                                   UKU_FOCUS_PROPOSAL_ACCESS_PARTICIPANTS,
-                                   &submit_participants_clicked);
-            if(submit_public_clicked)
-                copy_text(d->proposal_access, sizeof(d->proposal_access),
-                          "public", strlen("public"));
-            if(submit_logged_clicked)
-                copy_text(d->proposal_access, sizeof(d->proposal_access),
-                          "logged_in", strlen("logged_in"));
-            if(submit_participants_clicked)
-                copy_text(d->proposal_access, sizeof(d->proposal_access),
-                          "participants", strlen("participants"));
-            y += ScaleUIPx(48);
+            y += draw_segmented_text_choice(content_x, y, content_w,
+                                            UKU_FOCUS_PROPOSAL_ACCESS_PUBLIC,
+                                            access_labels, access_values, 3,
+                                            d->proposal_access,
+                                            sizeof(d->proposal_access),
+                                            &choice_changed);
+            y += ScaleUIPx(18);
         }
 
         if(process_type_has_voting(d->type)) {
             draw_text_font(font, tr(app, "Who can vote"), content_x, y,
                            body_font, GetThemeText());
             y += body_font + ScaleUIPx(8);
-            draw_visibility_button(app, content_x, y, option_w, tr(app, "Public"),
-                                   strcmp(d->voting_access, "public") == 0,
-                                   UKU_FOCUS_VOTING_ACCESS_PUBLIC,
-                                   &vote_public_clicked);
-            draw_visibility_button(app, content_x + option_w + option_gap, y,
-                                   option_w, tr(app, "Logged in"),
-                                   strcmp(d->voting_access, "logged_in") == 0,
-                                   UKU_FOCUS_VOTING_ACCESS_LOGGED_IN,
-                                   &vote_logged_clicked);
-            draw_visibility_button(app, content_x + (option_w + option_gap) * 2,
-                                   y, option_w, tr(app, "Participants"),
-                                   strcmp(d->voting_access, "participants") == 0,
-                                   UKU_FOCUS_VOTING_ACCESS_PARTICIPANTS,
-                                   &vote_participants_clicked);
-            if(vote_public_clicked)
-                copy_text(d->voting_access, sizeof(d->voting_access),
-                          "public", strlen("public"));
-            if(vote_logged_clicked)
-                copy_text(d->voting_access, sizeof(d->voting_access),
-                          "logged_in", strlen("logged_in"));
-            if(vote_participants_clicked)
-                copy_text(d->voting_access, sizeof(d->voting_access),
-                          "participants", strlen("participants"));
-            y += ScaleUIPx(56);
+            y += draw_segmented_text_choice(content_x, y, content_w,
+                                            UKU_FOCUS_VOTING_ACCESS_PUBLIC,
+                                            access_labels, access_values, 3,
+                                            d->voting_access,
+                                            sizeof(d->voting_access),
+                                            &choice_changed);
+            y += ScaleUIPx(26);
         }
 
         draw_compact_button(app, font, content_x, y, ScaleUIPx(130), ScaleUIPx(130),
