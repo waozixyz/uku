@@ -213,9 +213,6 @@ typedef struct UkuApp {
     int collect_max_scroll;
     int collect_drag_scrollbar;
     int collect_scroll_drag_offset;
-    int negative_dropdown_open;
-    int locale_dropdown_open;
-    int locale_dropdown_scroll;
     int process_count;
     int proposal_count;
     int option_count;
@@ -434,7 +431,11 @@ typedef enum UkuFocusId {
 } UkuFocusId;
 
 #define LOCALE_FONT_NAME "ui"
-#define LOCALE_FONT_TTF "assets/fonts/ui.ttf"
+#define UKU_FONT_LATIN "assets/fonts/subset/NotoSans-Uku-Regular.ttf"
+#define UKU_FONT_SC "assets/fonts/subset/NotoSansSC-Uku-Regular.otf"
+#define UKU_FONT_JP "assets/fonts/subset/NotoSansJP-Uku-Regular.otf"
+#define UKU_FONT_KR "assets/fonts/subset/NotoSansKR-Uku-Regular.otf"
+#define UKU_FONT_TC "assets/fonts/subset/NotoSansTC-Uku-Regular.otf"
 #define UKU_LOCALE_KEY "locale"
 #define UKU_INTRO_SEEN_KEY "intro_seen"
 #define LOCALE_FONT_BASE_SIZE 32
@@ -703,32 +704,125 @@ app_load_locale(UkuApp *app, UkuText *text)
     load_text_file(app, text, path);
 }
 
-static void
-app_switch_locale(UkuApp *app, UkuText *text, const char *locale)
+static const char *
+app_ui_font_asset_for_locale(const char *code)
 {
-    copy_text(app->locale, sizeof(app->locale), locale, strlen(locale));
-    setting_save_text(app, UKU_LOCALE_KEY, app->locale);
-    app->override_count = 0;
-    app->locale_dropdown_open = 0;
-    app->locale_dropdown_scroll = 0;
-    app_load_locale(app, text);
+    if(code != NULL) {
+        if(strcmp(code, "zh") == 0)
+            return UKU_FONT_SC;
+        if(strcmp(code, "ja") == 0)
+            return UKU_FONT_JP;
+        if(strcmp(code, "ko") == 0)
+            return UKU_FONT_KR;
+        if(strcmp(code, "zh-TW") == 0 || strcmp(code, "zh_Hant") == 0)
+            return UKU_FONT_TC;
+    }
+    return UKU_FONT_LATIN;
+}
+
+static int
+append_corpus_text(char *corpus, size_t corpus_size, const char *text)
+{
+    size_t used;
+    int written;
+
+    if(corpus == NULL || corpus_size == 0 || text == NULL || text[0] == '\0')
+        return 0;
+    used = strlen(corpus);
+    if(used >= corpus_size - 1)
+        return 0;
+    written = snprintf(corpus + used, corpus_size - used, "%s\n", text);
+    return written > 0 && (size_t)written < corpus_size - used;
+}
+
+static void
+append_language_label_corpus(char *corpus, size_t corpus_size)
+{
+    for(int i = 0; i < UKU_LOCALE_COUNT; i++)
+        (void)append_corpus_text(corpus, corpus_size, UKU_LOCALES[i].label);
+}
+
+static void
+append_locale_file_corpus(char *corpus, size_t corpus_size, const char *locale)
+{
+    int embedded = 0;
+    char path[64];
+    char *data;
+
+    snprintf(path, sizeof(path), "locales/%s.txt", app_locale_option(locale)->code);
+    data = LoadEmbeddedAssetText(path);
+    if(data != NULL)
+        embedded = 1;
+    else
+        data = LoadFileText(path);
+    if(data == NULL)
+        return;
+
+    (void)append_corpus_text(corpus, corpus_size, data);
+    if(embedded)
+        free(data);
+    else
+        UnloadFileText(data);
+}
+
+static void
+build_font_corpus(char *corpus, size_t corpus_size, const char *locale)
+{
+    if(corpus == NULL || corpus_size == 0)
+        return;
+    corpus[0] = '\0';
+    append_language_label_corpus(corpus, corpus_size);
+    append_locale_file_corpus(corpus, corpus_size, locale);
+}
+
+static void
+build_language_label_corpus(char *corpus, size_t corpus_size)
+{
+    if(corpus == NULL || corpus_size == 0)
+        return;
+    corpus[0] = '\0';
+    append_language_label_corpus(corpus, corpus_size);
+}
+
+static int
+app_register_ui_font_source(const char *name, const char *path, const char *corpus)
+{
+    const EmbeddedAsset *font_asset;
+
+    if(name == NULL || path == NULL)
+        return 0;
+    font_asset = GetEmbeddedAsset(path);
+    if(font_asset != NULL && font_asset->data != NULL && font_asset->size > 0) {
+        return RegisterUIFontSourceForText(name, GetEmbeddedAssetExtension(path),
+                                           font_asset->data, font_asset->size,
+                                           corpus);
+    }
+    return RegisterUIFontFileSourceForText(name, path, corpus);
+}
+
+static void
+register_language_picker_fonts(const char *corpus)
+{
+    (void)app_register_ui_font_source("ui-lang-latin", UKU_FONT_LATIN, corpus);
+    (void)app_register_ui_font_source("ui-lang-ja", UKU_FONT_JP, corpus);
+    (void)app_register_ui_font_source("ui-lang-ko", UKU_FONT_KR, corpus);
+    (void)app_register_ui_font_source("ui-lang-zh", UKU_FONT_SC, corpus);
 }
 
 static void
 app_load_font(UkuApp *app)
 {
-    const EmbeddedAsset *font_asset;
     Image white;
+    const char *font_path;
+    char font_corpus[65536];
+    char language_corpus[4096];
 
-    font_asset = GetEmbeddedAsset(LOCALE_FONT_TTF);
-    if(font_asset != NULL && font_asset->data != NULL && font_asset->size > 0) {
-        app->locale_font_ready = RegisterUIFontSource(
-            LOCALE_FONT_NAME, GetEmbeddedAssetExtension(LOCALE_FONT_TTF),
-            font_asset->data, font_asset->size, NULL, 0);
-    } else {
-        app->locale_font_ready = RegisterUIFontFileSource(
-            LOCALE_FONT_NAME, LOCALE_FONT_TTF, NULL, 0);
-    }
+    build_font_corpus(font_corpus, sizeof(font_corpus), app->locale);
+    build_language_label_corpus(language_corpus, sizeof(language_corpus));
+    ClearUIFonts();
+    font_path = app_ui_font_asset_for_locale(app->locale);
+    app->locale_font_ready = app_register_ui_font_source(LOCALE_FONT_NAME, font_path, font_corpus);
+    register_language_picker_fonts(language_corpus);
 
     if(!app->locale_font_ready || !UseUIFont(LOCALE_FONT_NAME)) {
         app->font = GetFontDefault();
@@ -737,12 +831,24 @@ app_load_font(UkuApp *app)
     }
     app->font = GetUIFont();
 
-    white = GenImageColor(1, 1, WHITE);
-    app->font_shapes_texture = LoadTextureFromImage(white);
-    UnloadImage(white);
+    if(app->font_shapes_texture.id == 0) {
+        white = GenImageColor(1, 1, WHITE);
+        app->font_shapes_texture = LoadTextureFromImage(white);
+        UnloadImage(white);
+    }
     if(app->font_shapes_texture.id != 0)
         SetShapesTexture(app->font_shapes_texture, (Rectangle){0, 0, 1, 1});
     app->locale_font_ready = 1;
+}
+
+static void
+app_switch_locale(UkuApp *app, UkuText *text, const char *locale)
+{
+    copy_text(app->locale, sizeof(app->locale), locale, strlen(locale));
+    setting_save_text(app, UKU_LOCALE_KEY, app->locale);
+    app->override_count = 0;
+    app_load_locale(app, text);
+    app_load_font(app);
 }
 
 static void
@@ -5692,78 +5798,19 @@ static int
 draw_negative_weight_dropdown(UkuApp *app, Font font, const UkuText *text, int x, int y, int w, int focus_id)
 {
     int label_font = ClampUIPx(12, 12, 14);
-    int input_font = ClampUIPx(13, 13, 16);
     int h = ScaleUIPx(34);
-    int option_h = ScaleUIPx(28);
-    int pad = ScaleUIPx(10);
     int box_y;
-    Rectangle box;
-    Vector2 mouse = GetMousePosition();
     int selected = negative_weight_to_index(app->decision.negative_weight);
-    int focused;
+    const char *options[10];
 
     draw_text_font(font, text->negative_weight_label, x, y, label_font, GetThemeText());
     box_y = y + label_font + ScaleUIPx(8);
-    box = (Rectangle){(float)x, (float)box_y, (float)w, (float)h};
-    focused = RegisterUIFocus(focus_id, box);
-
-    if(CheckCollisionPointRec(mouse, box))
-        app->cursor_clickable = 1;
-    if((CheckCollisionPointRec(mouse, box) && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
-       IsUIFocusActivatePressed(focus_id)) {
-        app->negative_dropdown_open = !app->negative_dropdown_open;
+    for(int i = 0; i < 10; i++)
+        options[i] = text->negative_weight_options[i];
+    if(Dropdown(focus_id, x, box_y, w, h,
+                options, 10, &selected)) {
+        app->decision.negative_weight = negative_weight_from_index(selected);
         app->active_field = UKU_FIELD_NONE;
-    }
-    if(focused) {
-        int index = negative_weight_to_index(app->decision.negative_weight);
-
-        if(IsKeyPressed(KEY_DOWN))
-            index = clampi(index + 1, 0, 9);
-        if(IsKeyPressed(KEY_UP))
-            index = clampi(index - 1, 0, 9);
-        app->decision.negative_weight = negative_weight_from_index(index);
-    }
-
-    DrawRectangleRounded(box, 0.08f, 10, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(box, 0.08f, 10, ScaleUIPx(1), app->negative_dropdown_open ? GetThemeButton() : GetThemeText());
-    draw_text_font(font, text->negative_weight_options[selected], x + pad,
-                   box_y + (h - input_font) / 2, input_font, GetThemeText());
-    DrawTriangle((Vector2){(float)(x + w - pad - ScaleUIPx(10)), (float)(box_y + h / 2 - ScaleUIPx(3))},
-                 (Vector2){(float)(x + w - pad), (float)(box_y + h / 2 - ScaleUIPx(3))},
-                 (Vector2){(float)(x + w - pad - ScaleUIPx(5)), (float)(box_y + h / 2 + ScaleUIPx(4))},
-                 GetThemeText());
-
-    if(app->negative_dropdown_open) {
-        int menu_y = box_y + h + ScaleUIPx(4);
-        int menu_h = option_h * 10;
-        Rectangle menu = {(float)x, (float)menu_y, (float)w, (float)menu_h};
-
-        DrawRectangleRounded(menu, 0.06f, 10, GetThemeSurface());
-        DrawRectangleRoundedLinesEx(menu, 0.06f, 10, ScaleUIPx(1), GetThemeText());
-        for(int i = 0; i < 10; i++) {
-            int oy = menu_y + i * option_h;
-            Rectangle option = {(float)x, (float)oy, (float)w, (float)option_h};
-            int hover = CheckCollisionPointRec(mouse, option);
-
-            if(hover) {
-                DrawRectangle(x + ScaleUIPx(2), oy, w - ScaleUIPx(4), option_h, (Color){238, 243, 247, 255});
-                app->cursor_clickable = 1;
-            }
-            if(i == selected)
-                DrawRectangle(x + ScaleUIPx(5), oy + ScaleUIPx(8), ScaleUIPx(4), option_h - ScaleUIPx(16), GetThemeButton());
-            draw_text_font(font, text->negative_weight_options[i], x + pad + ScaleUIPx(8),
-                           oy + (option_h - input_font) / 2, input_font, GetThemeText());
-            if(hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
-                app->decision.negative_weight = negative_weight_from_index(i);
-                app->negative_dropdown_open = 0;
-            }
-        }
-
-        if(IsMouseButtonPressed(MOUSE_LEFT_BUTTON) &&
-           !CheckCollisionPointRec(mouse, box) && !CheckCollisionPointRec(mouse, menu))
-            app->negative_dropdown_open = 0;
-
-        return menu_y + menu_h + ScaleUIPx(14);
     }
 
     return box_y + h + ScaleUIPx(12);
@@ -5773,117 +5820,32 @@ static int
 draw_locale_dropdown(UkuApp *app, UkuText *text, Font font, int x, int y, int w, int view_h)
 {
     int label_font = ClampUIPx(12, 12, 14);
-    int input_font = ClampUIPx(13, 13, 16);
     int h = ScaleUIPx(34);
-    int option_h = ScaleUIPx(28);
-    int pad = ScaleUIPx(10);
     int box_y;
     int selected = app_locale_index(app->locale);
-    int menu_y;
-    int menu_h;
-    int visible_h;
-    int max_scroll;
-    Rectangle box;
-    Rectangle menu = {0};
-    Vector2 mouse = GetMousePosition();
-    int focused;
+    UIDropdownOption options[UKU_LOCALE_COUNT];
 
     draw_text_font(font, tr(app, "Language"), x, y, label_font, GetThemeText());
     box_y = y + label_font + ScaleUIPx(8);
-    box = (Rectangle){(float)x, (float)box_y, (float)w, (float)h};
-    focused = RegisterUIFocus(UKU_FOCUS_LOCALE_DROPDOWN, box);
-
-    if(CheckCollisionPointRec(mouse, box))
-        app->cursor_clickable = 1;
-    if((CheckCollisionPointRec(mouse, box) && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
-       IsUIFocusActivatePressed(UKU_FOCUS_LOCALE_DROPDOWN)) {
-        app->locale_dropdown_open = !app->locale_dropdown_open;
-        app->active_field = UKU_FIELD_NONE;
-        UIConsumeRelease();
-    }
-    if(focused && IsKeyPressed(KEY_ESCAPE))
-        app->locale_dropdown_open = 0;
-
-    DrawRectangleRounded(box, 0.08f, 10, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(box, 0.08f, 10, ScaleUIPx(1),
-                                app->locale_dropdown_open ? GetThemeButton() : GetThemeText());
-    draw_text_font(font, fit_tail(font, UKU_LOCALES[selected].label, input_font,
-                                  w - pad * 3 - ScaleUIPx(14)),
-                   x + pad, box_y + (h - input_font) / 2, input_font, GetThemeText());
-    DrawTriangle((Vector2){(float)(x + w - pad - ScaleUIPx(10)),
-                           (float)(box_y + h / 2 - ScaleUIPx(3))},
-                 (Vector2){(float)(x + w - pad),
-                           (float)(box_y + h / 2 - ScaleUIPx(3))},
-                 (Vector2){(float)(x + w - pad - ScaleUIPx(5)),
-                           (float)(box_y + h / 2 + ScaleUIPx(4))},
-                 GetThemeText());
-
-    if(!app->locale_dropdown_open)
-        return box_y + h + ScaleUIPx(18);
-
-    menu_y = box_y + h + ScaleUIPx(4);
-    menu_h = option_h * UKU_LOCALE_COUNT;
-    visible_h = menu_h;
-    if(menu_y + visible_h > view_h - ScaleUIPx(16))
-        visible_h = view_h - ScaleUIPx(16) - menu_y;
-    if(visible_h < option_h * 4)
-        visible_h = option_h * 4;
-    if(visible_h > menu_h)
-        visible_h = menu_h;
-    max_scroll = UKU_MAX(0, menu_h - visible_h);
-    app->locale_dropdown_scroll = clampi(app->locale_dropdown_scroll, 0, max_scroll);
-    menu = (Rectangle){(float)x, (float)menu_y, (float)w, (float)visible_h};
-
-    if(CheckCollisionPointRec(mouse, menu)) {
-        int wheel = (int)(GetMouseWheelMove() * option_h);
-        if(wheel != 0)
-            app->locale_dropdown_scroll = clampi(app->locale_dropdown_scroll - wheel, 0, max_scroll);
-        app->cursor_clickable = 1;
-    }
-
-    DrawRectangleRounded(menu, 0.06f, 10, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(menu, 0.06f, 10, ScaleUIPx(1), GetThemeText());
-    BeginScissorMode(x, menu_y, w, visible_h);
     for(int i = 0; i < UKU_LOCALE_COUNT; i++) {
-        int oy = menu_y + i * option_h - app->locale_dropdown_scroll;
-        Rectangle option = {(float)x, (float)oy, (float)w, (float)option_h};
-        int hover = CheckCollisionPointRec(mouse, option) && CheckCollisionPointRec(mouse, menu);
-        const char *label = UKU_LOCALES[i].label;
-
-        if(oy + option_h < menu_y || oy > menu_y + visible_h)
-            continue;
-        if(hover) {
-            DrawRectangle(x + ScaleUIPx(2), oy, w - ScaleUIPx(4), option_h, GetThemeButtonHover());
-            app->cursor_clickable = 1;
-        }
-        if(i == selected)
-            DrawRectangle(x + ScaleUIPx(5), oy + ScaleUIPx(8),
-                          ScaleUIPx(4), option_h - ScaleUIPx(16), GetThemeButton());
-        draw_text_font(font, fit_tail(font, label, input_font, w - pad * 2 - ScaleUIPx(10)),
-                       x + pad + ScaleUIPx(8), oy + (option_h - input_font) / 2,
-                       input_font, GetThemeText());
-        if(hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
-            app_switch_locale(app, text, UKU_LOCALES[i].code);
-            UIConsumeRelease();
-        }
+        options[i].label = UKU_LOCALES[i].label;
+        if(strcmp(UKU_LOCALES[i].code, "ja") == 0)
+            options[i].font_name = "ui-lang-ja";
+        else if(strcmp(UKU_LOCALES[i].code, "ko") == 0)
+            options[i].font_name = "ui-lang-ko";
+        else if(strcmp(UKU_LOCALES[i].code, "zh") == 0)
+            options[i].font_name = "ui-lang-zh";
+        else
+            options[i].font_name = "ui-lang-latin";
     }
-    EndScissorMode();
-
-    if(max_scroll > 0) {
-        int track_w = ScaleUIPx(4);
-        int thumb_h = UKU_MAX(ScaleUIPx(24), visible_h * visible_h / menu_h);
-        int thumb_y = menu_y + (visible_h - thumb_h) * app->locale_dropdown_scroll / max_scroll;
-        DrawRectangle(x + w - track_w - ScaleUIPx(5), menu_y + ScaleUIPx(5),
-                      track_w, visible_h - ScaleUIPx(10), Fade(GetThemeText(), 0.18f));
-        DrawRectangle(x + w - track_w - ScaleUIPx(5), thumb_y,
-                      track_w, thumb_h, GetThemeButton());
+    SetUIDropdownClipBottom(view_h - ScaleUIPx(12));
+    if(DropdownEx(UKU_FOCUS_LOCALE_DROPDOWN, x, box_y, w, h,
+                  options, UKU_LOCALE_COUNT, &selected)) {
+        app_switch_locale(app, text, UKU_LOCALES[selected].code);
+        app->active_field = UKU_FIELD_NONE;
     }
 
-    if(IsMouseButtonPressed(MOUSE_LEFT_BUTTON) &&
-       !CheckCollisionPointRec(mouse, box) && !CheckCollisionPointRec(mouse, menu))
-        app->locale_dropdown_open = 0;
-
-    return menu_y + visible_h + ScaleUIPx(14);
+    return box_y + h + ScaleUIPx(18);
 }
 
 static void
@@ -5985,7 +5947,6 @@ reset_decision(UkuApp *app, const UkuText *text)
     app->create_scroll = 0;
     app->create_max_scroll = 0;
     app->create_scrollbar_visible = 0;
-    app->negative_dropdown_open = 0;
     app->active_field = UKU_FIELD_NONE;
     app->create_step = UKU_CREATE_STEP_SETUP;
 }
@@ -6010,7 +5971,6 @@ create_return_to_dashboard(UkuApp *app)
     app->create_draft_saved = 1;
     app->screen = UKU_SCREEN_HOME;
     app->active_field = UKU_FIELD_NONE;
-    app->negative_dropdown_open = 0;
     ClearUIFocus();
 }
 
@@ -6040,7 +6000,6 @@ create_go_to_step(UkuApp *app, UkuCreateStep step)
     app->create_step = step;
     app->create_scroll = 0;
     app->create_max_scroll = 0;
-    app->negative_dropdown_open = 0;
     app->active_field = UKU_FIELD_NONE;
     ClearUIFocus();
 }
@@ -8786,6 +8745,7 @@ draw_account_setup_modal(UkuApp *app, const UkuText *text, int view_w, int view_
 
     if(!app->account_setup_modal_open)
         return;
+    (void)view_h;
 
     if(app->account_pfp_modal_open) {
         ProfilePicturePickerResult result =
@@ -8860,7 +8820,6 @@ draw_account_setup_modal(UkuApp *app, const UkuText *text, int view_w, int view_
         }
     }
 
-    (void)view_h;
 }
 
 static void
@@ -9083,7 +9042,6 @@ draw_theme_settings(UkuApp *app, const UkuText *text, int view_w, int view_h)
                  0, NULL, 0, NULL, 0, NULL, 0, NULL, view_w);
     if(back_clicked) {
         app->screen = UKU_SCREEN_HOME;
-        app->locale_dropdown_open = 0;
         ClearUIFocus();
     }
 
@@ -9201,6 +9159,8 @@ draw_app_frame(void *userdata)
 #endif
     SetUIScale(ui_scale);
     BeginUIFrame(view_w, view_h, GetUIScale());
+    SetUIDropdownClipTop(0);
+    SetUIDropdownClipBottom(view_h);
     SetUICursorClickable(&app->cursor_clickable);
     ApplyCurrentUITheme();
     poll_qr_scan_result(app, text);

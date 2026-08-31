@@ -22,15 +22,14 @@ else
 SQLITE_CFLAGS := -I$(HOME)/.local/sqlite3/include
 SQLITE_LDLIBS := -L$(HOME)/.local/sqlite3/lib -Wl,-rpath,$(HOME)/.local/sqlite3/lib -lsqlite3
 endif
-FONT_MODE ?= font
-FONT_SOURCE ?= $(KRYON_DIR)/fonts/noto/NotoSans-Regular.ttf
-
-# Generated UI font embedded as assets/fonts/ui.ttf (gitignored).
-FONT_FILES := assets/fonts/ui.ttf
-FONT_RANGES ?= ascii latin latin-extended punctuation greek cyrillic
-FONT_MISSING ?= skip
-FONT_BASE_SIZE ?= 32
-FONT_CELL_SIZE ?= 48
+FONT_SUBSET_DIR := assets/fonts/subset
+FONT_SUBSET_CORPUS := locales src/main.c
+FONT_FILES := \
+	$(FONT_SUBSET_DIR)/NotoSans-Uku-Regular.ttf \
+	$(FONT_SUBSET_DIR)/NotoSansSC-Uku-Regular.otf \
+	$(FONT_SUBSET_DIR)/NotoSansJP-Uku-Regular.otf \
+	$(FONT_SUBSET_DIR)/NotoSansKR-Uku-Regular.otf \
+	$(FONT_SUBSET_DIR)/NotoSansTC-Uku-Regular.otf
 WEB_SHELL := src/web_shell.html
 WEB_ITCH_SHELL := src/itch_shell.html
 WEB_DEV_HOST ?= 127.0.0.1
@@ -52,6 +51,25 @@ KRYON_NATIVE_SUPPORT_FLAGS := -DSUPPORT_MODULE_RAUDIO=0
 export KRYON_COMPAT_AUDIO := 0
 
 include $(KRYON_MAKE_DIR)common.mk
+
+.PHONY: font-subsets font-bundle-check
+
+font-subsets:
+	$(MAKE) -C $(KRYON_DIR) font-subsets \
+		FONT_SUBSET_OUT_DIR="$(abspath $(FONT_SUBSET_DIR))" \
+		FONT_SUBSET_SOURCE_DIR="$(abspath $(KRYON_DIR)/fonts/noto)" \
+		FONT_SUBSET_PREFIX=Uku \
+		FONT_SUBSET_CORPUS="$(abspath $(FONT_SUBSET_CORPUS))"
+
+font-bundle-check:
+	for font in $(FONT_FILES); do \
+		case "$$font" in \
+			$(KRYON_DIR)/fonts/noto/*) \
+				echo "Full Noto font must not be embedded: $$font"; \
+				exit 1; \
+				;; \
+		esac; \
+	done
 
 APP_ID := $(ANDROID_APP_ID)
 APP_DESKTOP_ID := $(APP_ID)
@@ -191,9 +209,8 @@ $(KRY_GEN_DIR):
 $(WEB_ITCH_DIST_DIR): | $(BUILD_DIST_DIR)
 	mkdir -p $@
 
-$(FONT_FILES): $(FONT_SOURCE)
-	@mkdir -p $(dir $@)
-	cp $(FONT_SOURCE) $@
+$(FONT_FILES): $(LOCALE_FILES) src/main.c
+	$(MAKE) font-subsets
 
 $(WEB_JS_TARGET): $(BUILD_MAKEFILES) $(SRC) $(WEB_KRYON_SRCS) $(CORE_SRCS) $(WEB_LIBOQS_A) $(WEB_PUBLIC_FILES) | $(WEB_BUILD_DIR)
 	$(WEB_CC) $(WEB_CFLAGS) \
