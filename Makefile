@@ -35,7 +35,7 @@ WEB_ITCH_SHELL := src/itch_shell.html
 WEB_DEV_HOST ?= 127.0.0.1
 WEB_DEV_PORT ?= 8080
 BRAVE_BROWSER ?= brave-browser
-WEB_ONLY_GOALS := web web-itch itch itch-push site run clean-web
+WEB_ONLY_GOALS := web web-itch itch itch-push site run clean-web font-subsets font-bundle-check
 
 ifeq ($(filter-out $(WEB_ONLY_GOALS),$(MAKECMDGOALS)),)
 KRYON_BACKEND := canvas

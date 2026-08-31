@@ -9,4 +9,5 @@ libgbm-dev
 libgles2-mesa-dev
 libsqlite3-dev
 libsdl2-dev
+python3-fonttools
 xvfb

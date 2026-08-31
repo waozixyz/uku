@@ -1,6 +1,7 @@
 build-essential
 cmake
 pkg-config
+python3-fonttools
 zlib1g-dev
 zip
 tcl
