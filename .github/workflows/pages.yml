@@ -38,10 +38,10 @@ jobs:
           echo "EMSDK=$HOME/emsdk" >> "$GITHUB_ENV"
           echo "EM_CONFIG=$HOME/emsdk/.emscripten" >> "$GITHUB_ENV"
           mkdir -p "$HOME/emscripten-bin"
-          ln -sf "$HOME/emsdk/upstream/emscripten/emcc" "$HOME/emscripten-bin/emcc"
-          ln -sf "$HOME/emsdk/upstream/emscripten/em++" "$HOME/emscripten-bin/em++"
-          ln -sf "$HOME/emsdk/upstream/emscripten/emar" "$HOME/emscripten-bin/emar"
-          ln -sf "$HOME/emsdk/upstream/emscripten/emcmake" "$HOME/emscripten-bin/emcmake"
+          for tool in emcc em++ emar emcmake; do
+            printf '#!/bin/sh\nexec "%s/%s" "$@"\n' "$HOME/emsdk/upstream/emscripten" "$tool" > "$HOME/emscripten-bin/$tool"
+            chmod +x "$HOME/emscripten-bin/$tool"
+          done
           echo "$HOME/emscripten-bin" >> "$GITHUB_PATH"
 
       - name: Build Site
