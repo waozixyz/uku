@@ -32,6 +32,14 @@ WEB_SHELL := src/web_shell.html
 WEB_DEV_HOST ?= 127.0.0.1
 WEB_DEV_PORT ?= 8080
 BRAVE_BROWSER ?= brave-browser
+WEB_ONLY_GOALS := web site run clean-web
+
+ifeq ($(filter-out $(WEB_ONLY_GOALS),$(MAKECMDGOALS)),)
+RAY_CFLAGS ?= -DPLATFORM_WEB
+RAY_LDLIBS ?= -lm
+RAY_SDL_LDLIBS ?= -lm
+RAY_SDL_INCLUDE_DIR ?= .
+endif
 
 KRYON_NATIVE_SUPPORT_FLAGS := -DSUPPORT_MODULE_RAUDIO=0
 # raylib is built without the audio module, so the generated compat
@@ -86,7 +94,7 @@ KRYON_NATIVE_CFLAGS := $(KRYON_LIBOQS_INCLUDE) $(KRYON_CURL_CFLAGS) $(SQLITE_CFL
 KRYON_NATIVE_LDLIBS := $(KRYON_LIBOQS_A) $(KRYON_CURL_LDLIBS) $(KRYON_CURL_TRANSITIVE_LDLIBS) $(SQLITE_LDLIBS)
 endif
 
-ifneq ($(filter-out web site run clean-web,$(MAKECMDGOALS)),)
+ifneq ($(filter-out $(WEB_ONLY_GOALS),$(MAKECMDGOALS)),)
 include $(KRYON_MAKE_DIR)native.mk
 else
 run:
