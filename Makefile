@@ -34,6 +34,7 @@ WEB_SHELL := src/web_shell.html
 WEB_ITCH_SHELL := src/itch_shell.html
 WEB_DEV_HOST ?= 127.0.0.1
 WEB_DEV_PORT ?= 8080
+XVFB_TMPDIR ?= $(BUILD_OBJ_DIR)/xvfb
 BRAVE_BROWSER ?= brave-browser
 WEB_ONLY_GOALS := web web-itch itch itch-push site run clean-web font-subsets font-bundle-check
 
@@ -271,7 +272,8 @@ site: web
 	sh site/build.sh
 
 smoke: $(TARGET)
-	xvfb-run -a timeout 8s ./$(TARGET) || test $$? -eq 124
+	mkdir -p $(XVFB_TMPDIR)
+	TMPDIR="$(abspath $(XVFB_TMPDIR))" xvfb-run -a timeout 8s ./$(TARGET) || test $$? -eq 124
 
 no-vendor-edits:
 	scripts/check-no-vendor-edits.sh
