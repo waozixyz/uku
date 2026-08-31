@@ -7998,11 +7998,86 @@ draw_manual(UkuApp *app, const UkuText *text, int view_w, int view_h)
                    &app->manual_scroll, &app->manual_drag_scrollbar, &app->manual_scroll_drag_offset);
 }
 
+typedef struct UkuFrameContext {
+    UkuApp *app;
+    UkuText *text;
+} UkuFrameContext;
+
+static void
+draw_app_frame(void *userdata)
+{
+    UkuFrameContext *ctx = (UkuFrameContext *)userdata;
+    UkuApp *app = ctx->app;
+    UkuText *text = ctx->text;
+
+#if defined(PLATFORM_WEB)
+    if(WindowShouldClose()) {
+        emscripten_cancel_main_loop();
+        return;
+    }
+    SyncWebWindowSize();
+#endif
+    int view_w = GetScreenWidth();
+    int view_h = GetScreenHeight();
+#if defined(PLATFORM_ANDROID)
+    SyncAndroidSurfaceSize(&view_w, &view_h);
+    {
+        int bottom_reserved = android_bridge_bottom_reserved();
+        if(bottom_reserved > 0 && bottom_reserved < view_h - ScaleUIPx(120))
+            view_h -= bottom_reserved;
+    }
+#endif
+
+    UpdateUIDPI(view_w, view_h);
+    SetUIScale(ui_dpi_state.ui_scale_clamped);
+    BeginUIFrame(view_w, view_h, GetUIScale());
+    SetUICursorClickable(&app->cursor_clickable);
+    ApplyCurrentUITheme();
+    poll_qr_scan_result(app, text);
+
+    app->cursor_clickable = 0;
+
+    BeginDrawing();
+    ClearBackground(GetThemeBackground());
+    BeginUIFocus();
+    SetUIFocusTextInputActive(app->active_field != UKU_FIELD_NONE);
+    if(app->account_required_modal_open || app->account_setup_modal_open ||
+       app->account_pfp_modal_open ||
+       app->account_public_id_modal_open || app->account_alias_modal_open)
+        BeginUIModalLayer();
+    if(app->screen == UKU_SCREEN_HOME)
+        draw_home(app, text, view_w, view_h);
+    else if(app->screen == UKU_SCREEN_CREATE)
+        draw_create_placeholder(app, text, view_w, view_h);
+    else if(app->screen == UKU_SCREEN_COLLECT)
+        draw_collect(app, text, view_w, view_h);
+    else if(app->screen == UKU_SCREEN_ACCOUNT)
+        draw_account(app, text, view_w, view_h);
+    else if(app->screen == UKU_SCREEN_THEME)
+        draw_theme_settings(app, text, view_w, view_h);
+    else if(app->screen == UKU_SCREEN_HISTORY)
+        draw_history(app, text, view_w, view_h);
+    else
+        draw_manual(app, text, view_w, view_h);
+    if(!app->intro_seen)
+        draw_intro_modal(app, app->font, view_w, view_h, &(int){0});
+    draw_account_setup_modal(app, text, view_w, view_h);
+    draw_account_required_modal(app, text, view_w, view_h);
+    draw_public_id_modal(app, view_w, view_h);
+    draw_alias_modal(app, view_w, view_h);
+    Overlays();
+    EndUIFocus();
+    EndDrawing();
+
+    SetMouseCursor(app->cursor_clickable ? MOUSE_CURSOR_POINTING_HAND : MOUSE_CURSOR_DEFAULT);
+}
+
 int
 main(void)
 {
-    UkuApp app = {0};
-    UkuText text = {0};
+    static UkuApp app = {0};
+    static UkuText text = {0};
+    static UkuFrameContext frame_context;
     int window_w = 520;
     int window_h = 760;
 
@@ -8080,72 +8155,23 @@ main(void)
     app_load_font(&app);
     load_icons_once(&app);
 
-    while(!WindowShouldClose()) {
 #if defined(PLATFORM_WEB)
-        SyncWebWindowSize();
-#endif
-        int view_w = GetScreenWidth();
-        int view_h = GetScreenHeight();
-#if defined(PLATFORM_ANDROID)
-        SyncAndroidSurfaceSize(&view_w, &view_h);
-        {
-            int bottom_reserved = android_bridge_bottom_reserved();
-            if(bottom_reserved > 0 && bottom_reserved < view_h - ScaleUIPx(120))
-                view_h -= bottom_reserved;
-        }
-#endif
-
-        UpdateUIDPI(view_w, view_h);
-        SetUIScale(ui_dpi_state.ui_scale_clamped);
-        BeginUIFrame(view_w, view_h, GetUIScale());
-        SetUICursorClickable(&app.cursor_clickable);
-        ApplyCurrentUITheme();
-        poll_qr_scan_result(&app, &text);
-
-        app.cursor_clickable = 0;
-
-        BeginDrawing();
-        ClearBackground(GetThemeBackground());
-        BeginUIFocus();
-        SetUIFocusTextInputActive(app.active_field != UKU_FIELD_NONE);
-        if(app.account_required_modal_open || app.account_setup_modal_open ||
-           app.account_pfp_modal_open ||
-           app.account_public_id_modal_open || app.account_alias_modal_open)
-            BeginUIModalLayer();
-        if(app.screen == UKU_SCREEN_HOME)
-            draw_home(&app, &text, view_w, view_h);
-        else if(app.screen == UKU_SCREEN_CREATE)
-            draw_create_placeholder(&app, &text, view_w, view_h);
-        else if(app.screen == UKU_SCREEN_COLLECT)
-            draw_collect(&app, &text, view_w, view_h);
-        else if(app.screen == UKU_SCREEN_ACCOUNT)
-            draw_account(&app, &text, view_w, view_h);
-        else if(app.screen == UKU_SCREEN_THEME)
-            draw_theme_settings(&app, &text, view_w, view_h);
-        else if(app.screen == UKU_SCREEN_HISTORY)
-            draw_history(&app, &text, view_w, view_h);
-        else
-            draw_manual(&app, &text, view_w, view_h);
-        if(!app.intro_seen)
-            draw_intro_modal(&app, app.font, view_w, view_h, &(int){0});
-        draw_account_setup_modal(&app, &text, view_w, view_h);
-        draw_account_required_modal(&app, &text, view_w, view_h);
-        draw_public_id_modal(&app, view_w, view_h);
-        draw_alias_modal(&app, view_w, view_h);
-        Overlays();
-        EndUIFocus();
-        EndDrawing();
-
-        SetMouseCursor(app.cursor_clickable ? MOUSE_CURSOR_POINTING_HAND : MOUSE_CURSOR_DEFAULT);
+    frame_context.app = &app;
+    frame_context.text = &text;
+    emscripten_set_main_loop_arg(draw_app_frame, &frame_context, 0, 1);
+#else
+    frame_context.app = &app;
+    frame_context.text = &text;
+    while(!WindowShouldClose()) {
+        draw_app_frame(&frame_context);
     }
 
     app_unload_font(&app);
-#if !defined(PLATFORM_WEB)
     CloseFileDialog(&app.account_import_dialog);
     CloseFileDialog(&app.account_export_dialog);
     if(app.db != NULL)
         sqlite3_close(app.db);
-#endif
     CloseWindow();
+#endif
     return 0;
 }

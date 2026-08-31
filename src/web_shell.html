@@ -195,7 +195,8 @@
     Module.setStatus("Downloading...");
 
     (function() {
-      if(location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
+      if((location.hostname !== "localhost" && location.hostname !== "127.0.0.1") ||
+         location.port !== "8080") {
         return;
       }
 
