@@ -171,4 +171,7 @@ linux: native
 
 dist: dist-linux
 
-.PHONY: all native linux web dist run clean
+site: web
+	sh site/build.sh
+
+.PHONY: all native linux web site dist run clean

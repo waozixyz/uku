@@ -715,6 +715,70 @@ static void draw_centered_text(Font font, const char *text, int center_x, int y,
                                int font_size, Color color);
 
 static int
+measure_wrapped_text_height(Font font, const char *text, int w, int font_size,
+                            int line_h)
+{
+    const char *p = text;
+    char line[512];
+    int line_len = 0;
+    int line_w = 0;
+    int h = 0;
+    int space_w = measure_text_font(font, " ", font_size);
+
+    line[0] = '\0';
+    while(*p != '\0') {
+        char word[160];
+        int word_len = 0;
+        int forced_break = 0;
+
+        while(*p == ' ')
+            p++;
+        if(*p == '\n') {
+            forced_break = 1;
+            p++;
+        }
+
+        while(*p != '\0' && *p != ' ' && *p != '\n' && word_len < (int)sizeof(word) - 1)
+            word[word_len++] = *p++;
+        word[word_len] = '\0';
+
+        if(forced_break || word_len == 0) {
+            if(line_len > 0) {
+                h += line_h;
+                line_len = 0;
+                line_w = 0;
+                line[0] = '\0';
+            }
+            continue;
+        }
+
+        int word_w = measure_text_font(font, word, font_size);
+        int add_w = line_len == 0 ? word_w : space_w + word_w;
+        if(line_len > 0 && line_w + add_w > w) {
+            h += line_h;
+            line_len = 0;
+            line_w = 0;
+            line[0] = '\0';
+        }
+
+        if(line_len == 0) {
+            copy_text(line, sizeof(line), word, (size_t)word_len);
+            line_len = (int)strlen(line);
+            line_w = word_w;
+        } else if(line_len + 1 + word_len < (int)sizeof(line)) {
+            line[line_len++] = ' ';
+            memcpy(line + line_len, word, (size_t)word_len + 1);
+            line_len += word_len;
+            line_w += add_w;
+        }
+    }
+
+    if(line_len > 0)
+        h += line_h;
+    return h;
+}
+
+static int
 draw_wrapped_text(Font font, const char *text, int x, int y, int w, int font_size, int line_h, Color color)
 {
     const char *p = text;
@@ -5430,13 +5494,17 @@ static void
 draw_intro_modal(UkuApp *app, Font font, int view_w, int view_h, int *dismissed)
 {
     int panel_w = UKU_MIN(view_w - ScaleUIPx(32), ScaleUIPx(420));
-    int panel_h = ScaleUIPx(340);
-    int x = (view_w - panel_w) / 2;
-    int y = (view_h - panel_h) / 2;
     int pad = ScaleUIPx(20);
     int title_font = ClampUIPx(18, 18, 22);
     int small_font = ClampUIPx(12, 12, 14);
     int line_h = small_font + ScaleUIPx(6);
+    int text_w = panel_w - pad * 2;
+    int button_h = ScaleUIPx(40);
+    int text_h = 0;
+    int panel_h;
+    int x = (view_w - panel_w) / 2;
+    int y;
+    Color panel_color;
     const char *lines[4];
     int ly;
     int start_clicked = 0;
@@ -5446,9 +5514,18 @@ draw_intro_modal(UkuApp *app, Font font, int view_w, int view_h, int *dismissed)
     lines[2] = tr(app, "Status quo and Repeat process are always on the ballot.");
     lines[3] = tr(app, "The option people can accept wins.");
 
+    for(int i = 0; i < 4; i++)
+        text_h += measure_wrapped_text_height(font, lines[i], text_w, small_font, line_h);
+
+    panel_h = pad * 3 + title_font + ScaleUIPx(14) + text_h + ScaleUIPx(16) + button_h;
+    panel_h = UKU_MIN(panel_h, view_h - ScaleUIPx(32));
+    y = (view_h - panel_h) / 2;
+    panel_color = GetThemeBackground();
+    panel_color.a = 255;
+
     DrawRectangle(0, 0, view_w, view_h, (Color){0, 0, 0, 160});
     DrawRectangleRounded((Rectangle){(float)x, (float)y, (float)panel_w, (float)panel_h},
-                         0.05f, 12, GetThemeBackground());
+                         0.05f, 12, panel_color);
     DrawRectangleRoundedLinesEx((Rectangle){(float)x, (float)y, (float)panel_w, (float)panel_h},
                                 0.05f, 12, ScaleUIPx(1), GetThemeButton());
     ly = y + pad;
@@ -5456,13 +5533,14 @@ draw_intro_modal(UkuApp *app, Font font, int view_w, int view_h, int *dismissed)
                        title_font, GetThemeText());
     ly += title_font + ScaleUIPx(14);
     for(int i = 0; i < 4; i++) {
-        ly = draw_wrapped_text(font, lines[i], x + pad, ly, panel_w - pad * 2,
-                               small_font, line_h, GetThemeText());
+        ly = draw_wrapped_text(font, lines[i], x + pad, ly, text_w, small_font,
+                               line_h, GetThemeText());
     }
-    ly += ScaleUIPx(8);
-    draw_compact_button(app, font, x + pad, y + panel_h - pad - ScaleUIPx(40),
-                        panel_w - pad * 2, ScaleUIPx(600), ScaleUIPx(40),
-                        tr(app, "Get started"), 1, UKU_FOCUS_HOME_START, &start_clicked);
+    ly += ScaleUIPx(16);
+    draw_compact_button(app, font, x + pad,
+                        UKU_MIN(ly, y + panel_h - pad - button_h), text_w,
+                        ScaleUIPx(600), button_h, tr(app, "Get started"), 1,
+                        UKU_FOCUS_HOME_START, &start_clicked);
     if(start_clicked) {
         app->intro_seen = 1;
         setting_save_int(app, UKU_INTRO_SEEN_KEY, 1);
@@ -7956,7 +8034,7 @@ main(void)
     app.theme_id = clampi(GetDefaultThemeForThemeStyle(THEME_STYLE_SYSTEM),
                           0, THEME_COUNT - 1);
     app.theme_dark_mode = 0;
-#if defined(PLATFORM_ANDROID)
+#if defined(PLATFORM_ANDROID) || defined(PLATFORM_WEB)
     app.intro_seen = 1;
 #else
     app.intro_seen = setting_load_int(&app, UKU_INTRO_SEEN_KEY, 0) != 0;

@@ -1,0 +1,253 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Mono:wght@300;400;600;700&family=Cormorant+Garamond:wght@500;600&display=swap');
+
+:root {
+	--bg: #f8f5ef;
+	--surface: #fffdf8;
+	--surface-alt: #f0e9dd;
+	--ink: #25342f;
+	--ink-strong: #15251f;
+	--muted: #7e776c;
+	--line: rgba(74, 77, 65, 0.18);
+	--line-strong: rgba(74, 77, 65, 0.32);
+	--accent: #d94f3d;
+	--accent-deep: #9f382d;
+	--accent-soft: rgba(217, 79, 61, 0.11);
+	--green: #467a58;
+	--green-soft: rgba(70, 122, 88, 0.12);
+	--blue: #2d6475;
+	--blue-soft: rgba(45, 100, 117, 0.12);
+	--shadow: rgba(36, 48, 42, 0.14);
+	--radius: 8px;
+	--radius-sm: 6px;
+	--maxw: 1120px;
+	--font-main: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+	--font-display: "Cormorant Garamond", Georgia, serif;
+}
+
+* { box-sizing: border-box; }
+
+html {
+	scroll-behavior: smooth;
+	scroll-padding-top: 72px;
+}
+
+html,
+body {
+	margin: 0;
+	padding: 0;
+}
+
+body {
+	min-height: 100vh;
+	background:
+		linear-gradient(180deg, rgba(255, 253, 248, 0.86), rgba(248, 245, 239, 0.96)),
+		repeating-linear-gradient(90deg, rgba(37, 52, 47, 0.035) 0 1px, transparent 1px 32px),
+		repeating-linear-gradient(0deg, rgba(37, 52, 47, 0.028) 0 1px, transparent 1px 32px);
+	color: var(--ink);
+	font-family: var(--font-main);
+	font-size: 15px;
+	line-height: 1.6;
+	-webkit-font-smoothing: antialiased;
+}
+
+img {
+	display: block;
+	max-width: 100%;
+	height: auto;
+}
+
+a {
+	color: var(--blue);
+	font-weight: 700;
+	text-decoration: none;
+}
+
+a:hover { color: var(--accent-deep); }
+
+h1,
+h2,
+h3,
+p {
+	margin-top: 0;
+}
+
+h1,
+h2 {
+	color: var(--ink-strong);
+	font-family: var(--font-display);
+	font-weight: 600;
+	letter-spacing: 0;
+}
+
+h1 {
+	margin-bottom: 14px;
+	font-size: clamp(54px, 9vw, 118px);
+	line-height: 0.86;
+}
+
+h2 {
+	margin-bottom: 14px;
+	font-size: clamp(30px, 4.7vw, 54px);
+	line-height: 0.98;
+}
+
+h3 {
+	margin-bottom: 8px;
+	color: var(--ink-strong);
+	font-size: 18px;
+	line-height: 1.2;
+}
+
+p {
+	max-width: 72ch;
+	margin-bottom: 14px;
+	color: var(--muted);
+}
+
+.site-header {
+	position: sticky;
+	top: 0;
+	z-index: 40;
+	background: rgba(248, 245, 239, 0.92);
+	-webkit-backdrop-filter: blur(8px);
+	backdrop-filter: blur(8px);
+	border-bottom: 1px solid var(--line);
+}
+
+.site-header-inner {
+	max-width: var(--maxw);
+	margin: 0 auto;
+	padding: 10px 20px;
+	display: flex;
+	align-items: center;
+	gap: 16px;
+}
+
+.brand,
+.site-return {
+	display: inline-flex;
+	align-items: center;
+	white-space: nowrap;
+}
+
+.brand {
+	gap: 8px;
+	color: var(--ink-strong);
+	font-size: 14px;
+	letter-spacing: 0.08em;
+}
+
+.brand img {
+	width: 22px;
+	height: 22px;
+	border-radius: 5px;
+}
+
+.site-return {
+	color: var(--blue);
+	font-size: 13px;
+}
+
+.header-nav {
+	margin-left: auto;
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 6px 18px;
+}
+
+.header-nav a {
+	color: var(--muted);
+	font-size: 13px;
+}
+
+.header-nav a:hover {
+	color: var(--accent);
+}
+
+section,
+footer {
+	max-width: var(--maxw);
+	margin: 0 auto;
+	padding: 60px 20px;
+}
+
+footer {
+	padding-top: 18px;
+	padding-bottom: 32px;
+	text-align: center;
+	font-size: 13px;
+}
+
+footer p {
+	margin-left: auto;
+	margin-right: auto;
+}
+
+.btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 40px;
+	padding: 9px 14px;
+	color: var(--ink-strong);
+	background: var(--surface);
+	border: 1px solid var(--line-strong);
+	border-radius: var(--radius-sm);
+	box-shadow:
+		inset 1px 1px 0 rgba(255, 255, 255, 0.75),
+		0 2px 0 rgba(37, 52, 47, 0.16),
+		0 12px 24px rgba(37, 52, 47, 0.08);
+	font-size: 13px;
+	line-height: 1.2;
+	text-align: center;
+}
+
+.btn:hover {
+	color: var(--ink-strong);
+	background: #fff;
+}
+
+.btn-primary {
+	color: #fffdf8;
+	background: var(--accent);
+	border-color: var(--accent-deep);
+	box-shadow:
+		inset 1px 1px 0 rgba(255, 255, 255, 0.18),
+		0 2px 0 var(--accent-deep),
+		0 14px 28px rgba(159, 56, 45, 0.18);
+}
+
+.btn-primary:hover {
+	color: #fffdf8;
+	background: var(--accent-deep);
+}
+
+.nl-wrap,
+.nl-badge,
+.nl-card {
+	display: none !important;
+	visibility: hidden !important;
+	pointer-events: none !important;
+}
+
+@media (max-width: 760px) {
+	body { font-size: 14px; }
+
+	.site-header-inner {
+		align-items: flex-start;
+		gap: 8px 12px;
+		flex-wrap: wrap;
+	}
+
+	.header-nav {
+		width: 100%;
+		margin-left: 0;
+	}
+
+	section,
+	footer {
+		padding-left: 16px;
+		padding-right: 16px;
+	}
+}

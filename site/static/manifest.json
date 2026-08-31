@@ -1,0 +1,17 @@
+{
+  "name": "Uku",
+  "short_name": "Uku",
+  "description": "Collective decisions with visible support, resistance, status quo, and repeat-process choices.",
+  "start_url": "/build/web/index.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8f5ef",
+  "theme_color": "#d94f3d",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
