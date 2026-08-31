@@ -86,7 +86,7 @@ KRYON_NATIVE_CFLAGS := $(KRYON_LIBOQS_INCLUDE) $(KRYON_CURL_CFLAGS) $(SQLITE_CFL
 KRYON_NATIVE_LDLIBS := $(KRYON_LIBOQS_A) $(KRYON_CURL_LDLIBS) $(KRYON_CURL_TRANSITIVE_LDLIBS) $(SQLITE_LDLIBS)
 endif
 
-ifneq ($(filter-out web run clean-web,$(MAKECMDGOALS)),)
+ifneq ($(filter-out web site run clean-web,$(MAKECMDGOALS)),)
 include $(KRYON_MAKE_DIR)native.mk
 else
 run:
