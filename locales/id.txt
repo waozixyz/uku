@@ -1,0 +1,288 @@
+[app_title]
+Ukuvota
+---
+[home_title]
+Dasbor
+---
+[home_subtitle]
+Keputusan kolektif tanpa penolakan tersembunyi
+---
+[home_summary]
+Ukuvota membantu kelompok membuat keputusan kolektif dengan pemungutan suara skor. Peserta dapat mendukung atau menolak setiap opsi, sehingga hasilnya mengutamakan pilihan yang dapat diterima dan dijalankan.
+---
+[start_process_button]
+Buat Proses
+---
+[join_process_label]
+Gabung Proses
+---
+[join_process_placeholder]
+Tempel ID proses atau tautan
+---
+[join_process_button]
+Buka Proses
+---
+[join_process_error]
+Proses itu tidak dapat dibuka. Periksa ID, tautan, atau server.
+---
+[dashboard_empty]
+Belum ada proses aktif.
+---
+[dashboard_recent_label]
+Proses Aktif
+---
+[dashboard_filter_mine]
+Milik saya
+---
+[dashboard_filter_public]
+Publik
+---
+[dashboard_public_label]
+Proses Publik
+---
+[dashboard_public_empty]
+Tidak ada proses publik ditemukan.
+---
+[manual_title]
+Panduan
+---
+[manual_body]
+Uku membantu kelompok memilih opsi yang dapat didukung dan diterima orang.
+
+Buat proses dengan pertanyaan yang jelas, lalu bagikan tautannya kepada peserta.
+
+Selama fase proposal, orang menambahkan opsi. Uku selalu menyertakan Status quo dan Ulangi proses agar tidak melakukan apa pun atau mencari lagi menjadi pilihan yang jelas.
+
+Selama pemungutan suara, setiap akun memberi skor pada setiap proposal. Skor negatif diberi bobot agar penolakan terlihat dan tidak tersembunyi oleh dukungan yang tidak terkait.
+---
+[create_title]
+Pengaturan Keputusan
+---
+[topic_question_label]
+Pertanyaan Topik
+---
+[topic_question_placeholder]
+Apa yang harus diputuskan kelompok ini?
+---
+[topic_error]
+Tambahkan pertanyaan topik untuk memulai proses.
+---
+[proposal_title_warning]
+Tambahkan judul proposal sebelum menambahkan detail.
+---
+[description_label]
+Deskripsi (opsional)
+---
+[description_placeholder]
+Tambahkan konteks, batasan, atau tautan.
+---
+[negative_weight_label]
+Bobot skor negatif
+---
+[negative_weight_infinity]
+Tak terbatas (konsensus sistemik)
+---
+[negative_weight_1]
+1
+---
+[negative_weight_2]
+2
+---
+[negative_weight_3]
+3
+---
+[negative_weight_4]
+4
+---
+[negative_weight_5]
+5
+---
+[negative_weight_6]
+6
+---
+[negative_weight_7]
+7
+---
+[negative_weight_8]
+8
+---
+[negative_weight_9]
+9
+---
+[proposal_time_label]
+Waktu Proposal
+---
+[voting_time_label]
+Waktu Pemungutan Suara
+---
+[days_label]
+Hari
+---
+[hours_label]
+Jam
+---
+[minutes_label]
+Menit
+---
+[create_process_button]
+Buat Proses
+---
+[setup_ready]
+Draf proses siap.
+---
+[collect_title]
+Kumpulkan Proposal
+---
+[collect_intro]
+Proses disimpan secara lokal. Bagikan alamat ini kepada peserta di perangkat ini selama hanya penyimpanan lokal yang digunakan.
+---
+[proposal_phase_label]
+Fase proposal
+---
+[voting_phase_label]
+Fase pemungutan suara
+---
+[results_phase_label]
+Hasil siap
+---
+[time_remaining_label]
+tersisa
+---
+[local_address_label]
+Alamat lokal
+---
+[default_proposals_label]
+Proposal bawaan
+---
+[status_quo_title]
+Status quo
+---
+[status_quo_description]
+Biarkan seperti sekarang.
+---
+[repeat_process_title]
+Ulangi proses
+---
+[repeat_process_description]
+Ulangi proses dan cari opsi lain.
+---
+[db_error]
+Tidak dapat menyimpan proses secara lokal.
+---
+[back_button]
+Kembali
+---
+[brand_short]
+Uku
+---
+[Currently In Progress]
+Sedang Berjalan
+---
+[No processes currently in progress.]
+Tidak ada proses yang sedang berjalan.
+---
+[Completed Processes]
+Proses Selesai
+---
+[Completed processes will appear here.]
+Proses selesai akan muncul di sini.
+---
+[Search or paste link]
+Cari atau tempel tautan
+---
+[Done Decisions]
+Keputusan Selesai
+---
+[Finished Processes]
+Proses Selesai
+---
+[No finished processes yet.]
+Belum ada proses selesai.
+---
+[Finished]
+Selesai
+---
+[Results]
+Hasil
+---
+[Copy results as text]
+Salin hasil sebagai teks
+---
+[Results copied.]
+Hasil disalin.
+---
+[support]
+dukungan
+---
+[resistance]
+penolakan
+---
+[votes]
+suara
+---
+[avg]
+rata2
+---
+[ - leading]
+ - unggul
+---
+[resistance at least equals support]
+penolakan setidaknya sama dengan dukungan
+---
+[Participants]
+Peserta
+---
+[No votes submitted yet.]
+Belum ada suara dikirim.
+---
+[Tap a participant to include or exclude them from the results.]
+Ketuk peserta untuk menyertakan atau mengecualikannya dari hasil.
+---
+[ (you)]
+ (Anda)
+---
+[anonymous]
+anonim
+---
+[Reason:]
+Alasan:
+---
+[Reason]
+Alasan
+---
+[Required voting reason]
+Alasan suara wajib
+---
+[Optional voting reason]
+Alasan suara opsional
+---
+[Language]
+Bahasa
+---
+[System]
+Sistem
+---
+[Mode]
+Mode
+---
+[Follow device]
+Ikuti perangkat
+---
+[Light]
+Terang
+---
+[Dark]
+Gelap
+---
+[Refresh]
+Segarkan
+---
+[Get started]
+Mulai
+---
+[Logged in]
+Masuk
+---
+[Owner only]
+Hanya pemilik
+---

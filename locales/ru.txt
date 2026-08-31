@@ -1,0 +1,294 @@
+[app_title]
+Ukuvota
+---
+[home_title]
+Панель
+---
+[home_subtitle]
+Коллективные решения без скрытого сопротивления
+---
+[home_summary]
+Ukuvota помогает группам принимать коллективные решения с помощью голосования по баллам. Участники могут поддержать или отклонить каждый вариант, поэтому результат отдает предпочтение решениям, которые люди могут принять и выполнить.
+---
+[start_process_button]
+Создать процесс
+---
+[join_process_label]
+Присоединиться к процессу
+---
+[join_process_placeholder]
+Вставьте ID процесса или ссылку
+---
+[join_process_button]
+Открыть процесс
+---
+[join_process_error]
+Не удалось открыть этот процесс. Проверьте ID, ссылку или сервер.
+---
+[dashboard_empty]
+Активных процессов пока нет.
+---
+[dashboard_recent_label]
+Активные процессы
+---
+[dashboard_filter_mine]
+Мои
+---
+[dashboard_filter_public]
+Публичные
+---
+[dashboard_public_label]
+Публичные процессы
+---
+[dashboard_public_empty]
+Публичные процессы не найдены.
+---
+[manual_title]
+Руководство
+---
+[manual_body]
+Uku помогает группам выбирать варианты, которые люди могут поддержать и принять.
+
+Создайте процесс с понятным вопросом, затем поделитесь ссылкой с участниками.
+
+Во время фазы предложений люди добавляют варианты. Uku всегда включает Status quo и Повторить процесс, чтобы ничего не делать или искать снова были явными вариантами.
+
+Во время голосования каждая учетная запись оценивает каждое предложение. Отрицательные оценки взвешиваются, чтобы сопротивление было видно, а не скрывалось несвязанной поддержкой.
+---
+[create_title]
+Настройка решения
+---
+[topic_question_label]
+Вопрос темы
+---
+[topic_question_placeholder]
+Что должна решить эта группа?
+---
+[topic_error]
+Добавьте вопрос темы, чтобы начать процесс.
+---
+[proposal_title_warning]
+Добавьте название предложения перед деталями.
+---
+[description_label]
+Описание (необязательно)
+---
+[description_placeholder]
+Добавьте контекст, ограничения или ссылки.
+---
+[negative_weight_label]
+Вес отрицательной оценки
+---
+[negative_weight_infinity]
+Бесконечность (системный консенсус)
+---
+[negative_weight_1]
+1
+---
+[negative_weight_2]
+2
+---
+[negative_weight_3]
+3
+---
+[negative_weight_4]
+4
+---
+[negative_weight_5]
+5
+---
+[negative_weight_6]
+6
+---
+[negative_weight_7]
+7
+---
+[negative_weight_8]
+8
+---
+[negative_weight_9]
+9
+---
+[proposal_time_label]
+Время предложений
+---
+[voting_time_label]
+Время голосования
+---
+[days_label]
+Дни
+---
+[hours_label]
+Часы
+---
+[minutes_label]
+Минуты
+---
+[create_process_button]
+Создать процесс
+---
+[setup_ready]
+Черновик процесса готов.
+---
+[collect_title]
+Собрать предложения
+---
+[collect_intro]
+Процесс сохранен локально. Поделитесь этим адресом с участниками на этом устройстве, пока используется только локальное хранение.
+---
+[proposal_phase_label]
+Фаза предложений
+---
+[voting_phase_label]
+Фаза голосования
+---
+[results_phase_label]
+Результаты готовы
+---
+[time_remaining_label]
+осталось
+---
+[local_address_label]
+Локальный адрес
+---
+[default_proposals_label]
+Предложения по умолчанию
+---
+[status_quo_title]
+Status quo
+---
+[status_quo_description]
+Оставить все как есть.
+---
+[repeat_process_title]
+Повторить процесс
+---
+[repeat_process_description]
+Повторить процесс и найти другие варианты.
+---
+[db_error]
+Не удалось сохранить процесс локально.
+---
+[back_button]
+Назад
+---
+[brand_short]
+Uku
+---
+[Currently In Progress]
+В работе
+---
+[No processes currently in progress.]
+Сейчас нет процессов в работе.
+---
+[Completed Processes]
+Завершенные процессы
+---
+[Completed processes will appear here.]
+Завершенные процессы появятся здесь.
+---
+[Search or paste link]
+Поиск или вставка ссылки
+---
+[Done Decisions]
+Завершенные решения
+---
+[Finished Processes]
+Завершенные процессы
+---
+[No finished processes yet.]
+Завершенных процессов пока нет.
+---
+[Finished]
+Завершено
+---
+[Results]
+Результаты
+---
+[Copy results as text]
+Копировать результаты как текст
+---
+[Results copied.]
+Результаты скопированы.
+---
+[total]
+итого
+---
+[support]
+поддержка
+---
+[resistance]
+сопротивление
+---
+[votes]
+голоса
+---
+[avg]
+ср.
+---
+[ - leading]
+ - лидирует
+---
+[resistance at least equals support]
+сопротивление не меньше поддержки
+---
+[Participants]
+Участники
+---
+[No votes submitted yet.]
+Голоса пока не отправлены.
+---
+[Tap a participant to include or exclude them from the results.]
+Нажмите участника, чтобы включить или исключить его из результатов.
+---
+[ (you)]
+ (вы)
+---
+[anonymous]
+анонимно
+---
+[Reason:]
+Причина:
+---
+[Reason]
+Причина
+---
+[Required voting reason]
+Обязательная причина голоса
+---
+[Optional voting reason]
+Необязательная причина голоса
+---
+[Language]
+Язык
+---
+[Theme]
+Тема
+---
+[System]
+Система
+---
+[Mode]
+Режим
+---
+[Follow device]
+Как на устройстве
+---
+[Light]
+Светлая
+---
+[Dark]
+Темная
+---
+[Refresh]
+Обновить
+---
+[Get started]
+Начать
+---
+[Logged in]
+Вошедшие
+---
+[Owner only]
+Только владелец
+---

@@ -1,0 +1,294 @@
+[app_title]
+Ukuvota
+---
+[home_title]
+대시보드
+---
+[home_subtitle]
+숨은 반대가 없는 공동 의사결정
+---
+[home_summary]
+Ukuvota는 점수 투표로 그룹의 공동 결정을 돕습니다. 참여자는 각 선택지를 지지하거나 반대할 수 있으므로, 사람들이 받아들이고 실행할 수 있는 선택이 결과로 이어집니다.
+---
+[start_process_button]
+프로세스 만들기
+---
+[join_process_label]
+프로세스 참여
+---
+[join_process_placeholder]
+프로세스 ID 또는 링크 붙여넣기
+---
+[join_process_button]
+프로세스 열기
+---
+[join_process_error]
+해당 프로세스를 열 수 없습니다. ID, 링크 또는 서버를 확인하세요.
+---
+[dashboard_empty]
+아직 활성 프로세스가 없습니다.
+---
+[dashboard_recent_label]
+활성 프로세스
+---
+[dashboard_filter_mine]
+내 것
+---
+[dashboard_filter_public]
+공개
+---
+[dashboard_public_label]
+공개 프로세스
+---
+[dashboard_public_empty]
+공개 프로세스를 찾을 수 없습니다.
+---
+[manual_title]
+안내
+---
+[manual_body]
+Uku는 사람들이 지지하고 받아들일 수 있는 선택지를 그룹이 고르도록 돕습니다.
+
+명확한 질문으로 프로세스를 만들고 참여자에게 링크를 공유하세요.
+
+제안 단계에서는 사람들이 선택지를 추가합니다. Uku는 항상 Status quo와 프로세스 반복을 포함하여 아무것도 하지 않거나 다시 찾는 것도 명확한 선택지가 되게 합니다.
+
+투표 중에는 각 계정이 모든 제안에 점수를 매깁니다. 부정 점수에는 가중치를 두어 반대가 관련 없는 지지에 가려지지 않도록 합니다.
+---
+[create_title]
+결정 설정
+---
+[topic_question_label]
+주제 질문
+---
+[topic_question_placeholder]
+이 그룹은 무엇을 결정해야 하나요?
+---
+[topic_error]
+프로세스를 시작하려면 주제 질문을 추가하세요.
+---
+[proposal_title_warning]
+세부 정보를 추가하기 전에 제안 제목을 입력하세요.
+---
+[description_label]
+설명(선택)
+---
+[description_placeholder]
+맥락, 제한 사항 또는 링크를 추가하세요.
+---
+[negative_weight_label]
+부정 점수 가중치
+---
+[negative_weight_infinity]
+무한대(시스템 합의)
+---
+[negative_weight_1]
+1
+---
+[negative_weight_2]
+2
+---
+[negative_weight_3]
+3
+---
+[negative_weight_4]
+4
+---
+[negative_weight_5]
+5
+---
+[negative_weight_6]
+6
+---
+[negative_weight_7]
+7
+---
+[negative_weight_8]
+8
+---
+[negative_weight_9]
+9
+---
+[proposal_time_label]
+제안 시간
+---
+[voting_time_label]
+투표 시간
+---
+[days_label]
+일
+---
+[hours_label]
+시간
+---
+[minutes_label]
+분
+---
+[create_process_button]
+프로세스 만들기
+---
+[setup_ready]
+프로세스 초안이 준비되었습니다.
+---
+[collect_title]
+제안 모으기
+---
+[collect_intro]
+프로세스가 로컬에 저장되었습니다. 로컬 저장만 사용하는 동안 이 장치의 참여자에게 이 주소를 공유하세요.
+---
+[proposal_phase_label]
+제안 단계
+---
+[voting_phase_label]
+투표 단계
+---
+[results_phase_label]
+결과 준비됨
+---
+[time_remaining_label]
+남음
+---
+[local_address_label]
+로컬 주소
+---
+[default_proposals_label]
+기본 제안
+---
+[status_quo_title]
+Status quo
+---
+[status_quo_description]
+현재 상태를 유지합니다.
+---
+[repeat_process_title]
+프로세스 반복
+---
+[repeat_process_description]
+프로세스를 반복하고 다른 선택지를 찾습니다.
+---
+[db_error]
+프로세스를 로컬에 저장할 수 없습니다.
+---
+[back_button]
+뒤로
+---
+[brand_short]
+Uku
+---
+[Currently In Progress]
+진행 중
+---
+[No processes currently in progress.]
+현재 진행 중인 프로세스가 없습니다.
+---
+[Completed Processes]
+완료된 프로세스
+---
+[Completed processes will appear here.]
+완료된 프로세스가 여기에 표시됩니다.
+---
+[Search or paste link]
+검색 또는 링크 붙여넣기
+---
+[Done Decisions]
+완료된 결정
+---
+[Finished Processes]
+종료된 프로세스
+---
+[No finished processes yet.]
+아직 종료된 프로세스가 없습니다.
+---
+[Finished]
+종료됨
+---
+[Results]
+결과
+---
+[Copy results as text]
+결과를 텍스트로 복사
+---
+[Results copied.]
+결과가 복사되었습니다.
+---
+[total]
+합계
+---
+[support]
+지지
+---
+[resistance]
+반대
+---
+[votes]
+표
+---
+[avg]
+평균
+---
+[ - leading]
+ - 선두
+---
+[resistance at least equals support]
+반대가 지지 이상입니다
+---
+[Participants]
+참여자
+---
+[No votes submitted yet.]
+아직 제출된 투표가 없습니다.
+---
+[Tap a participant to include or exclude them from the results.]
+참여자를 눌러 결과에 포함하거나 제외하세요.
+---
+[ (you)]
+ (나)
+---
+[anonymous]
+익명
+---
+[Reason:]
+이유:
+---
+[Reason]
+이유
+---
+[Required voting reason]
+투표 이유 필수
+---
+[Optional voting reason]
+투표 이유 선택
+---
+[Language]
+언어
+---
+[Theme]
+테마
+---
+[System]
+시스템
+---
+[Mode]
+모드
+---
+[Follow device]
+장치 설정 따르기
+---
+[Light]
+밝게
+---
+[Dark]
+어둡게
+---
+[Refresh]
+새로고침
+---
+[Get started]
+시작하기
+---
+[Logged in]
+로그인됨
+---
+[Owner only]
+소유자만
+---

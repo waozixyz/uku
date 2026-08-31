@@ -1,0 +1,276 @@
+[app_title]
+Ukuvota
+---
+[home_title]
+Cruscotto
+---
+[home_subtitle]
+Decisioni collettive senza resistenza nascosta
+---
+[home_summary]
+Ukuvota aiuta i gruppi a prendere decisioni collettive con il voto a punteggio. Le persone partecipanti possono sostenere o opporsi a ogni opzione, così il risultato favorisce scelte accettabili e realizzabili.
+---
+[start_process_button]
+Crea processo
+---
+[join_process_label]
+Unisciti a un processo
+---
+[join_process_placeholder]
+Incolla ID processo o link
+---
+[join_process_button]
+Apri processo
+---
+[join_process_error]
+Impossibile aprire quel processo. Controlla ID, link o server.
+---
+[dashboard_empty]
+Nessun processo attivo.
+---
+[dashboard_recent_label]
+Processi attivi
+---
+[dashboard_filter_mine]
+Miei
+---
+[dashboard_filter_public]
+Pubblici
+---
+[dashboard_public_label]
+Processi pubblici
+---
+[dashboard_public_empty]
+Nessun processo pubblico trovato.
+---
+[manual_title]
+Manuale
+---
+[manual_body]
+Uku aiuta i gruppi a scegliere opzioni che le persone possono sostenere e accettare.
+
+Crea un processo con una domanda chiara e condividi il link con le persone partecipanti.
+
+Durante la fase delle proposte, le persone aggiungono opzioni. Uku include sempre Status quo e Ripeti processo, così non fare nulla o cercare di nuovo sono scelte esplicite.
+
+Durante la votazione, ogni account assegna un punteggio a ogni proposta. I punteggi negativi vengono ponderati perché la resistenza sia visibile invece di essere nascosta da supporti non collegati.
+---
+[create_title]
+Configurazione decisione
+---
+[topic_question_label]
+Domanda del tema
+---
+[topic_question_placeholder]
+Che cosa deve decidere questo gruppo?
+---
+[topic_error]
+Aggiungi una domanda per avviare il processo.
+---
+[proposal_title_warning]
+Aggiungi un titolo alla proposta prima dei dettagli.
+---
+[description_label]
+Descrizione (opzionale)
+---
+[description_placeholder]
+Aggiungi contesto, vincoli o link.
+---
+[negative_weight_label]
+Peso dei punteggi negativi
+---
+[negative_weight_infinity]
+Infinito (consenso sistemico)
+---
+[negative_weight_1]
+1
+---
+[negative_weight_2]
+2
+---
+[negative_weight_3]
+3
+---
+[negative_weight_4]
+4
+---
+[negative_weight_5]
+5
+---
+[negative_weight_6]
+6
+---
+[negative_weight_7]
+7
+---
+[negative_weight_8]
+8
+---
+[negative_weight_9]
+9
+---
+[proposal_time_label]
+Tempo proposte
+---
+[voting_time_label]
+Tempo voto
+---
+[days_label]
+Giorni
+---
+[hours_label]
+Ore
+---
+[minutes_label]
+Minuti
+---
+[create_process_button]
+Crea processo
+---
+[setup_ready]
+Bozza del processo pronta.
+---
+[collect_title]
+Raccogli proposte
+---
+[collect_intro]
+Il processo è stato salvato localmente. Condividi questo indirizzo con le persone partecipanti su questo dispositivo mentre si usa solo l’archiviazione locale.
+---
+[proposal_phase_label]
+Fase proposte
+---
+[voting_phase_label]
+Fase voto
+---
+[results_phase_label]
+Risultati pronti
+---
+[time_remaining_label]
+rimanenti
+---
+[local_address_label]
+Indirizzo locale
+---
+[default_proposals_label]
+Proposte predefinite
+---
+[status_quo_title]
+Status quo
+---
+[status_quo_description]
+Mantenere le cose come sono.
+---
+[repeat_process_title]
+Ripeti processo
+---
+[repeat_process_description]
+Ripetere il processo e cercare altre opzioni.
+---
+[db_error]
+Impossibile salvare il processo localmente.
+---
+[back_button]
+Indietro
+---
+[brand_short]
+Uku
+---
+[Currently In Progress]
+In corso
+---
+[No processes currently in progress.]
+Nessun processo in corso.
+---
+[Completed Processes]
+Processi completati
+---
+[Completed processes will appear here.]
+I processi completati appariranno qui.
+---
+[Search or paste link]
+Cerca o incolla link
+---
+[Done Decisions]
+Decisioni concluse
+---
+[Finished Processes]
+Processi terminati
+---
+[No finished processes yet.]
+Nessun processo terminato.
+---
+[Finished]
+Terminato
+---
+[Copy results as text]
+Copia risultati come testo
+---
+[Results copied.]
+Risultati copiati.
+---
+[support]
+supporto
+---
+[resistance]
+resistenza
+---
+[votes]
+voti
+---
+[avg]
+media
+---
+[ - leading]
+ - in testa
+---
+[resistance at least equals support]
+la resistenza è almeno uguale al supporto
+---
+[Participants]
+Partecipanti
+---
+[No votes submitted yet.]
+Nessun voto inviato.
+---
+[Tap a participant to include or exclude them from the results.]
+Tocca un partecipante per includerlo o escluderlo dai risultati.
+---
+[ (you)]
+ (tu)
+---
+[anonymous]
+anonimo
+---
+[Required voting reason]
+Motivo di voto obbligatorio
+---
+[Optional voting reason]
+Motivo di voto opzionale
+---
+[Language]
+Lingua
+---
+[Mode]
+Modalità
+---
+[Follow device]
+Segui dispositivo
+---
+[Light]
+Chiaro
+---
+[Dark]
+Scuro
+---
+[Refresh]
+Aggiorna
+---
+[Get started]
+Inizia
+---
+[Logged in]
+Con accesso
+---
+[Owner only]
+Solo proprietario
+---

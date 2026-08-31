@@ -1,0 +1,294 @@
+[app_title]
+Ukuvota
+---
+[home_title]
+Přehled
+---
+[home_subtitle]
+Společná rozhodnutí bez skrytého odporu
+---
+[home_summary]
+Ukuvota pomáhá skupinám dělat společná rozhodnutí pomocí bodového hlasování. Účastníci mohou každou možnost podpořit nebo odmítnout, takže výsledek zvýhodní volby, které lidé mohou přijmout a uskutečnit.
+---
+[start_process_button]
+Vytvořit proces
+---
+[join_process_label]
+Připojit se k procesu
+---
+[join_process_placeholder]
+Vložte ID procesu nebo odkaz
+---
+[join_process_button]
+Otevřít proces
+---
+[join_process_error]
+Tento proces se nepodařilo otevřít. Zkontrolujte ID, odkaz nebo server.
+---
+[dashboard_empty]
+Zatím žádné aktivní procesy.
+---
+[dashboard_recent_label]
+Aktivní procesy
+---
+[dashboard_filter_mine]
+Moje
+---
+[dashboard_filter_public]
+Veřejné
+---
+[dashboard_public_label]
+Veřejné procesy
+---
+[dashboard_public_empty]
+Nebyly nalezeny žádné veřejné procesy.
+---
+[manual_title]
+Návod
+---
+[manual_body]
+Uku pomáhá skupinám vybírat možnosti, které lidé mohou podpořit a přijmout.
+
+Vytvořte proces s jasnou otázkou a sdílejte odkaz s účastníky.
+
+Během fáze návrhů lidé přidávají možnosti. Uku vždy obsahuje Status quo a Opakovat proces, aby nic nedělat nebo hledat znovu byly výslovné volby.
+
+Během hlasování každý účet boduje každý návrh. Záporné body jsou vážené, aby byl odpor viditelný a nezmizel za nesouvisející podporou.
+---
+[create_title]
+Nastavení rozhodnutí
+---
+[topic_question_label]
+Otázka tématu
+---
+[topic_question_placeholder]
+O čem má tato skupina rozhodnout?
+---
+[topic_error]
+Přidejte otázku pro spuštění procesu.
+---
+[proposal_title_warning]
+Před přidáním detailů zadejte název návrhu.
+---
+[description_label]
+Popis (volitelný)
+---
+[description_placeholder]
+Přidejte kontext, omezení nebo odkazy.
+---
+[negative_weight_label]
+Váha záporného skóre
+---
+[negative_weight_infinity]
+Nekonečno (systémový konsenzus)
+---
+[negative_weight_1]
+1
+---
+[negative_weight_2]
+2
+---
+[negative_weight_3]
+3
+---
+[negative_weight_4]
+4
+---
+[negative_weight_5]
+5
+---
+[negative_weight_6]
+6
+---
+[negative_weight_7]
+7
+---
+[negative_weight_8]
+8
+---
+[negative_weight_9]
+9
+---
+[proposal_time_label]
+Čas na návrhy
+---
+[voting_time_label]
+Čas na hlasování
+---
+[days_label]
+Dny
+---
+[hours_label]
+Hodiny
+---
+[minutes_label]
+Minuty
+---
+[create_process_button]
+Vytvořit proces
+---
+[setup_ready]
+Návrh procesu je připraven.
+---
+[collect_title]
+Sbírat návrhy
+---
+[collect_intro]
+Proces byl uložen místně. Sdílejte tuto adresu s účastníky na tomto zařízení, dokud se používá pouze místní úložiště.
+---
+[proposal_phase_label]
+Fáze návrhů
+---
+[voting_phase_label]
+Fáze hlasování
+---
+[results_phase_label]
+Výsledky připraveny
+---
+[time_remaining_label]
+zbývá
+---
+[local_address_label]
+Místní adresa
+---
+[default_proposals_label]
+Výchozí návrhy
+---
+[status_quo_title]
+Status quo
+---
+[status_quo_description]
+Nechat věci tak, jak jsou.
+---
+[repeat_process_title]
+Opakovat proces
+---
+[repeat_process_description]
+Opakovat proces a hledat jiné možnosti.
+---
+[db_error]
+Proces se nepodařilo uložit místně.
+---
+[back_button]
+Zpět
+---
+[brand_short]
+Uku
+---
+[Currently In Progress]
+Právě probíhá
+---
+[No processes currently in progress.]
+Žádné procesy právě neprobíhají.
+---
+[Completed Processes]
+Dokončené procesy
+---
+[Completed processes will appear here.]
+Dokončené procesy se zobrazí zde.
+---
+[Search or paste link]
+Hledat nebo vložit odkaz
+---
+[Done Decisions]
+Hotová rozhodnutí
+---
+[Finished Processes]
+Ukončené procesy
+---
+[No finished processes yet.]
+Zatím žádné ukončené procesy.
+---
+[Finished]
+Ukončeno
+---
+[Results]
+Výsledky
+---
+[Copy results as text]
+Kopírovat výsledky jako text
+---
+[Results copied.]
+Výsledky zkopírovány.
+---
+[total]
+celkem
+---
+[support]
+podpora
+---
+[resistance]
+odpor
+---
+[votes]
+hlasy
+---
+[avg]
+prům.
+---
+[ - leading]
+ - vede
+---
+[resistance at least equals support]
+odpor je alespoň stejně velký jako podpora
+---
+[Participants]
+Účastníci
+---
+[No votes submitted yet.]
+Zatím nebyly odeslány žádné hlasy.
+---
+[Tap a participant to include or exclude them from the results.]
+Klepnutím účastníka zahrnete nebo vyřadíte z výsledků.
+---
+[ (you)]
+ (vy)
+---
+[anonymous]
+anonymní
+---
+[Reason:]
+Důvod:
+---
+[Reason]
+Důvod
+---
+[Required voting reason]
+Povinný důvod hlasování
+---
+[Optional voting reason]
+Volitelný důvod hlasování
+---
+[Language]
+Jazyk
+---
+[Theme]
+Motiv
+---
+[System]
+Systém
+---
+[Mode]
+Režim
+---
+[Follow device]
+Podle zařízení
+---
+[Light]
+Světlý
+---
+[Dark]
+Tmavý
+---
+[Refresh]
+Obnovit
+---
+[Get started]
+Začít
+---
+[Logged in]
+Přihlášení
+---
+[Owner only]
+Pouze vlastník
+---

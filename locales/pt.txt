@@ -1,0 +1,240 @@
+[app_title]
+Ukuvota
+---
+[home_title]
+Painel
+---
+[home_subtitle]
+Decisões coletivas sem resistência oculta
+---
+[home_summary]
+Ukuvota ajuda grupos a tomar decisões coletivas com votação por pontuação. Participantes podem apoiar ou rejeitar cada opção, para que o resultado favoreça escolhas que as pessoas possam aceitar e executar.
+---
+[start_process_button]
+Criar processo
+---
+[join_process_label]
+Entrar em um processo
+---
+[join_process_placeholder]
+Cole o ID do processo ou link
+---
+[join_process_button]
+Abrir processo
+---
+[join_process_error]
+Não foi possível abrir esse processo. Verifique o ID, o link ou o servidor.
+---
+[dashboard_empty]
+Ainda não há processos ativos.
+---
+[dashboard_recent_label]
+Processos ativos
+---
+[dashboard_filter_mine]
+Meus
+---
+[dashboard_public_label]
+Processos públicos
+---
+[dashboard_public_empty]
+Nenhum processo público encontrado.
+---
+[manual_title]
+Manual
+---
+[manual_body]
+Uku ajuda grupos a escolher opções que as pessoas possam apoiar e aceitar.
+
+Crie um processo com uma pergunta clara e compartilhe o link com participantes.
+
+Durante a fase de propostas, as pessoas adicionam opções. Uku sempre inclui Status quo e Repetir processo para que não fazer nada ou procurar novamente sejam escolhas explícitas.
+
+Durante a votação, cada conta pontua cada proposta. Pontuações negativas são ponderadas para que a resistência fique visível em vez de ser escondida por apoios não relacionados.
+---
+[create_title]
+Configuração da decisão
+---
+[topic_question_label]
+Pergunta do tema
+---
+[topic_question_placeholder]
+O que este grupo deve decidir?
+---
+[topic_error]
+Adicione uma pergunta para iniciar o processo.
+---
+[proposal_title_warning]
+Adicione um título de proposta antes dos detalhes.
+---
+[description_label]
+Descrição (opcional)
+---
+[description_placeholder]
+Adicione contexto, restrições ou links.
+---
+[negative_weight_label]
+Peso da pontuação negativa
+---
+[negative_weight_infinity]
+Infinito (consenso sistêmico)
+---
+[negative_weight_1]
+1
+---
+[negative_weight_2]
+2
+---
+[negative_weight_3]
+3
+---
+[negative_weight_4]
+4
+---
+[negative_weight_5]
+5
+---
+[negative_weight_6]
+6
+---
+[negative_weight_7]
+7
+---
+[negative_weight_8]
+8
+---
+[negative_weight_9]
+9
+---
+[proposal_time_label]
+Tempo de propostas
+---
+[voting_time_label]
+Tempo de votação
+---
+[days_label]
+Dias
+---
+[hours_label]
+Horas
+---
+[minutes_label]
+Minutos
+---
+[create_process_button]
+Criar processo
+---
+[setup_ready]
+Rascunho do processo pronto.
+---
+[collect_title]
+Coletar propostas
+---
+[collect_intro]
+O processo foi salvo localmente. Compartilhe este endereço com participantes neste dispositivo enquanto o armazenamento for apenas local.
+---
+[proposal_phase_label]
+Fase de propostas
+---
+[voting_phase_label]
+Fase de votação
+---
+[results_phase_label]
+Resultados prontos
+---
+[time_remaining_label]
+restantes
+---
+[local_address_label]
+Endereço local
+---
+[default_proposals_label]
+Propostas padrão
+---
+[status_quo_title]
+Status quo
+---
+[status_quo_description]
+Manter as coisas como estão.
+---
+[repeat_process_title]
+Repetir processo
+---
+[repeat_process_description]
+Repetir o processo e procurar outras opções.
+---
+[db_error]
+Não foi possível salvar o processo localmente.
+---
+[back_button]
+Voltar
+---
+[brand_short]
+Uku
+---
+[Currently In Progress]
+Em andamento
+---
+[No processes currently in progress.]
+Nenhum processo em andamento.
+---
+[Completed Processes]
+Processos concluídos
+---
+[Completed processes will appear here.]
+Processos concluídos aparecerão aqui.
+---
+[Search or paste link]
+Pesquisar ou colar link
+---
+[Done Decisions]
+Decisões concluídas
+---
+[Finished Processes]
+Processos finalizados
+---
+[No finished processes yet.]
+Ainda não há processos finalizados.
+---
+[support]
+apoio
+---
+[resistance]
+resistência
+---
+[avg]
+méd.
+---
+[resistance at least equals support]
+a resistência é pelo menos igual ao apoio
+---
+[No votes submitted yet.]
+Ainda não há votos enviados.
+---
+[Tap a participant to include or exclude them from the results.]
+Toque em uma pessoa participante para incluí-la ou excluí-la dos resultados.
+---
+[ (you)]
+ (você)
+---
+[anonymous]
+anônimo
+---
+[Required voting reason]
+Motivo de voto obrigatório
+---
+[Dark]
+Escuro
+---
+[Refresh]
+Atualizar
+---
+[Get started]
+Começar
+---
+[Logged in]
+Com sessão iniciada
+---
+[Owner only]
+Somente proprietário
+---

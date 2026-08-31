@@ -1,0 +1,294 @@
+[app_title]
+Ukuvota
+---
+[home_title]
+仪表板
+---
+[home_subtitle]
+没有隐藏阻力的集体决策
+---
+[home_summary]
+Ukuvota 帮助群组通过评分投票做出集体决策。参与者可以支持或反对每个选项，因此结果会偏向人们能够接受并执行的选择。
+---
+[start_process_button]
+创建流程
+---
+[join_process_label]
+加入流程
+---
+[join_process_placeholder]
+粘贴流程 ID 或链接
+---
+[join_process_button]
+打开流程
+---
+[join_process_error]
+无法打开该流程。请检查 ID、链接或服务器。
+---
+[dashboard_empty]
+还没有活动流程。
+---
+[dashboard_recent_label]
+活动流程
+---
+[dashboard_filter_mine]
+我的
+---
+[dashboard_filter_public]
+公开
+---
+[dashboard_public_label]
+公开流程
+---
+[dashboard_public_empty]
+未找到公开流程。
+---
+[manual_title]
+手册
+---
+[manual_body]
+Uku 帮助群组选择人们可以支持和接受的选项。
+
+用清晰的问题创建一个流程，然后把链接分享给参与者。
+
+在提案阶段，人们添加选项。Uku 总是包含 Status quo 和重复流程，让什么都不做或重新寻找也成为明确选择。
+
+在投票期间，每个账户为每个提案评分。负分会被加权，使阻力可见，而不会被无关的支持掩盖。
+---
+[create_title]
+决策设置
+---
+[topic_question_label]
+主题问题
+---
+[topic_question_placeholder]
+这个群组需要决定什么？
+---
+[topic_error]
+添加主题问题以开始流程。
+---
+[proposal_title_warning]
+添加详情前先填写提案标题。
+---
+[description_label]
+描述（可选）
+---
+[description_placeholder]
+添加背景、限制或链接。
+---
+[negative_weight_label]
+负分权重
+---
+[negative_weight_infinity]
+无限（系统共识）
+---
+[negative_weight_1]
+1
+---
+[negative_weight_2]
+2
+---
+[negative_weight_3]
+3
+---
+[negative_weight_4]
+4
+---
+[negative_weight_5]
+5
+---
+[negative_weight_6]
+6
+---
+[negative_weight_7]
+7
+---
+[negative_weight_8]
+8
+---
+[negative_weight_9]
+9
+---
+[proposal_time_label]
+提案时间
+---
+[voting_time_label]
+投票时间
+---
+[days_label]
+天
+---
+[hours_label]
+小时
+---
+[minutes_label]
+分钟
+---
+[create_process_button]
+创建流程
+---
+[setup_ready]
+流程草稿已准备好。
+---
+[collect_title]
+收集提案
+---
+[collect_intro]
+流程已保存在本地。使用仅本地存储时，请在此设备上把该地址分享给参与者。
+---
+[proposal_phase_label]
+提案阶段
+---
+[voting_phase_label]
+投票阶段
+---
+[results_phase_label]
+结果已准备好
+---
+[time_remaining_label]
+剩余
+---
+[local_address_label]
+本地地址
+---
+[default_proposals_label]
+默认提案
+---
+[status_quo_title]
+Status quo
+---
+[status_quo_description]
+保持现状。
+---
+[repeat_process_title]
+重复流程
+---
+[repeat_process_description]
+重复流程并寻找其他选项。
+---
+[db_error]
+无法在本地保存流程。
+---
+[back_button]
+返回
+---
+[brand_short]
+Uku
+---
+[Currently In Progress]
+进行中
+---
+[No processes currently in progress.]
+当前没有进行中的流程。
+---
+[Completed Processes]
+已完成流程
+---
+[Completed processes will appear here.]
+已完成的流程会显示在这里。
+---
+[Search or paste link]
+搜索或粘贴链接
+---
+[Done Decisions]
+已完成决策
+---
+[Finished Processes]
+已结束流程
+---
+[No finished processes yet.]
+还没有已结束流程。
+---
+[Finished]
+已结束
+---
+[Results]
+结果
+---
+[Copy results as text]
+将结果复制为文本
+---
+[Results copied.]
+结果已复制。
+---
+[total]
+总计
+---
+[support]
+支持
+---
+[resistance]
+阻力
+---
+[votes]
+票
+---
+[avg]
+平均
+---
+[ - leading]
+ - 领先
+---
+[resistance at least equals support]
+阻力至少等于支持
+---
+[Participants]
+参与者
+---
+[No votes submitted yet.]
+还没有提交投票。
+---
+[Tap a participant to include or exclude them from the results.]
+点击参与者以将其纳入或排除出结果。
+---
+[ (you)]
+（你）
+---
+[anonymous]
+匿名
+---
+[Reason:]
+理由：
+---
+[Reason]
+理由
+---
+[Required voting reason]
+必须填写投票理由
+---
+[Optional voting reason]
+投票理由可选
+---
+[Language]
+语言
+---
+[Theme]
+主题
+---
+[System]
+系统
+---
+[Mode]
+模式
+---
+[Follow device]
+跟随设备
+---
+[Light]
+浅色
+---
+[Dark]
+深色
+---
+[Refresh]
+刷新
+---
+[Get started]
+开始
+---
+[Logged in]
+已登录
+---
+[Owner only]
+仅所有者
+---

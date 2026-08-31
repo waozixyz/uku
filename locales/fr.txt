@@ -1,0 +1,537 @@
+[app_title]
+Ukuvota
+---
+[home_title]
+Tableau de bord
+---
+[home_subtitle]
+Décisions collectives sans résistance cachée
+---
+[home_summary]
+Ukuvota aide les groupes à prendre des décisions collectives avec le vote par score. Les participantes et participants peuvent soutenir ou refuser chaque option, afin que le résultat favorise des choix acceptables et réalisables.
+---
+[start_process_button]
+Créer un processus
+---
+[join_process_label]
+Rejoindre un processus
+---
+[join_process_placeholder]
+Coller l’ID du processus ou le lien
+---
+[join_process_button]
+Ouvrir le processus
+---
+[join_process_error]
+Impossible d’ouvrir ce processus. Vérifiez l’ID, le lien ou le serveur.
+---
+[dashboard_empty]
+Aucun processus actif pour le moment.
+---
+[dashboard_recent_label]
+Processus actifs
+---
+[dashboard_filter_mine]
+Les miens
+---
+[dashboard_filter_public]
+Publics
+---
+[dashboard_public_label]
+Processus publics
+---
+[dashboard_public_empty]
+Aucun processus public trouvé.
+---
+[manual_title]
+Manuel
+---
+[manual_body]
+Uku aide les groupes à choisir des options que les personnes peuvent soutenir et accepter.
+
+Créez un processus avec une question claire, puis partagez le lien avec les participantes et participants.
+
+Pendant la phase de propositions, les personnes ajoutent des options. Uku inclut toujours Status quo et Répéter le processus pour que ne rien faire ou chercher à nouveau soient des choix explicites.
+
+Pendant le vote, chaque compte note chaque proposition. Les scores négatifs sont pondérés afin que la résistance reste visible au lieu d’être masquée par un soutien sans rapport.
+---
+[create_title]
+Configuration de la décision
+---
+[topic_question_label]
+Question du sujet
+---
+[topic_question_placeholder]
+Que doit décider ce groupe ?
+---
+[topic_error]
+Ajoutez une question pour démarrer le processus.
+---
+[proposal_title_warning]
+Ajoutez un titre de proposition avant les détails.
+---
+[description_label]
+Description (facultative)
+---
+[description_placeholder]
+Ajoutez du contexte, des contraintes ou des liens.
+---
+[negative_weight_label]
+Pondération des scores négatifs
+---
+[negative_weight_infinity]
+Infini (consensus systémique)
+---
+[negative_weight_1]
+1
+---
+[negative_weight_2]
+2
+---
+[negative_weight_3]
+3
+---
+[negative_weight_4]
+4
+---
+[negative_weight_5]
+5
+---
+[negative_weight_6]
+6
+---
+[negative_weight_7]
+7
+---
+[negative_weight_8]
+8
+---
+[negative_weight_9]
+9
+---
+[proposal_time_label]
+Durée des propositions
+---
+[voting_time_label]
+Durée du vote
+---
+[days_label]
+Jours
+---
+[hours_label]
+Heures
+---
+[minutes_label]
+Minutes
+---
+[create_process_button]
+Créer le processus
+---
+[setup_ready]
+Brouillon du processus prêt.
+---
+[collect_title]
+Collecter les propositions
+---
+[collect_intro]
+Le processus a été enregistré localement. Partagez cette adresse avec les participantes et participants sur cet appareil tant que seul le stockage local est utilisé.
+---
+[proposal_phase_label]
+Phase de propositions
+---
+[voting_phase_label]
+Phase de vote
+---
+[results_phase_label]
+Résultats prêts
+---
+[time_remaining_label]
+restant
+---
+[local_address_label]
+Adresse locale
+---
+[default_proposals_label]
+Propositions par défaut
+---
+[status_quo_title]
+Status quo
+---
+[status_quo_description]
+Garder les choses telles qu’elles sont.
+---
+[repeat_process_title]
+Répéter le processus
+---
+[repeat_process_description]
+Répéter le processus et chercher d’autres options.
+---
+[db_error]
+Impossible d’enregistrer le processus localement.
+---
+[back_button]
+Retour
+---
+[brand_short]
+Uku
+---
+[Currently In Progress]
+En cours
+---
+[No processes currently in progress.]
+Aucun processus en cours.
+---
+[Completed Processes]
+Processus terminés
+---
+[Completed processes will appear here.]
+Les processus terminés apparaîtront ici.
+---
+[Search or paste link]
+Rechercher ou coller un lien
+---
+[Done Decisions]
+Décisions terminées
+---
+[Finished Processes]
+Processus terminés
+---
+[No finished processes yet.]
+Aucun processus terminé pour le moment.
+---
+[Finished]
+Terminé
+---
+[Results]
+Résultats
+---
+[Copy results as text]
+Copier les résultats en texte
+---
+[Results copied.]
+Résultats copiés.
+---
+[total]
+total
+---
+[support]
+soutien
+---
+[resistance]
+résistance
+---
+[votes]
+votes
+---
+[avg]
+moy.
+---
+[ - leading]
+ - en tête
+---
+[resistance at least equals support]
+la résistance est au moins égale au soutien
+---
+[Participants]
+Participants
+---
+[No votes submitted yet.]
+Aucun vote soumis pour le moment.
+---
+[Tap a participant to include or exclude them from the results.]
+Touchez un participant pour l’inclure ou l’exclure des résultats.
+---
+[ (you)]
+ (vous)
+---
+[anonymous]
+anonyme
+---
+[Reason:]
+Raison :
+---
+[Reason]
+Raison
+---
+[Required voting reason]
+Raison de vote obligatoire
+---
+[Optional voting reason]
+Raison de vote facultative
+---
+[Copy share link]
+Copier le lien de partage
+---
+[Share link copied.]
+Lien de partage copié.
+---
+[Show QR code]
+Afficher le code QR
+---
+[Hide QR code]
+Masquer le code QR
+---
+[Share link]
+Partager le lien
+---
+[Share Uku link]
+Partager le lien Uku
+---
+[Could not share link.]
+Impossible de partager le lien.
+---
+[Share link ready.]
+Lien prêt à partager.
+---
+[Save QR code]
+Enregistrer le code QR
+---
+[Share QR code]
+Partager le code QR
+---
+[QR code saved:]
+Code QR enregistré :
+---
+[QR code saved.]
+Code QR enregistré.
+---
+[QR code ready to share.]
+Code QR prêt à partager.
+---
+[Could not create QR code.]
+Impossible de créer le code QR.
+---
+[Could not share QR code.]
+Impossible de partager le code QR.
+---
+[Scan QR code]
+Scanner le code QR
+---
+[Scan QR unavailable. Paste the link instead.]
+Scan QR indisponible. Collez le lien à la place.
+---
+[Paste a QR link into search.]
+Collez un lien QR dans la recherche.
+---
+[Type]
+Type
+---
+[weighted resistance]
+résistance pondérée
+---
+[weighted resistance | reason required]
+résistance pondérée | raison obligatoire
+---
+[weighted resistance | reason optional]
+résistance pondérée | raison facultative
+---
+[Outcome:]
+Résultat :
+---
+[Review:]
+Revue :
+---
+[Saved locally, but server upload failed. Check your connection and account.]
+Enregistré localement, mais l’envoi au serveur a échoué. Vérifiez votre connexion et votre compte.
+---
+[Could not refresh this process from the server. Showing local details.]
+Impossible d’actualiser ce processus depuis le serveur. Affichage des détails locaux.
+---
+[Export decision packet]
+Exporter le paquet de décision
+---
+[Could not export decision packet.]
+Impossible d’exporter le paquet de décision.
+---
+[Decision packet copied.]
+Paquet de décision copié.
+---
+[Archive process]
+Archiver le processus
+---
+[Could not update process visibility.]
+Impossible de mettre à jour la visibilité du processus.
+---
+[Add proposal]
+Ajouter une proposition
+---
+[Your name or persistent alias]
+Votre nom ou alias persistant
+---
+[Create or import an account before adding proposals.]
+Créez ou importez un compte avant d’ajouter des propositions.
+---
+[Create or import an account before voting.]
+Créez ou importez un compte avant de voter.
+---
+[Title]
+Titre
+---
+[Proposal title]
+Titre de la proposition
+---
+[Description]
+Description
+---
+[Optional details]
+Détails facultatifs
+---
+[Submit proposal]
+Soumettre la proposition
+---
+[Proposal submitted.]
+Proposition soumise.
+---
+[Proposal saved locally. It will sync when the server is reachable.]
+Proposition enregistrée localement. Elle se synchronisera lorsque le serveur sera joignable.
+---
+[Could not submit proposal.]
+Impossible de soumettre la proposition.
+---
+[Your ballot]
+Votre bulletin
+---
+[Update vote]
+Mettre à jour le vote
+---
+[Submit vote]
+Soumettre le vote
+---
+[Vote submitted.]
+Vote soumis.
+---
+[Vote saved locally. It will sync when the server is reachable.]
+Vote enregistré localement. Il se synchronisera lorsque le serveur sera joignable.
+---
+[Could not submit vote.]
+Impossible de soumettre le vote.
+---
+[Collected proposals]
+Propositions collectées
+---
+[Proposals]
+Propositions
+---
+[Language]
+Langue
+---
+[Theme]
+Thème
+---
+[System]
+Système
+---
+[Mode]
+Mode
+---
+[Follow device]
+Suivre l’appareil
+---
+[Light]
+Clair
+---
+[Dark]
+Sombre
+---
+[Palette]
+Palette
+---
+[Refresh]
+Actualiser
+---
+[Start one and share the link with your group.]
+Démarrez-en un et partagez le lien avec votre groupe.
+---
+[Make New Process]
+Créer un processus
+---
+[Decide together]
+Décider ensemble
+---
+[Score every option from -3 to +3.]
+Notez chaque option de -3 à +3.
+---
+[Negative scores weigh more, so resistance is visible.]
+Les scores négatifs pèsent davantage, pour rendre la résistance visible.
+---
+[Status quo and Repeat process are always on the ballot.]
+Status quo et Répéter le processus sont toujours sur le bulletin.
+---
+[The option people can accept wins.]
+L’option que les personnes peuvent accepter gagne.
+---
+[Get started]
+Commencer
+---
+[Minimum ballots (quorum)]
+Bulletins minimum (quorum)
+---
+[0 means no minimum - the result counts with any number of ballots.]
+0 signifie aucun minimum - le résultat compte quel que soit le nombre de bulletins.
+---
+[Quorum]
+Quorum
+---
+[Quorum (minimum ballots)]
+Quorum (bulletins minimum)
+---
+[Weight]
+Poids
+---
+[ - vetoed]
+ - veto
+---
+[No quorum yet - %d of %d ballots cast]
+Pas encore de quorum - %d bulletins sur %d déposés
+---
+[Every option meets resistance - least resisted prevails: %s]
+Chaque option rencontre une résistance - la moins résistée l’emporte : %s
+---
+[Objections outweigh support - no consent yet]
+Les objections dépassent le soutien - pas encore de consentement
+---
+[Objections outweigh support - %s leads without consent]
+Les objections dépassent le soutien - %s mène sans consentement
+---
+[Status quo prevails]
+Le status quo prévaut
+---
+[Repeat process chosen]
+Répéter le processus choisi
+---
+[Consent reached: %s]
+Consentement atteint : %s
+---
+[No account needed - your name keeps votes apart.]
+Aucun compte nécessaire - votre nom distingue les votes.
+---
+[That name is already taken in this process. Choose another.]
+Ce nom est déjà pris dans ce processus. Choisissez-en un autre.
+---
+[Proposal visibility]
+Visibilité des propositions
+---
+[Who can add proposals]
+Qui peut ajouter des propositions
+---
+[Who can vote]
+Qui peut voter
+---
+[Logged in]
+Connecté
+---
+[Owner only]
+Propriétaire seulement
+---
+[ (proposal)]
+ (proposition)
+---
+[You do not have permission to add proposals to this process.]
+Vous n’avez pas l’autorisation d’ajouter des propositions à ce processus.
+---
+[You do not have permission to vote in this process.]
+Vous n’avez pas l’autorisation de voter dans ce processus.
+---
+[You do not have permission to view proposals in this process.]
+Vous n’avez pas l’autorisation de voir les propositions de ce processus.
+---

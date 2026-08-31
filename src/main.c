@@ -214,6 +214,8 @@ typedef struct UkuApp {
     int collect_drag_scrollbar;
     int collect_scroll_drag_offset;
     int negative_dropdown_open;
+    int locale_dropdown_open;
+    int locale_dropdown_scroll;
     int process_count;
     int proposal_count;
     int option_count;
@@ -418,8 +420,7 @@ typedef enum UkuFocusId {
     UKU_FOCUS_DASHBOARD_FILTER_MINE,
     UKU_FOCUS_DASHBOARD_FILTER_PUBLIC,
     UKU_FOCUS_DASHBOARD_MENU,
-    UKU_FOCUS_LOCALE_EN,
-    UKU_FOCUS_LOCALE_DE,
+    UKU_FOCUS_LOCALE_DROPDOWN,
     UKU_FOCUS_CREATE_PREVIOUS,
     UKU_FOCUS_CREATE_NEXT,
     UKU_FOCUS_QUORUM_MINUS,
@@ -450,6 +451,28 @@ typedef enum UkuFocusId {
 #define UKU_ACCOUNT_KEY_FILE "account.key"
 #define UKU_ACCOUNT_KEY_FILTER ".key"
 #define UKU_GUEST_KEY_PREFIX "guest."
+
+typedef struct UkuLocaleOption {
+    const char *code;
+    const char *label;
+} UkuLocaleOption;
+
+static const UkuLocaleOption UKU_LOCALES[] = {
+    {"en", "English"},
+    {"es", "Español"},
+    {"cs", "Čeština"},
+    {"de", "Deutsch"},
+    {"fr", "Français"},
+    {"id", "Bahasa Indonesia"},
+    {"it", "Italiano"},
+    {"pt", "Português"},
+    {"ru", "Русский"},
+    {"ja", "日本語"},
+    {"ko", "한국어"},
+    {"zh", "中文"},
+};
+
+#define UKU_LOCALE_COUNT ((int)(sizeof(UKU_LOCALES) / sizeof(UKU_LOCALES[0])))
 
 static int
 copy_text(char *dst, size_t dst_size, const char *src, size_t len)
@@ -650,11 +673,32 @@ tr(UkuApp *app, const char *english)
     return english;
 }
 
+static int
+app_locale_index(const char *locale)
+{
+    if(locale != NULL) {
+        for(int i = 0; i < UKU_LOCALE_COUNT; i++) {
+            if(strcmp(locale, UKU_LOCALES[i].code) == 0)
+                return i;
+        }
+    }
+    return 0;
+}
+
+static const UkuLocaleOption *
+app_locale_option(const char *locale)
+{
+    return &UKU_LOCALES[app_locale_index(locale)];
+}
+
 static void
 app_load_locale(UkuApp *app, UkuText *text)
 {
     char path[64];
+    const UkuLocaleOption *locale = app_locale_option(app->locale);
 
+    if(strcmp(app->locale, locale->code) != 0)
+        copy_text(app->locale, sizeof(app->locale), locale->code, strlen(locale->code));
     snprintf(path, sizeof(path), "locales/%s.txt", app->locale);
     load_text_file(app, text, path);
 }
@@ -665,6 +709,8 @@ app_switch_locale(UkuApp *app, UkuText *text, const char *locale)
     copy_text(app->locale, sizeof(app->locale), locale, strlen(locale));
     setting_save_text(app, UKU_LOCALE_KEY, app->locale);
     app->override_count = 0;
+    app->locale_dropdown_open = 0;
+    app->locale_dropdown_scroll = 0;
     app_load_locale(app, text);
 }
 
@@ -5723,6 +5769,123 @@ draw_negative_weight_dropdown(UkuApp *app, Font font, const UkuText *text, int x
     return box_y + h + ScaleUIPx(12);
 }
 
+static int
+draw_locale_dropdown(UkuApp *app, UkuText *text, Font font, int x, int y, int w, int view_h)
+{
+    int label_font = ClampUIPx(12, 12, 14);
+    int input_font = ClampUIPx(13, 13, 16);
+    int h = ScaleUIPx(34);
+    int option_h = ScaleUIPx(28);
+    int pad = ScaleUIPx(10);
+    int box_y;
+    int selected = app_locale_index(app->locale);
+    int menu_y;
+    int menu_h;
+    int visible_h;
+    int max_scroll;
+    Rectangle box;
+    Rectangle menu = {0};
+    Vector2 mouse = GetMousePosition();
+    int focused;
+
+    draw_text_font(font, tr(app, "Language"), x, y, label_font, GetThemeText());
+    box_y = y + label_font + ScaleUIPx(8);
+    box = (Rectangle){(float)x, (float)box_y, (float)w, (float)h};
+    focused = RegisterUIFocus(UKU_FOCUS_LOCALE_DROPDOWN, box);
+
+    if(CheckCollisionPointRec(mouse, box))
+        app->cursor_clickable = 1;
+    if((CheckCollisionPointRec(mouse, box) && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
+       IsUIFocusActivatePressed(UKU_FOCUS_LOCALE_DROPDOWN)) {
+        app->locale_dropdown_open = !app->locale_dropdown_open;
+        app->active_field = UKU_FIELD_NONE;
+        UIConsumeRelease();
+    }
+    if(focused && IsKeyPressed(KEY_ESCAPE))
+        app->locale_dropdown_open = 0;
+
+    DrawRectangleRounded(box, 0.08f, 10, GetThemeSurface());
+    DrawRectangleRoundedLinesEx(box, 0.08f, 10, ScaleUIPx(1),
+                                app->locale_dropdown_open ? GetThemeButton() : GetThemeText());
+    draw_text_font(font, fit_tail(font, UKU_LOCALES[selected].label, input_font,
+                                  w - pad * 3 - ScaleUIPx(14)),
+                   x + pad, box_y + (h - input_font) / 2, input_font, GetThemeText());
+    DrawTriangle((Vector2){(float)(x + w - pad - ScaleUIPx(10)),
+                           (float)(box_y + h / 2 - ScaleUIPx(3))},
+                 (Vector2){(float)(x + w - pad),
+                           (float)(box_y + h / 2 - ScaleUIPx(3))},
+                 (Vector2){(float)(x + w - pad - ScaleUIPx(5)),
+                           (float)(box_y + h / 2 + ScaleUIPx(4))},
+                 GetThemeText());
+
+    if(!app->locale_dropdown_open)
+        return box_y + h + ScaleUIPx(18);
+
+    menu_y = box_y + h + ScaleUIPx(4);
+    menu_h = option_h * UKU_LOCALE_COUNT;
+    visible_h = menu_h;
+    if(menu_y + visible_h > view_h - ScaleUIPx(16))
+        visible_h = view_h - ScaleUIPx(16) - menu_y;
+    if(visible_h < option_h * 4)
+        visible_h = option_h * 4;
+    if(visible_h > menu_h)
+        visible_h = menu_h;
+    max_scroll = UKU_MAX(0, menu_h - visible_h);
+    app->locale_dropdown_scroll = clampi(app->locale_dropdown_scroll, 0, max_scroll);
+    menu = (Rectangle){(float)x, (float)menu_y, (float)w, (float)visible_h};
+
+    if(CheckCollisionPointRec(mouse, menu)) {
+        int wheel = (int)(GetMouseWheelMove() * option_h);
+        if(wheel != 0)
+            app->locale_dropdown_scroll = clampi(app->locale_dropdown_scroll - wheel, 0, max_scroll);
+        app->cursor_clickable = 1;
+    }
+
+    DrawRectangleRounded(menu, 0.06f, 10, GetThemeSurface());
+    DrawRectangleRoundedLinesEx(menu, 0.06f, 10, ScaleUIPx(1), GetThemeText());
+    BeginScissorMode(x, menu_y, w, visible_h);
+    for(int i = 0; i < UKU_LOCALE_COUNT; i++) {
+        int oy = menu_y + i * option_h - app->locale_dropdown_scroll;
+        Rectangle option = {(float)x, (float)oy, (float)w, (float)option_h};
+        int hover = CheckCollisionPointRec(mouse, option) && CheckCollisionPointRec(mouse, menu);
+        const char *label = UKU_LOCALES[i].label;
+
+        if(oy + option_h < menu_y || oy > menu_y + visible_h)
+            continue;
+        if(hover) {
+            DrawRectangle(x + ScaleUIPx(2), oy, w - ScaleUIPx(4), option_h, GetThemeButtonHover());
+            app->cursor_clickable = 1;
+        }
+        if(i == selected)
+            DrawRectangle(x + ScaleUIPx(5), oy + ScaleUIPx(8),
+                          ScaleUIPx(4), option_h - ScaleUIPx(16), GetThemeButton());
+        draw_text_font(font, fit_tail(font, label, input_font, w - pad * 2 - ScaleUIPx(10)),
+                       x + pad + ScaleUIPx(8), oy + (option_h - input_font) / 2,
+                       input_font, GetThemeText());
+        if(hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
+            app_switch_locale(app, text, UKU_LOCALES[i].code);
+            UIConsumeRelease();
+        }
+    }
+    EndScissorMode();
+
+    if(max_scroll > 0) {
+        int track_w = ScaleUIPx(4);
+        int thumb_h = UKU_MAX(ScaleUIPx(24), visible_h * visible_h / menu_h);
+        int thumb_y = menu_y + (visible_h - thumb_h) * app->locale_dropdown_scroll / max_scroll;
+        DrawRectangle(x + w - track_w - ScaleUIPx(5), menu_y + ScaleUIPx(5),
+                      track_w, visible_h - ScaleUIPx(10), Fade(GetThemeText(), 0.18f));
+        DrawRectangle(x + w - track_w - ScaleUIPx(5), thumb_y,
+                      track_w, thumb_h, GetThemeButton());
+    }
+
+    if(IsMouseButtonPressed(MOUSE_LEFT_BUTTON) &&
+       !CheckCollisionPointRec(mouse, box) && !CheckCollisionPointRec(mouse, menu))
+        app->locale_dropdown_open = 0;
+
+    return menu_y + visible_h + ScaleUIPx(14);
+}
+
 static void
 draw_scrollbar(UkuApp *app, int x, int y, int h, int content_h, int max_scroll,
                int *scroll, int *dragging, int *drag_offset)
@@ -8920,32 +9083,11 @@ draw_theme_settings(UkuApp *app, const UkuText *text, int view_w, int view_h)
                  0, NULL, 0, NULL, 0, NULL, 0, NULL, view_w);
     if(back_clicked) {
         app->screen = UKU_SCREEN_HOME;
+        app->locale_dropdown_open = 0;
         ClearUIFocus();
     }
 
-    /* Language row above the theme settings owns the top of the column. */
-    {
-        int en_clicked = 0;
-        int de_clicked = 0;
-        int half_w = (content_w - ScaleUIPx(8)) / 2;
-        Font font = app->font;
-        int small_font = ClampUIPx(12, 12, 14);
-
-        draw_text_font(font, tr(app, "Language"), content_x, y, small_font, Fade(GetThemeText(), 0.75f));
-        draw_compact_button(app, font, content_x, y + small_font + ScaleUIPx(6),
-                            half_w, ScaleUIPx(600), ScaleUIPx(34),
-                            strcmp(app->locale, "de") == 0 ? "English" : "[ English ]", 0,
-                            UKU_FOCUS_LOCALE_EN, &en_clicked);
-        draw_compact_button(app, font, content_x + half_w + ScaleUIPx(8), y + small_font + ScaleUIPx(6),
-                            half_w, ScaleUIPx(600), ScaleUIPx(34),
-                            strcmp(app->locale, "de") == 0 ? "[ Deutsch ]" : "Deutsch", 0,
-                            UKU_FOCUS_LOCALE_DE, &de_clicked);
-        if(en_clicked && strcmp(app->locale, "en") != 0)
-            app_switch_locale(app, (UkuText *)text, "en");
-        if(de_clicked && strcmp(app->locale, "de") != 0)
-            app_switch_locale(app, (UkuText *)text, "de");
-        y += small_font + ScaleUIPx(6) + ScaleUIPx(34) + ScaleUIPx(18);
-    }
+    y = draw_locale_dropdown(app, (UkuText *)text, app->font, content_x, y, content_w, view_h);
 
     settings = (ThemeSettingsProps){
         .id_base = 6000,

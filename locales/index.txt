@@ -1,0 +1,12 @@
+en|English
+es|Español
+cs|Čeština
+de|Deutsch
+fr|Français
+id|Bahasa Indonesia
+it|Italiano
+pt|Português
+ru|Русский
+ja|日本語
+ko|한국어
+zh|中文
