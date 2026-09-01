@@ -25,6 +25,13 @@ SQLITE_LDLIBS := -L$(HOME)/.local/sqlite3/lib -Wl,-rpath,$(HOME)/.local/sqlite3/
 endif
 FONT_SUBSET_DIR := assets/fonts/subset
 FONT_SUBSET_CORPUS := locales src/main.c
+ANDROID_SQLITE_VERSION = 3530400
+ANDROID_SQLITE_YEAR = 2026
+ANDROID_SQLITE_DIR = vendor-builds/sqlite
+ANDROID_SQLITE_ZIP = $(BUILD_OBJ_DIR)/sqlite-amalgamation-$(ANDROID_SQLITE_VERSION).zip
+ANDROID_SQLITE_URL = https://www.sqlite.org/$(ANDROID_SQLITE_YEAR)/sqlite-amalgamation-$(ANDROID_SQLITE_VERSION).zip
+ANDROID_SQLITE_C = $(ANDROID_SQLITE_DIR)/sqlite3.c
+ANDROID_SQLITE_H = $(ANDROID_SQLITE_DIR)/sqlite3.h
 FONT_FILES := \
 	$(FONT_SUBSET_DIR)/NotoSans-Uku-Regular.ttf \
 	$(FONT_SUBSET_DIR)/NotoSansSC-Uku-Regular.otf \
@@ -219,6 +226,20 @@ $(WEB_ITCH_DIST_DIR): | $(BUILD_DIST_DIR)
 
 $(FONT_FILES): $(LOCALE_FILES) src/main.c
 	$(MAKE) font-subsets
+
+$(ANDROID_SQLITE_DIR):
+	mkdir -p $@
+
+$(ANDROID_SQLITE_ZIP): | $(BUILD_OBJ_DIR)
+	curl -fL "$(ANDROID_SQLITE_URL)" -o $@
+
+$(ANDROID_SQLITE_C): $(ANDROID_SQLITE_ZIP) | $(ANDROID_SQLITE_DIR)
+	python3 -c 'import pathlib,zipfile; z=zipfile.ZipFile("$(ANDROID_SQLITE_ZIP)"); out=pathlib.Path("$(ANDROID_SQLITE_DIR)"); [out.joinpath(pathlib.Path(n).name).write_bytes(z.read(n)) for n in z.namelist() if pathlib.Path(n).name in {"sqlite3.c","sqlite3.h"}]'
+
+$(ANDROID_SQLITE_H): $(ANDROID_SQLITE_C)
+	test -f $@
+
+android-copy-assets: $(ANDROID_SQLITE_C) $(ANDROID_SQLITE_H)
 
 $(WEB_JS_TARGET): $(BUILD_MAKEFILES) $(SRC) $(WEB_KRYON_SRCS) $(CORE_SRCS) $(WEB_LIBOQS_A) $(WEB_PUBLIC_FILES) | $(WEB_BUILD_DIR)
 	$(WEB_CC) $(WEB_CFLAGS) \
