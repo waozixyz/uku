@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := run
 
 APP_NAME := uku
-APP_TITLE := Uku
+APP_TITLE := Ukuvota
 ANDROID_APP_ID := xyz.waozi.uku
 ANDROID_ACTIVITY := xyz.waozi.uku.MainActivity
 GRADLE := ./droid/gradlew
@@ -91,7 +91,7 @@ APP_DESKTOP_ID := $(APP_ID)
 APP_ICON_NAME := $(APP_ID)
 APP_ICON_SIZE := 512x512
 APP_COMMENT := Collective decisions without hidden resistance
-APP_DESC := Uku is a free, open-source collective decision app for score voting, consent checks, proposals, and explicit status quo options.
+APP_DESC := Ukuvota is a free, open-source collective decision app for score voting, consent checks, proposals, and explicit status quo options.
 APP_CATEGORIES := Office;Utility;
 APP_MAINTAINER := Waozi <waozi@waozi.xyz>
 APP_WWW := https://uku.waozi.xyz/
@@ -206,7 +206,7 @@ WEB_KRYON_SRCS = $(filter-out $(KRYON_DIR)/src/file_dialog/file_dialog.c,$(KRYON
 
 WEB_PUBLIC_FILES = $(wildcard manifest.json) $(shell find web-assets -type f 2>/dev/null)
 WEB_CFLAGS = -Wall -Wextra -Wno-unused-function -Wno-typedef-redefinition -std=gnu99 -O0 -DPLATFORM_WEB -DKRYON_BACKEND_CANVAS=1 -D_DEFAULT_SOURCE -DSUPPORT_MODULE_RAUDIO=0 -DSUPPORT_FILEFORMAT_JPG=1 -DUI_EMBEDDED_ONLY=1 -DHAS_LIBOQS=1 -DKRYON_HAS_LIBOQS=1
-WEB_LDFLAGS = -sFETCH=1 -sASYNCIFY -sASYNCIFY_STACK_SIZE=1048576 -fexceptions -sFORCE_FILESYSTEM=1 -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=268435456 -sSTACK_SIZE=33554432 -lidbfs.js
+WEB_LDFLAGS = -sWASM=0 -sFETCH=1 -sASYNCIFY -sASYNCIFY_STACK_SIZE=1048576 -fexceptions -sFORCE_FILESYSTEM=1 -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=268435456 -sSTACK_SIZE=33554432 -lidbfs.js
 
 # All compiler sources: a bare prerequisite never rebuilds on compiler
 # changes (mirrors kryon's own K2C_SRCS).
@@ -242,6 +242,7 @@ $(ANDROID_SQLITE_H): $(ANDROID_SQLITE_C)
 android-copy-assets: $(ANDROID_SQLITE_C) $(ANDROID_SQLITE_H)
 
 $(WEB_JS_TARGET): $(BUILD_MAKEFILES) $(SRC) $(WEB_KRYON_SRCS) $(CORE_SRCS) $(WEB_LIBOQS_A) $(WEB_PUBLIC_FILES) | $(WEB_BUILD_DIR)
+	rm -f $(WEB_BUILD_DIR)/index.wasm
 	$(WEB_CC) $(WEB_CFLAGS) \
 		$(APP_INCLUDE) \
 		$(KRYON_INCLUDE) \
@@ -253,6 +254,7 @@ $(WEB_JS_TARGET): $(BUILD_MAKEFILES) $(SRC) $(WEB_KRYON_SRCS) $(CORE_SRCS) $(WEB
 		$(CORE_SRCS) \
 		$(WEB_LIBOQS_A) \
 	$(WEB_LDFLAGS)
+	test ! -f $(WEB_BUILD_DIR)/index.wasm
 	@if [ -d web-assets ]; then cp -R web-assets $(WEB_BUILD_DIR)/; fi
 	@if [ -f web-assets/uku-logo.svg ]; then cp web-assets/uku-logo.svg $(WEB_BUILD_DIR)/favicon.ico; fi
 	@if [ -f manifest.json ]; then cp manifest.json $(WEB_BUILD_DIR)/; fi
@@ -264,7 +266,7 @@ $(WEB_TARGET): $(WEB_BUILD_DIR)/index.html | $(WEB_DIST_DIR)
 	rm -rf $(WEB_DIST_DIR)
 	mkdir -p $(WEB_DIST_DIR)
 	find $(WEB_BUILD_DIR) -maxdepth 1 -type f \
-		\( -name '*.html' -o -name '*.js' -o -name '*.wasm' -o -name '*.data' -o -name '*.json' -o -name '*.png' -o -name '*.ico' -o -name '*.webmanifest' \) \
+		\( -name '*.html' -o -name '*.js' -o -name '*.data' -o -name '*.json' -o -name '*.png' -o -name '*.ico' -o -name '*.webmanifest' \) \
 		-exec cp {} $(WEB_DIST_DIR)/ \;
 	@if [ -d $(WEB_BUILD_DIR)/web-assets ]; then cp -R $(WEB_BUILD_DIR)/web-assets $(WEB_DIST_DIR)/; fi
 
@@ -277,7 +279,7 @@ $(WEB_ITCH_TARGET): $(WEB_ITCH_SHELL) $(WEB_JS_TARGET) | $(WEB_ITCH_DIST_DIR)
 	rm -rf $(WEB_ITCH_DIST_DIR)
 	mkdir -p $(WEB_ITCH_DIST_DIR)
 	find $(WEB_BUILD_DIR) -maxdepth 1 -type f \
-		\( -name '*.js' -o -name '*.wasm' -o -name '*.data' -o -name '*.json' -o -name '*.png' -o -name '*.ico' -o -name '*.webmanifest' \) \
+		\( -name '*.js' -o -name '*.data' -o -name '*.json' -o -name '*.png' -o -name '*.ico' -o -name '*.webmanifest' \) \
 		-exec cp {} $(WEB_ITCH_DIST_DIR)/ \;
 	@if [ -d $(WEB_BUILD_DIR)/web-assets ]; then cp -R $(WEB_BUILD_DIR)/web-assets $(WEB_ITCH_DIST_DIR)/; fi
 	sed -e 's#{{{ SCRIPT }}}#<script async src="index.js?v=WEB_CACHE_BUSTER"></script>#g' \

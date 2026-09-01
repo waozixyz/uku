@@ -84,7 +84,7 @@
         Module.setStatus(left ? "Preparing..." : "Starting...");
       },
       locateFile: function(path, prefix) {
-        if (path === "index.wasm" || path === "index.data") {
+        if (path === "index.data") {
           return (prefix || "") + path + "?v=" + this.cacheBust;
         }
         return (prefix || "") + path;

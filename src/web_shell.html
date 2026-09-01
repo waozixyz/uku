@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" href="web-assets/uku-logo.svg" type="image/svg+xml">
-  <title>Uku</title>
+  <title>Ukuvota</title>
   <style>
     :root {
       --app-background: #f8f5ef;
@@ -131,7 +131,7 @@
   <div class="loading-screen" id="loading-screen" role="status" aria-live="polite">
     <div class="loading-panel">
       <img class="loading-mark" src="web-assets/uku-logo.svg" alt="" width="76" height="76">
-      <h1 class="loading-title">Uku</h1>
+      <h1 class="loading-title">Ukuvota</h1>
       <div id="status">Downloading...</div>
       <progress value="0" max="100" id="progress" hidden></progress>
     </div>
@@ -185,7 +185,7 @@
         Module.setStatus(left ? "Preparing... (" + (this.totalDependencies - left) + "/" + this.totalDependencies + ")" : "All downloads complete.");
       },
       locateFile: function(path, prefix) {
-        if(path === "index.wasm" || path === "index.data") {
+        if(path === "index.data") {
           return prefix + path;
         }
         return prefix + path;

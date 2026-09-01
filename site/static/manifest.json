@@ -1,6 +1,6 @@
 {
-  "name": "Uku",
-  "short_name": "Uku",
+  "name": "Ukuvota",
+  "short_name": "Ukuvota",
   "description": "Collective decisions with visible support, resistance, status quo, and repeat-process choices.",
   "start_url": "/build/web/index.html",
   "scope": "/",
