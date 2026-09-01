@@ -252,6 +252,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     timeout-minutes: 60
+    env:
+      APT_CACHE_DIR: /tmp/apt-cache
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -267,6 +269,18 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
+
+      - name: Cache Android apt packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.APT_CACHE_DIR }}
+          key: android-apt-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/apt/android-packages.txt') }}
+          restore-keys: |
+            android-apt-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Install Android apt dependencies
+        timeout-minutes: 15
+        run: .github/scripts/install-apt-packages.sh .github/apt/android-packages.txt
 
       - name: Cache Android SDK packages
         uses: actions/cache@v4
