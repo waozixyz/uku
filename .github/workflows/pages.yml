@@ -51,7 +51,7 @@ jobs:
           test -f build/site/index.html
           test -f build/site/build/web/index.html
           test -f build/site/build/web/index.js
-          test -f build/site/build/web/index.wasm
+          test ! -f build/site/build/web/index.wasm
 
       - name: Upload Site Artifact
         uses: actions/upload-artifact@v4
