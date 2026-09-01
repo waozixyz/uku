@@ -245,20 +245,7 @@ Toca una persona participante para incluirla o excluirla de los resultados.
  (tú)
 ---
 [anonymous]
-anónimo
----
-[Reason:]
-Motivo:
----
-[Reason]
-Motivo
----
-[Required voting reason]
-Motivo de voto obligatorio
----
-[Optional voting reason]
-Motivo de voto opcional
----
+anónimo---
 [Copy share link]
 Copiar enlace para compartir
 ---

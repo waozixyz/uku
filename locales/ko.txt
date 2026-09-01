@@ -245,20 +245,7 @@ Uku
  (나)
 ---
 [anonymous]
-익명
----
-[Reason:]
-이유:
----
-[Reason]
-이유
----
-[Required voting reason]
-투표 이유 필수
----
-[Optional voting reason]
-투표 이유 선택
----
+익명---
 [Language]
 언어
 ---

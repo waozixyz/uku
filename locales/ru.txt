@@ -245,20 +245,7 @@ Uku
  (вы)
 ---
 [anonymous]
-анонимно
----
-[Reason:]
-Причина:
----
-[Reason]
-Причина
----
-[Required voting reason]
-Обязательная причина голоса
----
-[Optional voting reason]
-Необязательная причина голоса
----
+анонимно---
 [Language]
 Язык
 ---

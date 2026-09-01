@@ -245,20 +245,7 @@ Uku
 （你）
 ---
 [anonymous]
-匿名
----
-[Reason:]
-理由：
----
-[Reason]
-理由
----
-[Required voting reason]
-必须填写投票理由
----
-[Optional voting reason]
-投票理由可选
----
+匿名---
 [Language]
 语言
 ---

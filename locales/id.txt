@@ -242,20 +242,7 @@ Ketuk peserta untuk menyertakan atau mengecualikannya dari hasil.
  (Anda)
 ---
 [anonymous]
-anonim
----
-[Reason:]
-Alasan:
----
-[Reason]
-Alasan
----
-[Required voting reason]
-Alasan suara wajib
----
-[Optional voting reason]
-Alasan suara opsional
----
+anonim---
 [Language]
 Bahasa
 ---

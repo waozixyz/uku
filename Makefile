@@ -12,7 +12,7 @@ KRYON_DIR := $(if $(wildcard vendor/kryon/mk/common.mk),vendor/kryon,../kryon)
 KRYON_MAKE_DIR := $(KRYON_DIR)/mk/
 # Prefer system libcurl; fall back to the kryon-vendored static build when
 # no pkg-config metadata is installed (e.g. on omega, which has no nix).
-KRYON_USE_SYSTEM_CURL := $(if $(shell pkg-config --exists libcurl 2>/dev/null && echo y),1,0)
+KRYON_USE_SYSTEM_CURL := $(if $(shell pkg-config --atleast-version=7.86.0 libcurl 2>/dev/null && echo y),1,0)
 CMAKE ?= $(if $(wildcard /usr/bin/cmake),/usr/bin/cmake,cmake)
 
 # System sqlite3 via pkg-config, or a local build in ~/.local/sqlite3.

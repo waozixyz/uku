@@ -245,20 +245,7 @@ Uku
 （あなた）
 ---
 [anonymous]
-匿名
----
-[Reason:]
-理由:
----
-[Reason]
-理由
----
-[Required voting reason]
-投票理由が必須
----
-[Optional voting reason]
-投票理由は任意
----
+匿名---
 [Language]
 言語
 ---

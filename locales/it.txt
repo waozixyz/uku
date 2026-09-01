@@ -239,14 +239,7 @@ Tocca un partecipante per includerlo o escluderlo dai risultati.
  (tu)
 ---
 [anonymous]
-anonimo
----
-[Required voting reason]
-Motivo di voto obbligatorio
----
-[Optional voting reason]
-Motivo di voto opzionale
----
+anonimo---
 [Language]
 Lingua
 ---

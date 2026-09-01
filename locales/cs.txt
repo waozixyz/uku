@@ -245,20 +245,7 @@ Klepnutím účastníka zahrnete nebo vyřadíte z výsledků.
  (vy)
 ---
 [anonymous]
-anonymní
----
-[Reason:]
-Důvod:
----
-[Reason]
-Důvod
----
-[Required voting reason]
-Povinný důvod hlasování
----
-[Optional voting reason]
-Volitelný důvod hlasování
----
+anonymní---
 [Language]
 Jazyk
 ---

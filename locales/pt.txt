@@ -218,11 +218,7 @@ Toque em uma pessoa participante para incluí-la ou excluí-la dos resultados.
  (você)
 ---
 [anonymous]
-anônimo
----
-[Required voting reason]
-Motivo de voto obrigatório
----
+anônimo---
 [Dark]
 Escuro
 ---

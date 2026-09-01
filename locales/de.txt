@@ -245,20 +245,7 @@ Tippe auf eine Person, um sie in die Ergebnisse ein- oder auszuschließen.
  (du)
 ---
 [anonymous]
-anonym
----
-[Reason:]
-Begründung:
----
-[Reason]
-Begründung
----
-[Required voting reason]
-Erforderliche Stimmabgabe-Begründung
----
-[Optional voting reason]
-Optionale Stimmabgabe-Begründung
----
+anonym---
 [Copy share link]
 Link zum Teilen kopieren
 ---

@@ -437,6 +437,8 @@ typedef enum UkuFocusId {
 #define UKU_INTRO_SEEN_KEY "intro_seen"
 #define LOCALE_FONT_BASE_SIZE 32
 #define UKU_PACKAGE_ID "xyz.waozi.uku"
+#define UKU_DAOCHI_APP_ID "ukuvota"
+#define UKU_DAOCHI_CLIENT_ID "ukuvota-native-client"
 #define UKU_SYNC_SERVER_URL_DEFAULT "https://api.waozi.xyz"
 #define UKU_SYNC_SERVER_URL_KEY "sync_server_url"
 #define UKU_SYNC_ACCOUNT_ALIAS_KEY "sync_account_alias"
@@ -3151,8 +3153,8 @@ login_remote(UkuApp *app, const char *base_url)
     free(response.data);
     response = (UkuHttpBuffer){0};
 
-    snprintf(body, sizeof(body), "{\"user_id_hash\":\"%s\",\"client_id\":\"uku-native-client\",\"public_key\":\"%s\"}",
-             identity->public_id, identity->public_key_hex);
+    snprintf(body, sizeof(body), "{\"user_id_hash\":\"%s\",\"client_id\":\"%s\",\"public_key\":\"%s\"}",
+             identity->public_id, UKU_DAOCHI_CLIENT_ID, identity->public_key_hex);
     canonical_message_hex("daochi-sync-v1", nonce, "POST", "/api/v1/sync/login",
                           body, primary_message, sizeof(primary_message));
     canonical_message_hex("inbe-sync-v1", nonce, "POST", "/api/v1/sync/login",
@@ -3200,7 +3202,9 @@ build_remote_process_json(UkuApp *app)
     identity = request_identity(app);
     if(identity == NULL || !identity->loaded)
         return NULL;
-    if(!http_buffer_append(&json, "{\"user_id_hash\":", 16) ||
+    if(!http_buffer_append(&json, "{\"app_id\":", strlen("{\"app_id\":")) ||
+       !json_append_string(&json, UKU_DAOCHI_APP_ID) ||
+       !http_buffer_append(&json, ",\"user_id_hash\":", strlen(",\"user_id_hash\":")) ||
        !json_append_string(&json, identity->public_id) ||
        !http_buffer_append(&json, ",\"id\":", 6) ||
        !json_append_string(&json, d->id) ||
@@ -3227,6 +3231,8 @@ build_remote_process_json(UkuApp *app)
              duration_minutes(d->voting_days, d->voting_hours, d->voting_minutes),
              d->negative_weight, d->quorum_percent, d->quorum_votes);
     if(!http_buffer_append(&json, tmp, strlen(tmp)))
+        goto fail;
+    if(!http_buffer_append(&json, ",\"require_vote_reason\":false", strlen(",\"require_vote_reason\":false")))
         goto fail;
     if(process_type_has_options(d->type)) {
         if(!http_buffer_append(&json, ",\"options\":[", strlen(",\"options\":[")))
@@ -3665,7 +3671,7 @@ submit_vote(UkuApp *app, const char *base_url)
         if(!http_buffer_append(&body, tmp, strlen(tmp)))
             goto cleanup;
     }
-    if(!http_buffer_append(&body, "},\"reason\":\"\"}", strlen("},\"reason\":\"\"}")))
+    if(!http_buffer_append(&body, "}}", strlen("}}")))
         goto cleanup;
     snprintf(path, sizeof(path), "/api/v1/processes/%s/votes", app->decision.id);
     ok = authorized_json_request(app, base_url, "POST", path, body.data, 200, 299, &response);

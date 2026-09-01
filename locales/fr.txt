@@ -245,20 +245,7 @@ Touchez un participant pour l’inclure ou l’exclure des résultats.
  (vous)
 ---
 [anonymous]
-anonyme
----
-[Reason:]
-Raison :
----
-[Reason]
-Raison
----
-[Required voting reason]
-Raison de vote obligatoire
----
-[Optional voting reason]
-Raison de vote facultative
----
+anonyme---
 [Copy share link]
 Copier le lien de partage
 ---
