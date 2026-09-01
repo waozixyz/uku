@@ -43,7 +43,7 @@ NON_NATIVE_GOALS := $(WEB_ONLY_GOALS) \
 	android-copy-debug-apks android-copy-release-apks \
 	android-copy-release-artifacts android-debug android-debug-ci \
 	android-install android-install-release android-release android-release-ci \
-	android-bundle $(FONT_FILES)
+	android-bundle $(FONT_FILES) build/obj/uku_embedded_assets.c
 
 ifeq ($(filter-out $(NON_NATIVE_GOALS),$(MAKECMDGOALS)),)
 KRYON_BACKEND := canvas

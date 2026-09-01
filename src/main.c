@@ -5897,57 +5897,66 @@ draw_locale_dropdown(UkuApp *app, UkuText *text, Font font, int x, int y, int w,
     return box_y + h + ScaleUIPx(18);
 }
 
-static void
-draw_scrollbar(UkuApp *app, int x, int y, int h, int content_h, int max_scroll,
-               int *scroll, int *dragging, int *drag_offset)
+typedef struct UkuScrollPage {
+    UIScrollArea area;
+    UIScrollView view;
+    int viewport_y;
+    int viewport_h;
+    int content_x;
+    int content_w;
+    int y;
+} UkuScrollPage;
+
+static UkuScrollPage
+begin_uku_scroll_page(int view_w, int view_h, int top_h,
+                      int max_content_w, int *scroll, int max_scroll,
+                      int top_padding)
 {
-    int track_w = ScaleUIPx(8);
-    int hit_w = ScaleUIPx(30);
-    int hit_x = x - (hit_w - track_w) / 2;
-    int thumb_h;
-    int thumb_y;
-    Rectangle track;
-    Rectangle hit_track;
-    Rectangle thumb;
-    Rectangle hit_thumb;
-    Vector2 mouse = GetMousePosition();
+    UkuScrollPage page;
+    int side = GetUIPageSidePadding();
+    int content_x;
+    int content_w;
+    int estimated_content_h;
 
-    track = (Rectangle){(float)x, (float)y, (float)track_w, (float)h};
-    hit_track = (Rectangle){(float)hit_x, (float)y, (float)hit_w, (float)h};
-    if(max_scroll <= 0) {
-        *dragging = 0;
-        return;
-    }
+    memset(&page, 0, sizeof(page));
+    GetUICenteredColumn(max_content_w, side, &content_x, &content_w);
 
-    thumb_h = UKU_MAX(ScaleUIPx(42), (int)((float)h * (float)h / (float)content_h));
-    thumb_h = UKU_MIN(thumb_h, h);
-    thumb_y = y + (int)((float)(h - thumb_h) * ((float)(*scroll) / (float)max_scroll));
-    thumb = (Rectangle){(float)x, (float)thumb_y, (float)track_w, (float)thumb_h};
-    hit_thumb = (Rectangle){(float)hit_x, (float)thumb_y, (float)hit_w, (float)thumb_h};
+    page.viewport_y = top_h;
+    page.viewport_h = view_h - page.viewport_y;
+    if(page.viewport_h < 0)
+        page.viewport_h = 0;
 
-    DrawRectangleRounded(track, 0.5f, 8, (Color){226, 230, 233, 255});
-    DrawRectangleRounded(thumb, 0.5f, 8, GetThemeButton());
+    estimated_content_h = page.viewport_h + UKU_MAX(max_scroll, 1);
+    page.area.bounds = (Rectangle){0.0f, (float)page.viewport_y,
+                                   (float)view_w, (float)page.viewport_h};
+    page.area.content_height = estimated_content_h;
+    page.area.content_x = content_x;
+    page.area.content_width = content_w;
+    page.area.scroll_offset = scroll;
+    page.area.wheel_step = ScaleUIPx(44);
+    page.area.scrollbar_x = view_w - side - ScaleUIPx(8);
+    page.view = BeginUIScrollContainer(page.area);
+    page.content_x = page.view.content_x;
+    page.content_w = page.view.content_w;
+    page.y = page.view.content_y + top_padding;
+    return page;
+}
 
-    if(CheckCollisionPointRec(mouse, hit_track))
-        app->cursor_clickable = 1;
+static void
+end_uku_scroll_page(UkuScrollPage page, int final_y, int *scroll,
+                    int *max_scroll, int bottom_padding)
+{
+    int content_h = final_y - page.view.content_y + bottom_padding;
 
-    if(IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && CheckCollisionPointRec(mouse, hit_thumb)) {
-        *dragging = 1;
-        *drag_offset = (int)mouse.y - thumb_y;
-    } else if(IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && CheckCollisionPointRec(mouse, hit_track)) {
-        *dragging = 1;
-        *drag_offset = thumb_h / 2;
-    }
-
-    if(!IsMouseButtonDown(MOUSE_LEFT_BUTTON))
-        *dragging = 0;
-
-    if(*dragging) {
-        int local_y = (int)mouse.y - y - *drag_offset;
-        local_y = clampi(local_y, 0, h - thumb_h);
-        *scroll = (int)((float)local_y / (float)(h - thumb_h) * (float)max_scroll + 0.5f);
-        app->cursor_clickable = 1;
-    }
+    if(content_h < 0)
+        content_h = 0;
+    *max_scroll = UKU_MAX(0, content_h - page.viewport_h);
+    if(scroll != NULL)
+        *scroll = clampi(*scroll, 0, *max_scroll);
+    page.area.content_height = content_h;
+    page.view.content_h = content_h;
+    page.view.max_scroll = *max_scroll;
+    EndUIScrollContainer(page.area, page.view);
 }
 
 static int
@@ -6317,25 +6326,6 @@ draw_empty_state(UkuApp *app, Font font, const char *message, int x, int y, int 
     return y + h + ScaleUIPx(12);
 }
 
-static void
-get_dashboard_column(int view_w, int side, int *x, int *w)
-{
-    int max_w = IsUIDesktopMode() ? ScaleUIPx(980) : ScaleUIPx(640);
-    int min_side = IsUIDesktopMode() ? ScaleUIPx(32) : side;
-    int available = view_w - min_side * 2;
-
-    if(available < ScaleUIPx(260))
-        available = view_w - side * 2;
-    if(available < ScaleUIPx(220))
-        available = view_w;
-    *w = UKU_MIN(max_w, available);
-    if(*w < ScaleUIPx(220))
-        *w = view_w - side * 2;
-    *x = (view_w - *w) / 2;
-    if(*x < side)
-        *x = side;
-}
-
 static int
 dashboard_row_visible(const UkuApp *app, const UkuProcessRow *row)
 {
@@ -6407,7 +6397,6 @@ draw_intro_modal(UkuApp *app, Font font, int view_w, int view_h, int *dismissed)
 static void
 draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
 {
-    int side = GetUIPageSidePadding();
     int content_x;
     int content_w;
     int top_h = !IsUIDesktopMode() ? ScaleUIPx(42) : ScaleUIPx(46);
@@ -6415,9 +6404,7 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
     int small_font = ClampUIPx(12, 12, 14);
     int viewport_y = top_h;
     int viewport_h = view_h - viewport_y;
-    int y = viewport_y + ScaleUIPx(14) - app->dashboard_scroll;
-    int content_bottom;
-    int content_h;
+    int y;
     int account_clicked = 0;
     int settings_clicked = 0;
     int join_clicked = 0;
@@ -6438,10 +6425,6 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
         top_h += ScaleUIPx(212);
     viewport_y = top_h;
     viewport_h = view_h - viewport_y;
-    y = viewport_y + ScaleUIPx(14) - app->dashboard_scroll;
-    get_dashboard_column(view_w, side, &content_x, &content_w);
-    app->dashboard_scroll = clampi(app->dashboard_scroll - (int)(GetMouseWheelMove() * ScaleUIPx(44)),
-                                   0, app->dashboard_max_scroll);
 
     {
         int history_clicked = 0;
@@ -6481,230 +6464,144 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
         if(!android_bridge_scan_qr())
             ShowToast(tr(app, "Scan QR unavailable. Paste the link instead."));
 #else
-        ShowToast(tr(app, "Paste a QR link into search."));
+            ShowToast(tr(app, "Paste a QR link into search."));
 #endif
     }
 
-    BeginScissorMode(0, viewport_y, view_w, viewport_h);
     {
-        const char *filter_labels[] = {
-            tr(app, "dashboard_filter_mine"),
-            tr(app, "dashboard_filter_public")
-        };
-        int selected = app->dashboard_filter_public ? 1 : 0;
-        int changed = 0;
-        int filter_h = draw_segmented_index(content_x, y, content_w,
-                                            UKU_FOCUS_DASHBOARD_FILTER_MINE,
-                                            filter_labels, 2, &selected,
-                                            &changed);
+        UkuScrollPage page = begin_uku_scroll_page(view_w, view_h, top_h,
+                                                   IsUIDesktopMode() ? 760 : 640,
+                                                   &app->dashboard_scroll,
+                                                   app->dashboard_max_scroll,
+                                                   ScaleUIPx(14));
+        content_x = page.content_x;
+        content_w = page.content_w;
+        viewport_y = page.viewport_y;
+        viewport_h = page.viewport_h;
+        y = page.y;
 
-        if(changed && selected == 0 && app->dashboard_filter_public) {
-            app->dashboard_filter_public = 0;
-            db_load_processes(app);
-            app->remote_processes_loaded = 1;
-            app->dashboard_scroll = 0;
-            UIConsumeRelease();
-        }
-        if(changed && selected == 1 && !app->dashboard_filter_public) {
-            app->dashboard_filter_public = 1;
-            app->public_processes_loaded = 0;
-            db_load_processes(app);
-            app->remote_processes_loaded = 1;
-            fetch_public_processes(app, app->server_url);
-            app->dashboard_scroll = 0;
-            UIConsumeRelease();
-        }
-        y += filter_h + ScaleUIPx(12);
-    }
-    {
-        /* quiet section header: small label with a hairline rule */
-        const char *section_label = app->dashboard_filter_public
-            ? tr(app, "dashboard_public_label")
-            : tr(app, "Currently In Progress");
-        int label_w = measure_text_font(font, section_label, small_font);
-        int rule_y = y + small_font / 2;
+        {
+            const char *filter_labels[] = {
+                tr(app, "dashboard_filter_mine"),
+                tr(app, "dashboard_filter_public")
+            };
+            int selected = app->dashboard_filter_public ? 1 : 0;
+            int changed = 0;
+            int filter_h = draw_segmented_index(content_x, y, content_w,
+                                                UKU_FOCUS_DASHBOARD_FILTER_MINE,
+                                                filter_labels, 2, &selected,
+                                                &changed);
 
-        draw_text_font(font, section_label, content_x, y, small_font, Fade(GetThemeText(), 0.75f));
-        DrawRectangle(content_x + label_w + ScaleUIPx(10), rule_y,
-                      content_w - label_w - ScaleUIPx(10), 1, Fade(GetThemeText(), 0.16f));
-        y += small_font + ScaleUIPx(16);
-    }
-
-    if(app->process_count <= 0) {
-        if(app->dashboard_filter_public) {
-            Rectangle empty = {(float)content_x, (float)y,
-                               (float)content_w, (float)ScaleUIPx(54)};
-
-            DrawRectangleRounded(empty, 0.07f, 10, GetThemeSurface());
-            draw_centered_text(font, tr(app, "dashboard_public_empty"),
-                               content_x + content_w / 2, y + ScaleUIPx(19),
-                               small_font, Fade(GetThemeText(), 0.65f));
-            y += ScaleUIPx(66);
-        } else {
-            int cta_clicked = 0;
-
-            y = draw_empty_state(app, font, text->dashboard_empty, content_x, y,
-                                 content_w, view_h, body_font, small_font,
-                                 &cta_clicked);
-            if(cta_clicked)
-                start_new_process_flow(app, text);
-        }
-    } else {
-        int card_h = ScaleUIPx(92);
-        int gap = ScaleUIPx(8);
-        int active_count = 0;
-        int completed_count = 0;
-        int visible_count = 0;
-
-        for(int i = 0; i < app->process_count; i++) {
-            UkuProcessRow *row = &app->processes[i];
-            if(!dashboard_row_visible(app, row))
-                continue;
-            visible_count++;
-            if(process_phase(row->created_at, row->proposal_minutes,
-                             row->voting_minutes, now, NULL) != UKU_PROCESS_RESULTS)
-                active_count++;
-            else
-                completed_count++;
-        }
-        if(visible_count <= 0) {
-            Rectangle empty = {(float)content_x, (float)y,
-                               (float)content_w, (float)ScaleUIPx(54)};
-
-            DrawRectangleRounded(empty, 0.07f, 10, GetThemeSurface());
-            draw_centered_text(font, tr(app, "dashboard_public_empty"),
-                               content_x + content_w / 2, y + ScaleUIPx(19),
-                               small_font, Fade(GetThemeText(), 0.65f));
-            y += ScaleUIPx(66);
-        } else {
-            if(active_count <= 0) {
-            Rectangle empty = {(float)content_x, (float)y, (float)content_w, (float)ScaleUIPx(46)};
-
-            DrawRectangleRounded(empty, 0.07f, 10, GetThemeSurface());
-            draw_centered_text(font, tr(app, "No processes currently in progress."),
-                               content_x + content_w / 2, y + ScaleUIPx(16),
-                               small_font, Fade(GetThemeText(), 0.65f));
-            y += ScaleUIPx(58);
-        }
-        for(int i = 0; i < app->process_count; i++) {
-            UkuProcessRow *row = &app->processes[i];
-            Rectangle card = {(float)content_x, (float)y, (float)content_w, (float)card_h};
-            Vector2 mouse = GetMousePosition();
-            int focus_id = UKU_FOCUS_DASHBOARD_PROCESS_BASE + i;
-            int hovered = CheckCollisionPointRec(mouse, card);
-            int focused = RegisterUIFocus(focus_id, card);
-            char meta[160];
-            char created[32];
-            char timer[128];
-            int open = 0;
-
-            if(!dashboard_row_visible(app, row))
-                continue;
-            if(process_phase(row->created_at, row->proposal_minutes,
-                             row->voting_minutes, now, NULL) == UKU_PROCESS_RESULTS)
-                continue;
-            if(y + card_h < viewport_y || y > viewport_y + viewport_h) {
-                y += card_h + gap;
-                continue;
-            }
-
-            if(hovered)
-                app->cursor_clickable = 1;
-            DrawRectangleRounded(card, 0.07f, 10, GetThemeSurface());
-            DrawRectangleRoundedLinesEx(card, 0.07f, 10, ScaleUIPx(1),
-                                        focused || hovered ? GetThemeButton() : GetThemeButton());
-            /* accent bar marks the live phase */
-            DrawRectangleRounded((Rectangle){(float)content_x, (float)y + ScaleUIPx(10),
-                                             (float)ScaleUIPx(4), (float)card_h - ScaleUIPx(20)},
-                                 0.5f, 4, GetThemeCircle());
-
-            draw_text_font(font, fit_tail(font, row->topic, body_font, content_w - ScaleUIPx(30)),
-                           content_x + ScaleUIPx(18), y + ScaleUIPx(9), body_font, GetThemeText());
-            format_process_timer(timer, sizeof(timer), text, row->created_at,
-                                 row->proposal_minutes, row->voting_minutes, now);
-            draw_text_font(font, fit_tail(font, timer, small_font, content_w - ScaleUIPx(30)),
-                           content_x + ScaleUIPx(18), y + ScaleUIPx(31), small_font,
-                           process_phase(row->created_at, row->proposal_minutes, row->voting_minutes, now, NULL) == UKU_PROCESS_RESULTS ? GetThemeText() : GetThemeButton());
-            format_created_at(created, sizeof(created), row->created_at);
-            snprintf(meta, sizeof(meta), "%s  \xc2\xb7  %s",
-                     process_type_label(row->type), created);
-            draw_text_font(font, fit_tail(font, meta, small_font, content_w - ScaleUIPx(30)),
-                           content_x + ScaleUIPx(18), y + ScaleUIPx(52), small_font, Fade(GetThemeText(), 0.75f));
-            if(row->description[0] != '\0')
-                draw_text_font(font, fit_tail(font, row->description, small_font, content_w - ScaleUIPx(30)),
-                               content_x + ScaleUIPx(18), y + ScaleUIPx(72), small_font, GetThemeText());
-
-            open = (hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) || IsUIFocusActivatePressed(focus_id);
-            if(open)
-                open_process_row(app, row);
-            y += card_h + gap;
-        }
-        y += ScaleUIPx(8);
-        if(completed_count > 0) {
-            int summary_h = ScaleUIPx(58);
-            int icon_box = ScaleUIPx(34);
-            int summary_focus = UKU_FOCUS_HISTORY_BACK;
-            Rectangle summary = {(float)content_x, (float)y, (float)content_w, (float)summary_h};
-            Vector2 mouse = GetMousePosition();
-            int hovered = CheckCollisionPointRec(mouse, summary);
-            int focused = RegisterUIFocus(summary_focus, summary);
-            int summary_clicked = (hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
-                                  IsUIFocusActivatePressed(summary_focus);
-            char count_text[80];
-            Texture2D icon_texture = app->icons[UI_ICON_TYPE_TIMELINE];
-
-            if(summary_clicked) {
-                app->dashboard_completed_expanded = !app->dashboard_completed_expanded;
+            if(changed && selected == 0 && app->dashboard_filter_public) {
+                app->dashboard_filter_public = 0;
+                db_load_processes(app);
+                app->remote_processes_loaded = 1;
+                app->dashboard_scroll = 0;
                 UIConsumeRelease();
             }
-            if(hovered)
-                app->cursor_clickable = 1;
-            snprintf(count_text, sizeof(count_text), "%d %s", completed_count,
-                     completed_count == 1 ? tr(app, "Finished") : tr(app, "Finished"));
-            DrawRectangleRounded(summary, 0.05f, 10, GetThemeSurface());
-            DrawRectangleRoundedLinesEx(summary, 0.05f, 10, ScaleUIPx(focused ? 2 : 1),
-                                        focused || hovered ? GetThemeButton()
-                                                          : Fade(GetThemeText(), 0.28f));
-            DrawRectangleRounded((Rectangle){(float)(content_x + ScaleUIPx(12)),
-                                             (float)(y + (summary_h - icon_box) / 2),
-                                             (float)icon_box, (float)icon_box},
-                                 0.18f, 10, Fade(GetThemeButton(), 0.18f));
-            if(icon_texture.id != 0)
-                DrawTexturePro(icon_texture,
-                               (Rectangle){0, 0, (float)icon_texture.width, (float)icon_texture.height},
-                               (Rectangle){(float)(content_x + ScaleUIPx(19)),
-                                           (float)(y + (summary_h - icon_box) / 2 + ScaleUIPx(7)),
-                                           (float)(icon_box - ScaleUIPx(14)),
-                                           (float)(icon_box - ScaleUIPx(14))},
-                               (Vector2){0}, 0.0f, WHITE);
-            draw_text_font(font, tr(app, "Completed Processes"),
-                           content_x + ScaleUIPx(58), y + ScaleUIPx(10),
-                           body_font, GetThemeText());
-            draw_text_font(font, count_text,
-                           content_x + ScaleUIPx(58), y + ScaleUIPx(33),
-                           small_font, Fade(GetThemeText(), 0.72f));
-            draw_centered_text(font, app->dashboard_completed_expanded ? "-" : "+",
-                               content_x + content_w - ScaleUIPx(22),
-                               GetUIControlTextY("+", y, summary_h, body_font),
-                               body_font, GetThemeButton());
-            y += summary_h + ScaleUIPx(10);
+            if(changed && selected == 1 && !app->dashboard_filter_public) {
+                app->dashboard_filter_public = 1;
+                app->public_processes_loaded = 0;
+                db_load_processes(app);
+                app->remote_processes_loaded = 1;
+                fetch_public_processes(app, app->server_url);
+                app->dashboard_scroll = 0;
+                UIConsumeRelease();
+            }
+            y += filter_h + ScaleUIPx(12);
+        }
 
-            if(app->dashboard_completed_expanded) {
+        {
+            /* quiet section header: small label with a hairline rule */
+            const char *section_label = app->dashboard_filter_public
+                ? tr(app, "dashboard_public_label")
+                : tr(app, "Currently In Progress");
+            int label_w = measure_text_font(font, section_label, small_font);
+            int rule_y = y + small_font / 2;
+
+            draw_text_font(font, section_label, content_x, y, small_font,
+                           Fade(GetThemeText(), 0.75f));
+            DrawRectangle(content_x + label_w + ScaleUIPx(10), rule_y,
+                          content_w - label_w - ScaleUIPx(10), 1,
+                          Fade(GetThemeText(), 0.16f));
+            y += small_font + ScaleUIPx(16);
+        }
+
+        if(app->process_count <= 0) {
+            if(app->dashboard_filter_public) {
+                Rectangle empty = {(float)content_x, (float)y,
+                                   (float)content_w, (float)ScaleUIPx(54)};
+
+                DrawRectangleRounded(empty, 0.07f, 10, GetThemeSurface());
+                draw_centered_text(font, tr(app, "dashboard_public_empty"),
+                                   content_x + content_w / 2, y + ScaleUIPx(19),
+                                   small_font, Fade(GetThemeText(), 0.65f));
+                y += ScaleUIPx(66);
+            } else {
+                int cta_clicked = 0;
+
+                y = draw_empty_state(app, font, text->dashboard_empty, content_x,
+                                     y, content_w, view_h, body_font,
+                                     small_font, &cta_clicked);
+                if(cta_clicked)
+                    start_new_process_flow(app, text);
+            }
+        } else {
+            int card_h = ScaleUIPx(92);
+            int gap = ScaleUIPx(8);
+            int active_count = 0;
+            int completed_count = 0;
+            int visible_count = 0;
+
+            for(int i = 0; i < app->process_count; i++) {
+                UkuProcessRow *row = &app->processes[i];
+                if(!dashboard_row_visible(app, row))
+                    continue;
+                visible_count++;
+                if(process_phase(row->created_at, row->proposal_minutes,
+                                 row->voting_minutes, now, NULL) != UKU_PROCESS_RESULTS)
+                    active_count++;
+                else
+                    completed_count++;
+            }
+            if(visible_count <= 0) {
+                Rectangle empty = {(float)content_x, (float)y,
+                                   (float)content_w, (float)ScaleUIPx(54)};
+
+                DrawRectangleRounded(empty, 0.07f, 10, GetThemeSurface());
+                draw_centered_text(font, tr(app, "dashboard_public_empty"),
+                                   content_x + content_w / 2, y + ScaleUIPx(19),
+                                   small_font, Fade(GetThemeText(), 0.65f));
+                y += ScaleUIPx(66);
+            } else {
+                if(active_count <= 0) {
+                    Rectangle empty = {(float)content_x, (float)y,
+                                       (float)content_w,
+                                       (float)ScaleUIPx(46)};
+
+                    DrawRectangleRounded(empty, 0.07f, 10, GetThemeSurface());
+                    draw_centered_text(font, tr(app, "No processes currently in progress."),
+                                       content_x + content_w / 2,
+                                       y + ScaleUIPx(16), small_font,
+                                       Fade(GetThemeText(), 0.65f));
+                    y += ScaleUIPx(58);
+                }
                 for(int i = 0; i < app->process_count; i++) {
                     UkuProcessRow *row = &app->processes[i];
                     Rectangle card = {(float)content_x, (float)y, (float)content_w, (float)card_h};
                     Vector2 mouse = GetMousePosition();
-                    int focus_id = UKU_FOCUS_DASHBOARD_PROCESS_BASE + i + UKU_MAX_PROCESSES;
+                    int focus_id = UKU_FOCUS_DASHBOARD_PROCESS_BASE + i;
                     int hovered = CheckCollisionPointRec(mouse, card);
                     int focused = RegisterUIFocus(focus_id, card);
                     char meta[160];
                     char created[32];
+                    char timer[128];
                     int open = 0;
 
                     if(!dashboard_row_visible(app, row))
                         continue;
                     if(process_phase(row->created_at, row->proposal_minutes,
-                                     row->voting_minutes, now, NULL) != UKU_PROCESS_RESULTS)
+                                     row->voting_minutes, now, NULL) == UKU_PROCESS_RESULTS)
                         continue;
                     if(y + card_h < viewport_y || y > viewport_y + viewport_h) {
                         y += card_h + gap;
@@ -6715,38 +6612,171 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                         app->cursor_clickable = 1;
                     DrawRectangleRounded(card, 0.07f, 10, GetThemeSurface());
                     DrawRectangleRoundedLinesEx(card, 0.07f, 10, ScaleUIPx(1),
-                                                focused || hovered ? GetThemeButton() : Fade(GetThemeText(), 0.45f));
-                    draw_text_font(font, fit_tail(font, row->topic, body_font, content_w - ScaleUIPx(24)),
-                                   content_x + ScaleUIPx(12), y + ScaleUIPx(9), body_font, GetThemeText());
+                                                focused || hovered ? GetThemeButton() : GetThemeButton());
+                    DrawRectangleRounded((Rectangle){(float)content_x, (float)y + ScaleUIPx(10),
+                                                     (float)ScaleUIPx(4),
+                                                     (float)card_h - ScaleUIPx(20)},
+                                         0.5f, 4, GetThemeCircle());
+
+                    draw_text_font(font, fit_tail(font, row->topic, body_font,
+                                                  content_w - ScaleUIPx(30)),
+                                   content_x + ScaleUIPx(18), y + ScaleUIPx(9),
+                                   body_font, GetThemeText());
+                    format_process_timer(timer, sizeof(timer), text, row->created_at,
+                                         row->proposal_minutes, row->voting_minutes, now);
+                    draw_text_font(font, fit_tail(font, timer, small_font,
+                                                  content_w - ScaleUIPx(30)),
+                                   content_x + ScaleUIPx(18), y + ScaleUIPx(31),
+                                   small_font,
+                                   process_phase(row->created_at, row->proposal_minutes,
+                                                 row->voting_minutes, now, NULL) ==
+                                           UKU_PROCESS_RESULTS
+                                       ? GetThemeText()
+                                       : GetThemeButton());
                     format_created_at(created, sizeof(created), row->created_at);
-                    snprintf(meta, sizeof(meta), "%s | %s | %s", tr(app, "Finished"),
+                    snprintf(meta, sizeof(meta), "%s  \xc2\xb7  %s",
                              process_type_label(row->type), created);
-                    draw_text_font(font, fit_tail(font, meta, small_font, content_w - ScaleUIPx(24)),
-                                   content_x + ScaleUIPx(12), y + ScaleUIPx(33), small_font,
-                                   Fade(GetThemeText(), 0.75f));
+                    draw_text_font(font, fit_tail(font, meta, small_font,
+                                                  content_w - ScaleUIPx(30)),
+                                   content_x + ScaleUIPx(18), y + ScaleUIPx(52),
+                                   small_font, Fade(GetThemeText(), 0.75f));
                     if(row->description[0] != '\0')
-                        draw_text_font(font, fit_tail(font, row->description, small_font, content_w - ScaleUIPx(24)),
-                                       content_x + ScaleUIPx(12), y + ScaleUIPx(56), small_font,
+                        draw_text_font(font, fit_tail(font, row->description,
+                                                      small_font,
+                                                      content_w - ScaleUIPx(30)),
+                                       content_x + ScaleUIPx(18),
+                                       y + ScaleUIPx(72), small_font,
                                        GetThemeText());
+
                     open = (hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
                            IsUIFocusActivatePressed(focus_id);
                     if(open)
                         open_process_row(app, row);
                     y += card_h + gap;
                 }
+                y += ScaleUIPx(8);
+                if(completed_count > 0) {
+                    int summary_h = ScaleUIPx(58);
+                    int icon_box = ScaleUIPx(34);
+                    int summary_focus = UKU_FOCUS_HISTORY_BACK;
+                    Rectangle summary = {(float)content_x, (float)y,
+                                         (float)content_w, (float)summary_h};
+                    Vector2 mouse = GetMousePosition();
+                    int hovered = CheckCollisionPointRec(mouse, summary);
+                    int focused = RegisterUIFocus(summary_focus, summary);
+                    int summary_clicked = (hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
+                                          IsUIFocusActivatePressed(summary_focus);
+                    char count_text[80];
+                    Texture2D icon_texture = app->icons[UI_ICON_TYPE_TIMELINE];
+
+                    if(summary_clicked) {
+                        app->dashboard_completed_expanded = !app->dashboard_completed_expanded;
+                        UIConsumeRelease();
+                    }
+                    if(hovered)
+                        app->cursor_clickable = 1;
+                    snprintf(count_text, sizeof(count_text), "%d %s",
+                             completed_count, tr(app, "Finished"));
+                    DrawRectangleRounded(summary, 0.05f, 10, GetThemeSurface());
+                    DrawRectangleRoundedLinesEx(summary, 0.05f, 10,
+                                                ScaleUIPx(focused ? 2 : 1),
+                                                focused || hovered
+                                                    ? GetThemeButton()
+                                                    : Fade(GetThemeText(), 0.28f));
+                    DrawRectangleRounded((Rectangle){(float)(content_x + ScaleUIPx(12)),
+                                                     (float)(y + (summary_h - icon_box) / 2),
+                                                     (float)icon_box, (float)icon_box},
+                                         0.18f, 10, Fade(GetThemeButton(), 0.18f));
+                    if(icon_texture.id != 0)
+                        DrawTexturePro(icon_texture,
+                                       (Rectangle){0, 0, (float)icon_texture.width,
+                                                   (float)icon_texture.height},
+                                       (Rectangle){(float)(content_x + ScaleUIPx(19)),
+                                                   (float)(y + (summary_h - icon_box) / 2 + ScaleUIPx(7)),
+                                                   (float)(icon_box - ScaleUIPx(14)),
+                                                   (float)(icon_box - ScaleUIPx(14))},
+                                       (Vector2){0}, 0.0f, WHITE);
+                    draw_text_font(font, tr(app, "Completed Processes"),
+                                   content_x + ScaleUIPx(58), y + ScaleUIPx(10),
+                                   body_font, GetThemeText());
+                    draw_text_font(font, count_text,
+                                   content_x + ScaleUIPx(58), y + ScaleUIPx(33),
+                                   small_font, Fade(GetThemeText(), 0.72f));
+                    draw_centered_text(font,
+                                       app->dashboard_completed_expanded ? "-" : "+",
+                                       content_x + content_w - ScaleUIPx(22),
+                                       GetUIControlTextY("+", y, summary_h, body_font),
+                                       body_font, GetThemeButton());
+                    y += summary_h + ScaleUIPx(10);
+
+                    if(app->dashboard_completed_expanded) {
+                        for(int i = 0; i < app->process_count; i++) {
+                            UkuProcessRow *row = &app->processes[i];
+                            Rectangle card = {(float)content_x, (float)y,
+                                              (float)content_w, (float)card_h};
+                            Vector2 mouse = GetMousePosition();
+                            int focus_id = UKU_FOCUS_DASHBOARD_PROCESS_BASE + i + UKU_MAX_PROCESSES;
+                            int hovered = CheckCollisionPointRec(mouse, card);
+                            int focused = RegisterUIFocus(focus_id, card);
+                            char meta[160];
+                            char created[32];
+                            int open = 0;
+
+                            if(!dashboard_row_visible(app, row))
+                                continue;
+                            if(process_phase(row->created_at, row->proposal_minutes,
+                                             row->voting_minutes, now, NULL) !=
+                               UKU_PROCESS_RESULTS)
+                                continue;
+                            if(y + card_h < viewport_y || y > viewport_y + viewport_h) {
+                                y += card_h + gap;
+                                continue;
+                            }
+
+                            if(hovered)
+                                app->cursor_clickable = 1;
+                            DrawRectangleRounded(card, 0.07f, 10, GetThemeSurface());
+                            DrawRectangleRoundedLinesEx(card, 0.07f, 10,
+                                                        ScaleUIPx(1),
+                                                        focused || hovered
+                                                            ? GetThemeButton()
+                                                            : Fade(GetThemeText(), 0.45f));
+                            draw_text_font(font, fit_tail(font, row->topic, body_font,
+                                                          content_w - ScaleUIPx(24)),
+                                           content_x + ScaleUIPx(12),
+                                           y + ScaleUIPx(9), body_font,
+                                           GetThemeText());
+                            format_created_at(created, sizeof(created), row->created_at);
+                            snprintf(meta, sizeof(meta), "%s | %s | %s",
+                                     tr(app, "Finished"),
+                                     process_type_label(row->type), created);
+                            draw_text_font(font, fit_tail(font, meta, small_font,
+                                                          content_w - ScaleUIPx(24)),
+                                           content_x + ScaleUIPx(12),
+                                           y + ScaleUIPx(33), small_font,
+                                           Fade(GetThemeText(), 0.75f));
+                            if(row->description[0] != '\0')
+                                draw_text_font(font,
+                                               fit_tail(font, row->description,
+                                                        small_font,
+                                                        content_w - ScaleUIPx(24)),
+                                               content_x + ScaleUIPx(12),
+                                               y + ScaleUIPx(56), small_font,
+                                               GetThemeText());
+                            open = (hovered &&
+                                    IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
+                                   IsUIFocusActivatePressed(focus_id);
+                            if(open)
+                                open_process_row(app, row);
+                            y += card_h + gap;
+                        }
+                    }
+                }
             }
         }
-        }
+        end_uku_scroll_page(page, y, &app->dashboard_scroll,
+                            &app->dashboard_max_scroll, ScaleUIPx(24));
     }
-    EndScissorMode();
-
-    content_bottom = y + app->dashboard_scroll + ScaleUIPx(24);
-    content_h = content_bottom - viewport_y;
-    app->dashboard_max_scroll = UKU_MAX(0, content_h - viewport_h);
-    app->dashboard_scroll = clampi(app->dashboard_scroll, 0, app->dashboard_max_scroll);
-    draw_scrollbar(app, view_w - side - ScaleUIPx(8), viewport_y + ScaleUIPx(8),
-                   viewport_h - ScaleUIPx(16), content_h, app->dashboard_max_scroll,
-                   &app->dashboard_scroll, &app->dashboard_drag_scrollbar, &app->dashboard_scroll_drag_offset);
 
     if(IsUIDesktopMode() &&
        draw_icon_button(app, view_w - fab_margin - fab_size,
@@ -6759,31 +6789,18 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
 static void
 draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h)
 {
-    int side = GetUIPageSidePadding();
     int content_x;
     int content_w;
     int title_font = ClampUIPx(18, 18, 22);
     int body_font = ClampUIPx(14, 14, 17);
     int small_font = ClampUIPx(12, 12, 14);
     int top_h = ScaleUIPx(46);
-    int y = top_h + ScaleUIPx(14) - app->create_scroll;
+    int y;
     int back_clicked = 0;
     int previous_clicked = 0;
     int next_clicked = 0;
     Font font = app->font;
     UkuDecision *d = &app->decision;
-    int max_scroll;
-    int content_bottom;
-    int content_h;
-    int viewport_y = top_h;
-    int viewport_h = view_h - viewport_y;
-    int reserve_scrollbar = app->create_scrollbar_visible;
-
-    app->create_scroll = clampi(app->create_scroll - (int)(GetMouseWheelMove() * ScaleUIPx(44)),
-                                0, app->create_max_scroll);
-    GetUICenteredColumn(600, side, &content_x, &content_w);
-    if(reserve_scrollbar)
-        content_w = UKU_MAX(ScaleUIPx(220), GetUIScrollbarContentWidth(content_w, 1));
 
     draw_top_bar(app, text->create_title, 1, UKU_FOCUS_CREATE_BACK, &back_clicked,
                  0, NULL, 0, NULL, 0, NULL, 0, NULL, view_w);
@@ -6792,7 +6809,14 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
         return;
     }
 
-    BeginScissorMode(0, viewport_y, view_w, viewport_h);
+    {
+        UkuScrollPage page = begin_uku_scroll_page(view_w, view_h, top_h, 600,
+                                                   &app->create_scroll,
+                                                   app->create_max_scroll,
+                                                   ScaleUIPx(14));
+        content_x = page.content_x;
+        content_w = page.content_w;
+        y = page.y;
     if(app->create_step == UKU_CREATE_STEP_SETUP) {
         y += ScaleUIPx(8);
         draw_centered_text(font, "Setup Process", content_x + content_w / 2, y,
@@ -7220,17 +7244,10 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
     if(app->process_status[0] != '\0')
         draw_centered_text(font, app->process_status, content_x + content_w / 2,
                            y + ScaleUIPx(34), small_font, Fade(GetThemeText(), 0.75f));
-    EndScissorMode();
-
-    content_bottom = y + app->create_scroll + ScaleUIPx(24);
-    content_h = content_bottom - viewport_y;
-    max_scroll = UKU_MAX(0, content_h - viewport_h);
-    app->create_max_scroll = max_scroll;
-    app->create_scrollbar_visible = max_scroll > 0;
-    app->create_scroll = clampi(app->create_scroll, 0, max_scroll);
-    draw_scrollbar(app, view_w - side - ScaleUIPx(8), viewport_y + ScaleUIPx(8),
-                   viewport_h - ScaleUIPx(16), content_h, max_scroll,
-                   &app->create_scroll, &app->create_scroll_dragging, &app->create_scroll_drag_offset);
+    end_uku_scroll_page(page, y, &app->create_scroll,
+                        &app->create_max_scroll, ScaleUIPx(24));
+    app->create_scrollbar_visible = app->create_max_scroll > 0;
+    }
 }
 
 static int
@@ -7742,19 +7759,16 @@ draw_history_card(UkuApp *app, Font font, const UkuProcessRow *row, int index,
 static void
 draw_history(UkuApp *app, const UkuText *text, int view_w, int view_h)
 {
-    int side = GetUIPageSidePadding();
     int content_x;
     int content_w;
     int top_h = ScaleUIPx(46);
     int title_font = ClampUIPx(17, 17, 21);
     int body_font = ClampUIPx(14, 14, 17);
     int small_font = ClampUIPx(12, 12, 14);
-    int viewport_y = top_h;
-    int viewport_h = view_h - viewport_y;
-    int y = viewport_y + ScaleUIPx(14) - app->history_scroll;
+    int viewport_y;
+    int viewport_h;
+    int y;
     int back_clicked = 0;
-    int content_bottom;
-    int content_h;
     int done_count = 0;
     Font font = app->font;
     sqlite3_int64 now = (sqlite3_int64)time(NULL);
@@ -7763,9 +7777,6 @@ draw_history(UkuApp *app, const UkuText *text, int view_w, int view_h)
         db_load_processes(app);
         app->remote_processes_loaded = 1;
     }
-    app->history_scroll = clampi(app->history_scroll - (int)(GetMouseWheelMove() * ScaleUIPx(44)),
-                                 0, app->history_max_scroll);
-    GetUICenteredColumn(640, side, &content_x, &content_w);
 
     draw_top_bar(app, tr(app, "Done Decisions"), 1, UKU_FOCUS_HISTORY_BACK, &back_clicked,
                  0, NULL, 0, NULL, 0, NULL, 0, NULL, view_w);
@@ -7774,7 +7785,16 @@ draw_history(UkuApp *app, const UkuText *text, int view_w, int view_h)
         ClearUIFocus();
     }
 
-    BeginScissorMode(0, viewport_y, view_w, viewport_h);
+    {
+        UkuScrollPage page = begin_uku_scroll_page(view_w, view_h, top_h, 640,
+                                                   &app->history_scroll,
+                                                   app->history_max_scroll,
+                                                   ScaleUIPx(14));
+        content_x = page.content_x;
+        content_w = page.content_w;
+        viewport_y = page.viewport_y;
+        viewport_h = page.viewport_h;
+        y = page.y;
     draw_text_font(font, tr(app, "Finished Processes"), content_x, y, title_font, GetThemeText());
     y += title_font + ScaleUIPx(12);
 
@@ -7801,16 +7821,9 @@ draw_history(UkuApp *app, const UkuText *text, int view_w, int view_h)
         }
         y = draw_history_card(app, font, row, i, content_x, y, content_w, body_font, small_font);
     }
-    EndScissorMode();
-
-    content_bottom = y + app->history_scroll + ScaleUIPx(24);
-    content_h = content_bottom - viewport_y;
-    app->history_max_scroll = UKU_MAX(0, content_h - viewport_h);
-    app->history_scroll = clampi(app->history_scroll, 0, app->history_max_scroll);
-    draw_scrollbar(app, view_w - side - ScaleUIPx(8), viewport_y + ScaleUIPx(8),
-                   viewport_h - ScaleUIPx(16), content_h, app->history_max_scroll,
-                   &app->history_scroll, &app->history_drag_scrollbar,
-                   &app->history_scroll_drag_offset);
+        end_uku_scroll_page(page, y, &app->history_scroll,
+                            &app->history_max_scroll, ScaleUIPx(24));
+    }
     (void)text;
 }
 
@@ -8131,16 +8144,13 @@ build_results_text(UkuApp *app, char *out, size_t out_size)
 static void
 draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
 {
-    int side = GetUIPageSidePadding();
     int content_x;
     int content_w;
     int top_h = ScaleUIPx(46);
-    int viewport_y = top_h;
-    int viewport_h = view_h - viewport_y;
     int body_font = ClampUIPx(14, 14, 17);
     int small_font = ClampUIPx(12, 12, 14);
     int line_h = body_font + ScaleUIPx(5);
-    int y = viewport_y + ScaleUIPx(14) - app->collect_scroll;
+    int y;
     int back_clicked = 0;
     int copy_clicked = 0;
     int delete_process_clicked = 0;
@@ -8152,8 +8162,6 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     int qr_share_clicked = 0;
     int export_results_clicked = 0;
     int refresh_clicked = 0;
-    int content_bottom;
-    int content_h;
     int is_owner;
     int proposal_read_allowed;
     int proposal_submit_allowed;
@@ -8169,10 +8177,8 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     int voting_total = duration_minutes(d->voting_days, d->voting_hours, d->voting_minutes);
     sqlite3_int64 now = (sqlite3_int64)time(NULL);
     UkuProcessPhase phase;
+    UkuScrollPage page;
 
-    app->collect_scroll = clampi(app->collect_scroll - (int)(GetMouseWheelMove() * ScaleUIPx(44)),
-                                 0, app->collect_max_scroll);
-    GetUICenteredColumn(600, side, &content_x, &content_w);
     {
         /* Refresh the remote detail at most every 5s (or when explicitly
            requested) instead of every frame; each fetch is a blocking HTTP
@@ -8210,7 +8216,13 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
         ClearUIFocus();
     }
 
-    BeginScissorMode(0, viewport_y, view_w, viewport_h);
+    page = begin_uku_scroll_page(view_w, view_h, top_h, 600,
+                                 &app->collect_scroll,
+                                 app->collect_max_scroll,
+                                 ScaleUIPx(14));
+    content_x = page.content_x;
+    content_w = page.content_w;
+    y = page.y;
     draw_text_font(font, d->topic, content_x, y, body_font, GetThemeText());
     y += body_font + ScaleUIPx(12);
     if(d->description[0] != '\0') {
@@ -8403,7 +8415,8 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                 app->remote_processes_loaded = 0;
                 app->screen = UKU_SCREEN_HOME;
                 ClearUIFocus();
-                EndScissorMode();
+                end_uku_scroll_page(page, y, &app->collect_scroll,
+                                    &app->collect_max_scroll, ScaleUIPx(24));
                 return;
             }
         }
@@ -8639,16 +8652,8 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
         y = draw_wrapped_text(font, app->process_status, content_x, y, content_w,
                               small_font, line_h, GetThemeText());
     }
-    EndScissorMode();
-
-    content_bottom = y + app->collect_scroll + ScaleUIPx(24);
-    content_h = content_bottom - viewport_y;
-    app->collect_max_scroll = UKU_MAX(0, content_h - viewport_h);
-    app->collect_scroll = clampi(app->collect_scroll, 0, app->collect_max_scroll);
-    draw_scrollbar(app, view_w - side - ScaleUIPx(8), viewport_y + ScaleUIPx(8),
-                   viewport_h - ScaleUIPx(16), content_h, app->collect_max_scroll,
-                   &app->collect_scroll, &app->collect_drag_scrollbar,
-                   &app->collect_scroll_drag_offset);
+    end_uku_scroll_page(page, y, &app->collect_scroll,
+                        &app->collect_max_scroll, ScaleUIPx(24));
 }
 
 static void
@@ -9070,23 +9075,14 @@ draw_theme_settings(UkuApp *app, const UkuText *text, int view_w, int view_h)
 static void
 draw_manual(UkuApp *app, const UkuText *text, int view_w, int view_h)
 {
-    int side = GetUIPageSidePadding();
     int content_x;
     int content_w;
     int top_h = ScaleUIPx(46);
-    int viewport_y = top_h;
-    int viewport_h = view_h - viewport_y;
     int body_font = ClampUIPx(14, 14, 17);
     int line_h = body_font + ScaleUIPx(5);
-    int y = viewport_y + ScaleUIPx(16) - app->manual_scroll;
+    int y;
     int back_clicked = 0;
-    int content_bottom;
-    int content_h;
     Font font = app->font;
-
-    app->manual_scroll = clampi(app->manual_scroll - (int)(GetMouseWheelMove() * ScaleUIPx(44)),
-                                0, app->manual_max_scroll);
-    GetUICenteredColumn(640, side, &content_x, &content_w);
 
     draw_top_bar(app, text->manual_title, 1, UKU_FOCUS_MANUAL_BACK, &back_clicked,
                  0, NULL, 0, NULL, 0, NULL, 0, NULL, view_w);
@@ -9095,17 +9091,18 @@ draw_manual(UkuApp *app, const UkuText *text, int view_w, int view_h)
         ClearUIFocus();
     }
 
-    BeginScissorMode(0, viewport_y, view_w, viewport_h);
+    {
+        UkuScrollPage page = begin_uku_scroll_page(view_w, view_h, top_h, 640,
+                                                   &app->manual_scroll,
+                                                   app->manual_max_scroll,
+                                                   ScaleUIPx(16));
+        content_x = page.content_x;
+        content_w = page.content_w;
+        y = page.y;
     y = draw_wrapped_text(font, text->manual_body, content_x, y, content_w, body_font, line_h, GetThemeText());
-    EndScissorMode();
-
-    content_bottom = y + app->manual_scroll + ScaleUIPx(24);
-    content_h = content_bottom - viewport_y;
-    app->manual_max_scroll = UKU_MAX(0, content_h - viewport_h);
-    app->manual_scroll = clampi(app->manual_scroll, 0, app->manual_max_scroll);
-    draw_scrollbar(app, view_w - side - ScaleUIPx(8), viewport_y + ScaleUIPx(8),
-                   viewport_h - ScaleUIPx(16), content_h, app->manual_max_scroll,
-                   &app->manual_scroll, &app->manual_drag_scrollbar, &app->manual_scroll_drag_offset);
+        end_uku_scroll_page(page, y, &app->manual_scroll,
+                            &app->manual_max_scroll, ScaleUIPx(24));
+    }
 }
 
 typedef struct UkuFrameContext {
