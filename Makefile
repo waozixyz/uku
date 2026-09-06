@@ -10,6 +10,7 @@ ANDROID_KEY_ALIAS ?= uku-key
 SRC := src/main.c src/qrcodegen.c
 KRYON_DIR := $(if $(wildcard vendor/kryon/mk/common.mk),vendor/kryon,../kryon)
 KRYON_MAKE_DIR := $(KRYON_DIR)/mk/
+KRYON_WITH_SYNC := 1
 # Prefer system libcurl; fall back to the kryon-vendored static build when
 # no pkg-config metadata is installed (e.g. on omega, which has no nix).
 KRYON_USE_SYSTEM_CURL := $(if $(shell pkg-config --atleast-version=7.86.0 libcurl 2>/dev/null && echo y),1,0)
@@ -308,9 +309,12 @@ smoke: $(TARGET)
 no-vendor-edits:
 	scripts/check-no-vendor-edits.sh
 
-test: no-vendor-edits smoke
+clean-text-api-check:
+	python3 $(KRYON_DIR)/scripts/check-clean-text-api.py src
 
-.PHONY: web web-itch itch itch-push site smoke test no-vendor-edits
+test: clean-text-api-check no-vendor-edits smoke
+
+.PHONY: web web-itch itch itch-push site smoke test clean-text-api-check no-vendor-edits
 
 appimage: $(APPIMAGE_TARGET)
 

@@ -5,10 +5,12 @@
 #include "src/app_chrome.h"
 #include "src/dashboard_empty.h"
 #include "qrcodegen.h"
+#include "sync/account.h"
+#include "sync.h"
+#include "sync_crypto.h"
 
 #if defined(PLATFORM_ANDROID)
 #include "android_bridge.h"
-#include "ksync_sync.h"
 #include <unistd.h>
 #endif
 
@@ -887,7 +889,13 @@ static void
 draw_text_font(Font font, const char *text, int x, int y, int font_size, Color color)
 {
     (void)font;
-    Text(text, x, y, font_size, color);
+    Text((TextProps){
+        .bounds = {(float)x, (float)y, 0, 0},
+        .text = text,
+        .font = font_size,
+        .color = color,
+        .wrap = TextWrapNone,
+    });
 }
 
 static void draw_centered_text(Font font, const char *text, int center_x, int y,
@@ -1610,7 +1618,7 @@ sync_server_save(UkuApp *app)
 }
 
 static void
-account_to_key_material(const UkuAccount *account, KsyncAccount *out)
+account_to_key_material(const UkuAccount *account, SyncAccount *out)
 {
     if(out == NULL)
         return;
@@ -1623,7 +1631,7 @@ account_to_key_material(const UkuAccount *account, KsyncAccount *out)
 }
 
 static void
-account_from_key_material(UkuAccount *account, const KsyncAccount *source)
+account_from_key_material(UkuAccount *account, const SyncAccount *source)
 {
     char auth_token[sizeof(account->auth_token)];
     int import_failed;
@@ -1684,25 +1692,25 @@ alias_valid(const char *text)
 static int
 account_validate_import(UkuAccount *account)
 {
-    KsyncAccount ksync_account;
+    SyncAccount sync_account;
 
     if(account == NULL)
         return 0;
-    account_to_key_material(account, &ksync_account);
-    if(!ValidateKsyncAccount(&ksync_account))
+    account_to_key_material(account, &sync_account);
+    if(!ValidateSyncAccount(&sync_account))
         return 0;
-    account_from_key_material(account, &ksync_account);
+    account_from_key_material(account, &sync_account);
     return 1;
 }
 
 static int
 account_parse_key_text(const char *body, UkuAccount *account)
 {
-    KsyncAccount parsed;
+    SyncAccount parsed;
 
     if(body == NULL || account == NULL)
         return 0;
-    if(!ParseKsyncAccountText(body, &parsed))
+    if(!ParseSyncAccountText(body, &parsed))
         return 0;
     memset(account, 0, sizeof(*account));
     account_from_key_material(account, &parsed);
@@ -1712,10 +1720,10 @@ account_parse_key_text(const char *body, UkuAccount *account)
 static int
 account_has_values(const UkuAccount *account)
 {
-    KsyncAccount ksync_account;
+    SyncAccount sync_account;
 
-    account_to_key_material(account, &ksync_account);
-    return ValidateKsyncAccount(&ksync_account);
+    account_to_key_material(account, &sync_account);
+    return ValidateSyncAccount(&sync_account);
 }
 
 static int
@@ -1829,14 +1837,14 @@ account_import_file(UkuApp *app, const char *path)
 static int
 account_export_file(UkuApp *app, const char *path)
 {
-    char body[KSYNC_ACCOUNT_EXPORT_TEXT_SIZE];
-    KsyncAccount ksync_account;
+    char body[SYNC_ACCOUNT_EXPORT_TEXT_SIZE];
+    SyncAccount sync_account;
     int ok;
 
     if(app == NULL || !account_has_values(&app->account) || path == NULL || path[0] == '\0')
         return 0;
-    account_to_key_material(&app->account, &ksync_account);
-    if(!ExportKsyncAccountText(&ksync_account, body, sizeof(body)))
+    account_to_key_material(&app->account, &sync_account);
+    if(!ExportSyncAccountText(&sync_account, body, sizeof(body)))
         return 0;
     ok = SaveFileData(path, body, (int)strlen(body));
     copy_text(app->account_status, sizeof(app->account_status),
@@ -1916,16 +1924,16 @@ account_start_export_dialog(UkuApp *app)
 static int
 account_create(UkuApp *app)
 {
-    KsyncAccount ksync_account;
+    SyncAccount sync_account;
     UkuAccount generated;
 
     memset(&generated, 0, sizeof(generated));
-    if(!CreateKsyncAccount(&ksync_account)) {
+    if(!CreateSyncAccount(&sync_account)) {
         copy_text(app->account_status, sizeof(app->account_status),
                   "Account creation failed.", strlen("Account creation failed."));
         return 0;
     }
-    account_from_key_material(&generated, &ksync_account);
+    account_from_key_material(&generated, &sync_account);
     if(!account_save(app, &generated)) {
         copy_text(app->account_status, sizeof(app->account_status),
                   "Account creation failed.", strlen("Account creation failed."));
@@ -2081,7 +2089,7 @@ guest_identity_load(UkuApp *app, const char *process_id)
 static int
 guest_identity_ensure(UkuApp *app)
 {
-    KsyncAccount ksync_account;
+    SyncAccount sync_account;
 
     if(app == NULL)
         return 0;
@@ -2093,9 +2101,9 @@ guest_identity_ensure(UkuApp *app)
     guest_identity_load(app, app->decision.id);
     if(app->guest.loaded)
         return 1;
-    if(!CreateKsyncAccount(&ksync_account))
+    if(!CreateSyncAccount(&sync_account))
         return 0;
-    account_from_key_material(&app->guest, &ksync_account);
+    account_from_key_material(&app->guest, &sync_account);
     app->guest.loaded = app->guest.public_id[0] != '\0';
     guest_identity_save(app);
     return app->guest.loaded;
@@ -2227,7 +2235,7 @@ static int
 account_sign_hex(UkuApp *app, const uint8_t *message, size_t message_len,
                  char *out_signature_hex, size_t out_size)
 {
-    KsyncAccount ksync_account;
+    SyncAccount sync_account;
     UkuAccount *identity;
 
     if(app == NULL)
@@ -2235,8 +2243,8 @@ account_sign_hex(UkuApp *app, const uint8_t *message, size_t message_len,
     identity = request_identity(app);
     if(!identity->loaded)
         return 0;
-    account_to_key_material(identity, &ksync_account);
-    return SignKsyncAccountHex(&ksync_account, message, message_len, out_signature_hex,
+    account_to_key_material(identity, &sync_account);
+    return SignSyncAccountHex(&sync_account, message, message_len, out_signature_hex,
                                        out_size);
 }
 
@@ -3003,7 +3011,7 @@ canonical_message_hex(const char *context, const char *nonce_hex, const char *me
 {
     char digest_hex[65];
 
-    KsyncSha256Hex((const uint8_t *)body, strlen(body), digest_hex);
+    SyncCryptoSha256Hex((const uint8_t *)body, strlen(body), digest_hex);
     snprintf(out, out_size, "%s\n%s\n%s\n%s\n%s\n", context, method, path,
              digest_hex, nonce_hex);
 }
@@ -3013,7 +3021,7 @@ static int
 http_request(const char *method, const char *url, UkuHttpHeaders *headers,
                   const char *body, long *status_out, UkuHttpBuffer *response)
 {
-    KsyncSyncBuffer sync_response = {0};
+    SyncBuffer sync_response = {0};
     long status = 0;
     int ok;
 
@@ -3022,7 +3030,7 @@ http_request(const char *method, const char *url, UkuHttpHeaders *headers,
         response->len = 0;
         response->cap = 0;
     }
-    ok = KsyncDefaultHttpRequest(
+    ok = DefaultSyncHttpRequest(
         method, url, body != NULL ? body : "",
         headers != NULL ? headers->items : NULL,
         headers != NULL ? headers->count : 0,
@@ -3031,7 +3039,7 @@ http_request(const char *method, const char *url, UkuHttpHeaders *headers,
         *status_out = status;
     if(ok && response != NULL && sync_response.data != NULL)
         ok = http_buffer_append(response, sync_response.data, sync_response.len);
-    FreeKsyncSyncBuffer(&sync_response);
+    FreeSyncBuffer(&sync_response);
     return ok;
 }
 #elif !defined(PLATFORM_WEB)
@@ -5576,11 +5584,24 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
                 app->active_field = UKU_FIELD_JOIN_PROCESS;
             else if(app->active_field == UKU_FIELD_JOIN_PROCESS)
                 app->active_field = UKU_FIELD_NONE;
-            if(app->join_process_input[0] == '\0' && !*focused)
-                Text(tr(app, "Search or paste link"), panel_x + ScaleUIPx(21),
-                     GetUIControlTextY("Search or paste link", row_y, row_h,
-                                       ClampUIPx(12, 12, 14)),
-                     ClampUIPx(12, 12, 14), Fade(GetThemeText(), 0.55f));
+            if(app->join_process_input[0] == '\0' && !*focused) {
+                int placeholder_font = ClampUIPx(12, 12, 14);
+                int placeholder_y = GetUIControlTextY(
+                    "Search or paste link", row_y, row_h, placeholder_font);
+
+                Text((TextProps){
+                    .bounds = {
+                        (float)(panel_x + ScaleUIPx(21)),
+                        (float)placeholder_y,
+                        0,
+                        0,
+                    },
+                    .text = tr(app, "Search or paste link"),
+                    .font = placeholder_font,
+                    .color = Fade(GetThemeText(), 0.55f),
+                    .wrap = TextWrapNone,
+                });
+            }
             if(join_clicked != NULL &&
                draw_icon_button(app, panel_x + panel_w - ScaleUIPx(12) - row_h,
                                 row_y + (row_h - icon) / 2, icon,
@@ -5695,11 +5716,24 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
             app->active_field = UKU_FIELD_JOIN_PROCESS;
         else if(app->active_field == UKU_FIELD_JOIN_PROCESS)
             app->active_field = UKU_FIELD_NONE;
-        if(app->join_process_input[0] == '\0' && !*focused)
-            Text(tr(app, "Search or paste link"), search_x + ScaleUIPx(9),
-                       GetUIControlTextY("Search or paste link", field_y, field_h,
-                                         ClampUIPx(12, 12, 14)),
-                       ClampUIPx(12, 12, 14), Fade(GetThemeText(), 0.55f));
+        if(app->join_process_input[0] == '\0' && !*focused) {
+            int placeholder_font = ClampUIPx(12, 12, 14);
+            int placeholder_y = GetUIControlTextY(
+                "Search or paste link", field_y, field_h, placeholder_font);
+
+            Text((TextProps){
+                .bounds = {
+                    (float)(search_x + ScaleUIPx(9)),
+                    (float)placeholder_y,
+                    0,
+                    0,
+                },
+                .text = tr(app, "Search or paste link"),
+                .font = placeholder_font,
+                .color = Fade(GetThemeText(), 0.55f),
+                .wrap = TextWrapNone,
+            });
+        }
         button_x = search_x + search_w + gap;
     }
 
@@ -5842,9 +5876,18 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
         app->active_field = field;
     else if(app->active_field == field)
         app->active_field = UKU_FIELD_NONE;
-    if(h <= ScaleUIPx(48) && buffer[0] == '\0' && !*focused)
-        Text(placeholder, x + pad, GetUIControlTextY(placeholder, box_y, h, input_font),
-                   input_font, DarkenUIColor(GetThemeText(), 40));
+    if(h <= ScaleUIPx(48) && buffer[0] == '\0' && !*focused) {
+        int placeholder_y = GetUIControlTextY(
+            placeholder, box_y, h, input_font);
+
+        Text((TextProps){
+            .bounds = {(float)(x + pad), (float)placeholder_y, 0, 0},
+            .text = placeholder,
+            .font = input_font,
+            .color = DarkenUIColor(GetThemeText(), 40),
+            .wrap = TextWrapNone,
+        });
+    }
     return box_y + box_h + ScaleUIPx(10);
 }
 
@@ -8724,7 +8767,13 @@ draw_account_setup_modal(UkuApp *app, const UkuText *text, int view_w, int view_
     }
 
     y = frame.content_y - ScaleUIPx(18);
-    Text("Set up account", frame.content_x, y, ClampUIPx(14, 14, 17), GetThemeText());
+    Text((TextProps){
+        .bounds = {(float)frame.content_x, (float)y, 0, 0},
+        .text = "Set up account",
+        .font = ClampUIPx(14, 14, 17),
+        .color = GetThemeText(),
+        .wrap = TextWrapNone,
+    });
     y += ScaleUIPx(30);
 
     pfp = app->account_pfp_icon > UI_ICON_TYPE_NONE &&
@@ -8949,7 +8998,7 @@ draw_account(UkuApp *app, const UkuText *text, int view_w, int view_h)
             account_start_export_dialog(app);
         y += ScaleUIPx(44);
     } else {
-        if(IsKsyncAccountAvailable()) {
+        if(IsSyncAccountAvailable()) {
             y = draw_wrapped_text(font, "Create an account or import an account key to start processes, add proposals, or vote.", content_x, y, content_w, body_font, line_h, GetThemeText());
             y += ScaleUIPx(12);
             draw_compact_button(app, font, content_x, y, content_w, ScaleUIPx(190), ScaleUIPx(34),
