@@ -1526,7 +1526,7 @@ app_apply_theme(UkuApp *app)
     app->theme_source = clampi(app->theme_source, THEME_SOURCE_APP, THEME_SOURCE_SYSTEM);
     app->theme_mode = clampi(app->theme_mode, THEME_MODE_SYSTEM, THEME_MODE_DARK);
     app->theme_id = clampi(app->theme_id, 0, THEME_COUNT - 1);
-    app->theme_style = clampi(app->theme_style, THEME_STYLE_SYSTEM, THEME_STYLE_MATERIAL);
+    app->theme_style = clampi(app->theme_style, THEME_STYLE_SYSTEM, THEME_STYLE_DEFAULT);
     SetThemeSource((ThemeSource)app->theme_source);
     SetThemeMode((ThemeMode)app->theme_mode);
     SetThemeStyle((ThemeStyle)app->theme_style);
@@ -5287,55 +5287,6 @@ fit_tail(Font font, const char *text, int font_size, int w)
     return p;
 }
 
-static void
-draw_button(UkuApp *app, Font font, int x, int y, int w, int h, const char *label, int primary, int focus_id, int *clicked)
-{
-    int max_h = ScaleUIPx(24);
-    Rectangle bounds = {(float)x, (float)y, (float)w, (float)h};
-    int font_size;
-    int natural_w;
-
-    (void)app;
-    (void)font;
-    *clicked = 0;
-    if(h > max_h)
-        h = max_h;
-    bounds.height = (float)h;
-    font_size = ClampUIPx(10, 10, 12);
-    natural_w = TextWidth(label != NULL ? label : "", font_size) + ScaleUIPx(22);
-    if(natural_w < ScaleUIPx(44))
-        natural_w = ScaleUIPx(44);
-    if(natural_w < w)
-        bounds.width = (float)natural_w;
-    if(StyledButton((int)bounds.x, (int)bounds.y, (int)bounds.width,
-                    (int)bounds.height, label,
-                    primary ? ButtonStylePrimary : ButtonStyleSecondary,
-                    0, NULL))
-        *clicked = 1;
-    (void)focus_id;
-}
-
-static void
-draw_compact_button(UkuApp *app, Font font, int x, int y, int w, int max_w, int h,
-                    const char *label, int primary, int focus_id, int *clicked)
-{
-    int button_w = UKU_MIN(w, max_w);
-
-    draw_button(app, font, x, y, button_w, h, label, primary, focus_id, clicked);
-}
-
-static void
-draw_fixed_button(UkuApp *app, int x, int y, int w, int h, const char *label,
-                  int primary, int focus_id, int *clicked)
-{
-    (void)app;
-    (void)focus_id;
-    *clicked = 0;
-    if(StyledButton(x, y, w, h, label,
-                    primary ? ButtonStylePrimary : ButtonStyleSecondary,
-                    0, NULL))
-        *clicked = 1;
-}
 
 static int
 draw_segmented_index(int x, int y, int w, int id, const char **labels,
@@ -5361,10 +5312,10 @@ draw_segmented_index(int x, int y, int w, int id, const char **labels,
     control.options = options;
     control.option_count = option_count;
     control.selected_index = selected_index;
-    control.gap = ScaleUIPx(6);
-    control.height = ScaleUIPx(30);
-    control.min_item_width = ScaleUIPx(92);
-    control.max_item_width = ScaleUIPx(220);
+    control.gap = Scale(6);
+    control.height = Scale(30);
+    control.min_item_width = Scale(92);
+    control.max_item_width = Scale(220);
     control.wrap = 1;
     result = SegmentedControl(control);
     if(changed != NULL)
@@ -5407,19 +5358,19 @@ draw_readonly_field(UkuApp *app, Font font, const char *text, int x, int y, int 
     Rectangle box = {(float)x, (float)y, (float)w, (float)h};
     int hover = CheckCollisionPointRec(mouse, box);
     int focused = RegisterUIFocus(focus_id, box);
-    int pad = ScaleUIPx(12);
+    int pad = Scale(12);
     int text_font = ClampUIPx(13, 13, 16);
 
     if(hover)
         app->cursor_clickable = 1;
     DrawRectangleRounded(box, 0.08f, 10, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(box, 0.08f, 10, ScaleUIPx(focused ? 2 : 1),
+    DrawRectangleRoundedLinesEx(box, 0.08f, 10, Scale(focused ? 2 : 1),
                                 focused ? GetThemeButton() : GetThemeText());
     draw_text_font(font, fit_tail(font, text, text_font, w - pad * 2),
                    x + pad, GetUIControlTextY(text, y, h, text_font),
                    text_font, GetThemeText());
     *clicked = (hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) || IsUIFocusActivatePressed(focus_id);
-    return y + h + ScaleUIPx(16);
+    return y + h + Scale(16);
 }
 
 static void
@@ -5433,69 +5384,6 @@ load_icons_once(UkuApp *app)
     }
 }
 
-static int
-draw_icon_button(UkuApp *app, int x, int y, int size, UIIconType icon, int focus_id)
-{
-    (void)focus_id;
-
-    Rectangle bounds = {(float)x, (float)y, (float)size, (float)size};
-    Vector2 mouse = GetMousePosition();
-    int hover = CheckCollisionPointRec(mouse, bounds);
-
-    Color bg = GetThemeButton();
-    Color hover_bg = GetThemeButtonHover();
-
-    if(hover) {
-        app->cursor_clickable = 1;
-        DrawRectangleRounded(bounds, 0.22f, 12, hover_bg);
-        if(IsMouseButtonReleased(MOUSE_LEFT_BUTTON))
-            return 1;
-    } else {
-        DrawRectangleRounded(bounds, 0.22f, 12, bg);
-    }
-
-    Texture2D icon_texture = app->icons[icon];
-    Rectangle icon_rect = {x + size/2 - icon_texture.width/2, y + size/2 - icon_texture.height/2,
-                          (float)icon_texture.width, (float)icon_texture.height};
-    DrawTexturePro(icon_texture, (Rectangle){0, 0, icon_texture.width, icon_texture.height},
-                  icon_rect, (Vector2){0}, 0.0f, WHITE);
-
-    return 0;
-}
-
-static int
-draw_pfp_account_button(UkuApp *app, int x, int y, int size, int focus_id)
-{
-    Rectangle bounds = {(float)x, (float)y, (float)size, (float)size};
-    Vector2 mouse = GetMousePosition();
-    int hover = CheckCollisionPointRec(mouse, bounds);
-    int focused = RegisterUIFocus(focus_id, bounds);
-    int clicked;
-    UIIconType icon_type = app != NULL && app->account.loaded
-                               ? app->account_pfp_icon
-                               : UI_ICON_TYPE_PROFILE;
-    Texture2D icon = app != NULL ? app->icons[icon_type] : (Texture2D){0};
-    int inset = app != NULL && app->account.loaded ? ScaleUIPx(3) : ScaleUIPx(5);
-
-    if(hover)
-        app->cursor_clickable = 1;
-    DrawCircle(x + size / 2, y + size / 2, size / 2,
-               hover || focused ? GetThemeButtonHover() : GetThemeSurface());
-    DrawCircleLines(x + size / 2, y + size / 2, size / 2,
-                    focused ? GetThemeButton() : GetThemeText());
-    if(icon.id != 0) {
-        DrawTexturePro(icon, (Rectangle){0, 0, (float)icon.width, (float)icon.height},
-                       (Rectangle){(float)(x + inset), (float)(y + inset),
-                                   (float)(size - inset * 2), (float)(size - inset * 2)},
-                       (Vector2){0}, 0.0f, WHITE);
-    }
-    clicked = (hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
-              IsUIFocusActivatePressed(focus_id);
-    if(clicked && hover)
-        UIConsumeRelease();
-    return clicked;
-}
-
 
 static void
 draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
@@ -5503,10 +5391,10 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
                        int *settings_clicked, int *account_clicked,
                        int *history_clicked, int *scan_clicked)
 {
-    int h = !IsUIDesktopMode() ? ScaleUIPx(42) : ScaleUIPx(46);
-    int pad = ScaleUIPx(10);
-    int icon = !IsUIDesktopMode() ? ScaleUIPx(22) : ScaleUIPx(24);
-    int gap = ScaleUIPx(8);
+    int h = !IsUIDesktopMode() ? Scale(42) : Scale(46);
+    int pad = Scale(10);
+    int icon = !IsUIDesktopMode() ? Scale(22) : Scale(24);
+    int gap = Scale(8);
     int brand_w = 0;
     int brand_font = ClampUIPx(15, 15, 18);
     int button_x = view_w - pad - icon;
@@ -5515,7 +5403,7 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
     int search_available;
     int search_x;
     int search_w;
-    int field_h = ScaleUIPx(30);
+    int field_h = Scale(30);
     int field_y = (h - field_h) / 2;
     int *focused = &app->field_focused[UKU_FIELD_JOIN_PROCESS];
     int mobile = !IsUIDesktopMode();
@@ -5530,29 +5418,38 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
         int plus_x = view_w - pad - icon * 2 - gap;
         int menu_x = view_w - pad - icon;
 
-        if(draw_icon_button(app, pad, (h - icon) / 2, icon,
-                            UI_ICON_TYPE_LINK, UKU_FOCUS_JOIN_PROCESS_OPEN))
+        if(IconButton((IconButtonProps){
+                .bounds = {(float)(pad), (float)((h - icon) / 2), (float)(icon), (float)(icon)},
+                .icon = app->icons[UI_ICON_TYPE_LINK],
+                .focus_id = UKU_FOCUS_JOIN_PROCESS_OPEN,
+            }))
             app->dashboard_menu_open = !app->dashboard_menu_open;
         draw_text_font(app->font, text->home_title, title_x,
                        GetUIControlTextY(text->home_title, 0, h, title_font),
                        title_font, GetThemeText());
         if(new_clicked != NULL &&
-           draw_icon_button(app, plus_x, (h - icon) / 2, icon,
-                            UI_ICON_TYPE_PLUS, UKU_FOCUS_DASHBOARD_NEW))
+           IconButton((IconButtonProps){
+                   .bounds = {(float)(plus_x), (float)((h - icon) / 2), (float)(icon), (float)(icon)},
+                   .icon = app->icons[UI_ICON_TYPE_PLUS],
+                   .focus_id = UKU_FOCUS_DASHBOARD_NEW,
+               }))
             *new_clicked = 1;
-        if(draw_icon_button(app, menu_x, (h - icon) / 2, icon,
-                            UI_ICON_TYPE_STACK, UKU_FOCUS_DASHBOARD_MENU))
+        if(IconButton((IconButtonProps){
+                .bounds = {(float)(menu_x), (float)((h - icon) / 2), (float)(icon), (float)(icon)},
+                .icon = app->icons[UI_ICON_TYPE_STACK],
+                .focus_id = UKU_FOCUS_DASHBOARD_MENU,
+            }))
             app->dashboard_menu_open = !app->dashboard_menu_open;
 
         if(app->dashboard_menu_open) {
             int panel_x = pad;
-            int panel_y = h + ScaleUIPx(8);
+            int panel_y = h + Scale(8);
             int panel_w = view_w - pad * 2;
-            int panel_h = ScaleUIPx(196);
-            int row_y = panel_y + ScaleUIPx(12);
-            int row_h = ScaleUIPx(30);
-            int action_gap = ScaleUIPx(8);
-            int action_w = (panel_w - ScaleUIPx(24) - action_gap) / 2;
+            int panel_h = Scale(196);
+            int row_y = panel_y + Scale(12);
+            int row_h = Scale(30);
+            int action_gap = Scale(8);
+            int action_w = (panel_w - Scale(24) - action_gap) / 2;
             int clicked = 0;
 
             DrawRectangleRounded((Rectangle){(float)panel_x, (float)panel_y,
@@ -5560,10 +5457,10 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
                                  0.04f, 10, GetThemeSurface());
             DrawRectangleRoundedLinesEx((Rectangle){(float)panel_x, (float)panel_y,
                                                     (float)panel_w, (float)panel_h},
-                                        0.04f, 10, ScaleUIPx(1), GetThemeButton());
+                                        0.04f, 10, Scale(1), GetThemeButton());
             TextField((TextFieldProps){
-                .bounds = {(float)(panel_x + ScaleUIPx(12)), (float)row_y,
-                           (float)(panel_w - ScaleUIPx(24) - row_h - action_gap), (float)row_h},
+                .bounds = {(float)(panel_x + Scale(12)), (float)row_y,
+                           (float)(panel_w - Scale(24) - row_h - action_gap), (float)row_h},
                 .text = app->join_process_input,
                 .text_size = sizeof(app->join_process_input),
                 .cursor_position = &app->field_cursor[UKU_FIELD_JOIN_PROCESS],
@@ -5577,7 +5474,7 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
                     .text = GetThemeText(),
                     .cursor = GetThemeButton(),
                     .radius = 0.08f,
-                    .padding_x = ScaleUIPx(9)
+                    .padding_x = Scale(9)
                 }
             });
             if(*focused)
@@ -5591,7 +5488,7 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
 
                 Text((TextProps){
                     .bounds = {
-                        (float)(panel_x + ScaleUIPx(21)),
+                        (float)(panel_x + Scale(21)),
                         (float)placeholder_y,
                         0,
                         0,
@@ -5603,51 +5500,77 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
                 });
             }
             if(join_clicked != NULL &&
-               draw_icon_button(app, panel_x + panel_w - ScaleUIPx(12) - row_h,
-                                row_y + (row_h - icon) / 2, icon,
-                                UI_ICON_TYPE_LINK, UKU_FOCUS_JOIN_PROCESS_OPEN + 300))
+               IconButton((IconButtonProps){
+                       .bounds = {(float)(panel_x + panel_w - Scale(12) - row_h), (float)(row_y + (row_h - icon) / 2), (float)(icon), (float)(icon)},
+                       .icon = app->icons[UI_ICON_TYPE_LINK],
+                       .focus_id = UKU_FOCUS_JOIN_PROCESS_OPEN + 300,
+                   }))
                 *join_clicked = 1;
 
-            row_y += row_h + ScaleUIPx(12);
-            draw_fixed_button(app, panel_x + ScaleUIPx(12), row_y,
-                              action_w, row_h, tr(app, "Manual"), 0,
-                              UKU_FOCUS_DASHBOARD_MANUAL, &clicked);
+            row_y += row_h + Scale(12);
+            if(Button((ButtonProps){
+                    .bounds = {(float)(panel_x + Scale(12)), (float)(row_y), (float)(action_w), (float)(row_h)},
+                    .label = tr(app, "Manual"),
+                    .id = UKU_FOCUS_DASHBOARD_MANUAL,
+                    .emphasis = ButtonEmphasisSoft,
+                }))
+                clicked = 1;
+
             if(clicked) {
                 app->screen = UKU_SCREEN_MANUAL;
                 app->dashboard_menu_open = 0;
                 ClearUIFocus();
             }
             clicked = 0;
-            draw_fixed_button(app, panel_x + ScaleUIPx(12) + action_w + action_gap, row_y,
-                              action_w, row_h, tr(app, "Done Decisions"), 0,
-                              UKU_FOCUS_HISTORY_BACK, &clicked);
+            if(Button((ButtonProps){
+                    .bounds = {(float)(panel_x + Scale(12) + action_w + action_gap), (float)(row_y), (float)(action_w), (float)(row_h)},
+                    .label = tr(app, "Done Decisions"),
+                    .id = UKU_FOCUS_HISTORY_BACK,
+                    .emphasis = ButtonEmphasisSoft,
+                }))
+                clicked = 1;
+
             if(clicked && history_clicked != NULL) {
                 *history_clicked = 1;
                 app->dashboard_menu_open = 0;
             }
-            row_y += row_h + ScaleUIPx(10);
+            row_y += row_h + Scale(10);
             clicked = 0;
-            draw_fixed_button(app, panel_x + ScaleUIPx(12), row_y,
-                              action_w, row_h, tr(app, "Theme"), 0,
-                              UKU_FOCUS_SETTINGS, &clicked);
+            if(Button((ButtonProps){
+                    .bounds = {(float)(panel_x + Scale(12)), (float)(row_y), (float)(action_w), (float)(row_h)},
+                    .label = tr(app, "Theme"),
+                    .id = UKU_FOCUS_SETTINGS,
+                    .emphasis = ButtonEmphasisSoft,
+                }))
+                clicked = 1;
+
             if(clicked && settings_clicked != NULL) {
                 *settings_clicked = 1;
                 app->dashboard_menu_open = 0;
             }
             clicked = 0;
-            draw_fixed_button(app, panel_x + ScaleUIPx(12) + action_w + action_gap, row_y,
-                              action_w, row_h, tr(app, "Account"), 0,
-                              UKU_FOCUS_ACCOUNT_ID + 300, &clicked);
+            if(Button((ButtonProps){
+                    .bounds = {(float)(panel_x + Scale(12) + action_w + action_gap), (float)(row_y), (float)(action_w), (float)(row_h)},
+                    .label = tr(app, "Account"),
+                    .id = UKU_FOCUS_ACCOUNT_ID + 300,
+                    .emphasis = ButtonEmphasisSoft,
+                }))
+                clicked = 1;
+
             if(clicked && account_clicked != NULL) {
                 *account_clicked = 1;
                 app->dashboard_menu_open = 0;
             }
-            row_y += row_h + ScaleUIPx(10);
+            row_y += row_h + Scale(10);
             clicked = 0;
-            draw_fixed_button(app, panel_x + ScaleUIPx(12), row_y,
-                              panel_w - ScaleUIPx(24), row_h,
-                              tr(app, "Scan QR code"), 0,
-                              UKU_FOCUS_QR_SCAN, &clicked);
+            if(Button((ButtonProps){
+                    .bounds = {(float)(panel_x + Scale(12)), (float)(row_y), (float)(panel_w - Scale(24)), (float)(row_h)},
+                    .label = tr(app, "Scan QR code"),
+                    .id = UKU_FOCUS_QR_SCAN,
+                    .emphasis = ButtonEmphasisSoft,
+                }))
+                clicked = 1;
+
             if(clicked && scan_clicked != NULL) {
                 *scan_clicked = 1;
                 app->dashboard_menu_open = 0;
@@ -5658,26 +5581,40 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
 
 
     if(account_clicked != NULL) {
-        if(draw_pfp_account_button(app, button_x, ScaleUIPx(8), icon,
-                                   UKU_FOCUS_ACCOUNT_ID))
+        if(Button((ButtonProps){
+                .bounds = {(float)(button_x), (float)(Scale(8)), (float)(icon), (float)(icon)},
+                .icon = app->account.loaded ? app->icons[app->account_pfp_icon] : app->icons[UI_ICON_TYPE_PROFILE],
+                .icon_only = 1,
+                .circle = 1,
+                .id = UKU_FOCUS_ACCOUNT_ID,
+            }))
             *account_clicked = 1;
         button_x -= icon + gap;
     }
     if(settings_clicked != NULL) {
-        if(draw_icon_button(app, button_x, ScaleUIPx(8), icon,
-                            UI_ICON_TYPE_GEAR, UKU_FOCUS_SETTINGS))
+        if(IconButton((IconButtonProps){
+                .bounds = {(float)(button_x), (float)(Scale(8)), (float)(icon), (float)(icon)},
+                .icon = app->icons[UI_ICON_TYPE_GEAR],
+                .focus_id = UKU_FOCUS_SETTINGS,
+            }))
             *settings_clicked = 1;
         button_x -= icon + gap;
     }
     if(history_clicked != NULL) {
-        if(draw_icon_button(app, button_x, ScaleUIPx(8), icon,
-                            UI_ICON_TYPE_TIMELINE, UKU_FOCUS_HISTORY_BACK))
+        if(IconButton((IconButtonProps){
+                .bounds = {(float)(button_x), (float)(Scale(8)), (float)(icon), (float)(icon)},
+                .icon = app->icons[UI_ICON_TYPE_TIMELINE],
+                .focus_id = UKU_FOCUS_HISTORY_BACK,
+            }))
             *history_clicked = 1;
         button_x -= icon + gap;
     }
     if(new_clicked != NULL) {
-        if(draw_icon_button(app, button_x, ScaleUIPx(8), icon,
-                            UI_ICON_TYPE_PLUS, UKU_FOCUS_DASHBOARD_NEW))
+        if(IconButton((IconButtonProps){
+                .bounds = {(float)(button_x), (float)(Scale(8)), (float)(icon), (float)(icon)},
+                .icon = app->icons[UI_ICON_TYPE_PLUS],
+                .focus_id = UKU_FOCUS_DASHBOARD_NEW,
+            }))
             *new_clicked = 1;
         button_x -= icon + gap;
     }
@@ -5688,11 +5625,11 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
                    pad, GetUIControlTextY(text->home_title, 0, h, brand_font),
                    brand_font, GetThemeText());
 
-    search_left = pad + brand_w + ScaleUIPx(22);
+    search_left = pad + brand_w + Scale(22);
     search_right = button_x - gap;
     search_available = search_right - search_left;
-    search_w = UKU_MIN(ScaleUIPx(420), search_available - icon - gap);
-    if(search_w >= ScaleUIPx(120)) {
+    search_w = UKU_MIN(Scale(420), search_available - icon - gap);
+    if(search_w >= Scale(120)) {
         search_x = search_left;
         TextField((TextFieldProps){
             .bounds = {(float)search_x, (float)field_y, (float)search_w, (float)field_h},
@@ -5709,7 +5646,7 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
                 .text = GetThemeText(),
                 .cursor = GetThemeButton(),
                 .radius = 0.08f,
-                .padding_x = ScaleUIPx(9)
+                .padding_x = Scale(9)
             }
         });
         if(*focused)
@@ -5723,7 +5660,7 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
 
             Text((TextProps){
                 .bounds = {
-                    (float)(search_x + ScaleUIPx(9)),
+                    (float)(search_x + Scale(9)),
                     (float)placeholder_y,
                     0,
                     0,
@@ -5738,8 +5675,11 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
     }
 
     if(join_clicked != NULL) {
-        if(draw_icon_button(app, button_x, ScaleUIPx(8), icon,
-                            UI_ICON_TYPE_LINK, UKU_FOCUS_JOIN_PROCESS_OPEN))
+        if(IconButton((IconButtonProps){
+                .bounds = {(float)(button_x), (float)(Scale(8)), (float)(icon), (float)(icon)},
+                .icon = app->icons[UI_ICON_TYPE_LINK],
+                .focus_id = UKU_FOCUS_JOIN_PROCESS_OPEN,
+            }))
             *join_clicked = 1;
     }
 }
@@ -5749,51 +5689,68 @@ draw_top_bar(UkuApp *app, const char *title, int show_back, int back_focus_id, i
              int show_manual, int *manual_clicked, int show_settings, int *settings_clicked,
              int show_account, int *account_clicked, int show_close, int *close_clicked, int view_w)
 {
-    int h = ScaleUIPx(46);
+    int h = Scale(46);
     int font_size = ClampUIPx(15, 15, 18);
-    int x = ScaleUIPx(14);
+    int x = Scale(14);
 
     UkuTopBarFrame(view_w, h);
 
     if(show_back) {
-        int clicked = draw_icon_button(app, x, ScaleUIPx(8), ScaleUIPx(24),
-                                       UI_ICON_TYPE_RETURN, back_focus_id);
+        int clicked = IconButton((IconButtonProps){
+                .bounds = {(float)(x), (float)(Scale(8)), (float)(Scale(24)), (float)(Scale(24))},
+                .icon = app->icons[UI_ICON_TYPE_RETURN],
+                .focus_id = back_focus_id,
+            });
         if(back_clicked != NULL && clicked)
             *back_clicked = 1;
-        x += ScaleUIPx(32);
+        x += Scale(32);
     }
 
     if(show_back)
         draw_text_font(app->font, title, x, GetUIControlTextY(title, 0, h, font_size), font_size, GetThemeText());
 
-    int button_x = view_w - ScaleUIPx(38);
+    int button_x = view_w - Scale(38);
     if(show_account && account_clicked != NULL) {
-        int clicked = draw_pfp_account_button(app, button_x, ScaleUIPx(8), ScaleUIPx(24),
-                                              UKU_FOCUS_ACCOUNT_ID);
+        int clicked = Button((ButtonProps){
+                .bounds = {(float)(button_x), (float)(Scale(8)), (float)(Scale(24)), (float)(Scale(24))},
+                .icon = app->account.loaded ? app->icons[app->account_pfp_icon] : app->icons[UI_ICON_TYPE_PROFILE],
+                .icon_only = 1,
+                .circle = 1,
+                .id = UKU_FOCUS_ACCOUNT_ID,
+            });
         if(clicked)
             *account_clicked = 1;
-        button_x -= ScaleUIPx(32);
+        button_x -= Scale(32);
     }
 
     if(show_settings && settings_clicked != NULL) {
-        int clicked = draw_icon_button(app, button_x, ScaleUIPx(8), ScaleUIPx(24),
-                                       UI_ICON_TYPE_GEAR, UKU_FOCUS_SETTINGS);
+        int clicked = IconButton((IconButtonProps){
+                .bounds = {(float)(button_x), (float)(Scale(8)), (float)(Scale(24)), (float)(Scale(24))},
+                .icon = app->icons[UI_ICON_TYPE_GEAR],
+                .focus_id = UKU_FOCUS_SETTINGS,
+            });
         if(clicked)
             *settings_clicked = 1;
-        button_x -= ScaleUIPx(32);
+        button_x -= Scale(32);
     }
 
     if(show_manual && manual_clicked != NULL) {
-        int clicked = draw_icon_button(app, button_x, ScaleUIPx(8), ScaleUIPx(24),
-                                       UI_ICON_TYPE_MANUAL, UKU_FOCUS_DASHBOARD_MANUAL);
+        int clicked = IconButton((IconButtonProps){
+                .bounds = {(float)(button_x), (float)(Scale(8)), (float)(Scale(24)), (float)(Scale(24))},
+                .icon = app->icons[UI_ICON_TYPE_MANUAL],
+                .focus_id = UKU_FOCUS_DASHBOARD_MANUAL,
+            });
         if(clicked)
             *manual_clicked = 1;
-        button_x -= ScaleUIPx(32);
+        button_x -= Scale(32);
     }
 
     if(show_close && close_clicked != NULL) {
-        int clicked = draw_icon_button(app, button_x, ScaleUIPx(8), ScaleUIPx(24),
-                                       UI_ICON_TYPE_RETURN, UKU_FOCUS_DASHBOARD_CLOSE);
+        int clicked = IconButton((IconButtonProps){
+                .bounds = {(float)(button_x), (float)(Scale(8)), (float)(Scale(24)), (float)(Scale(24))},
+                .icon = app->icons[UI_ICON_TYPE_RETURN],
+                .focus_id = UKU_FOCUS_DASHBOARD_CLOSE,
+            });
         if(clicked)
             *close_clicked = 1;
     }
@@ -5805,11 +5762,11 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
 {
     int label_font = ClampUIPx(12, 12, 14);
     int input_font = ClampUIPx(12, 12, 14);
-    int pad = ScaleUIPx(10);
-    int label_gap = ScaleUIPx(9);
+    int pad = Scale(10);
+    int label_gap = Scale(9);
     int label_y = y;
     int box_y = y + label_font + label_gap;
-    int box_h = h > ScaleUIPx(48) ? h + ScaleUIPx(44) : h;
+    int box_h = h > Scale(48) ? h + Scale(44) : h;
     Rectangle box = {(float)x, (float)box_y, (float)w, (float)box_h};
     int *cursor = field > UKU_FIELD_NONE && field < UKU_FIELD_COUNT
                       ? &app->field_cursor[field] : NULL;
@@ -5824,7 +5781,7 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
         *focused = 1;
 
     draw_text_font(font, label, x, label_y, label_font, GetThemeText());
-    if(h > ScaleUIPx(48)) {
+    if(h > Scale(48)) {
         RichTextEditor((RichTextEditorProps){
             .bounds = box,
             .text = buffer,
@@ -5833,7 +5790,7 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
             .focused = focused,
             .scroll_y = scroll_y,
             .font = input_font,
-            .line_gap = ScaleUIPx(4),
+            .line_gap = Scale(4),
             .focus_id = focus_id,
             .placeholder = placeholder,
             .style = {
@@ -5876,7 +5833,7 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
         app->active_field = field;
     else if(app->active_field == field)
         app->active_field = UKU_FIELD_NONE;
-    if(h <= ScaleUIPx(48) && buffer[0] == '\0' && !*focused) {
+    if(h <= Scale(48) && buffer[0] == '\0' && !*focused) {
         int placeholder_y = GetUIControlTextY(
             placeholder, box_y, h, input_font);
 
@@ -5888,7 +5845,7 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
             .wrap = TextWrapNone,
         });
     }
-    return box_y + box_h + ScaleUIPx(10);
+    return box_y + box_h + Scale(10);
 }
 
 static int
@@ -5897,45 +5854,59 @@ draw_stepper(UkuApp *app, Font font, const char *label, int *value, int min_valu
 {
     int label_font = ClampUIPx(12, 12, 14);
     int value_font = ClampUIPx(13, 13, 16);
-    int btn = ScaleUIPx(26);
-    int h = ScaleUIPx(28);
-    int value_w = w - btn * 2 - ScaleUIPx(8);
+    int btn = Scale(26);
+    int h = Scale(28);
+    int value_w = w - btn * 2 - Scale(8);
     int minus_clicked = 0;
     int plus_clicked = 0;
     char value_text[16];
 
     draw_text_font(font, label, x, y, label_font, GetThemeText());
-    y += label_font + ScaleUIPx(7);
+    y += label_font + Scale(7);
 
-    draw_button(app, font, x, y, btn, h, "-", 0, minus_focus_id, &minus_clicked);
-    DrawRectangleRounded((Rectangle){x + btn + ScaleUIPx(4), y, value_w, h}, 0.08f, 10, GetThemeSurface());
-    DrawRectangleRoundedLinesEx((Rectangle){x + btn + ScaleUIPx(4), y, value_w, h}, 0.08f, 10, ScaleUIPx(1), GetThemeText());
+    if(Button((ButtonProps){
+            .bounds = {(float)(x), (float)(y), (float)(btn), (float)(h)},
+            .label = "-",
+            .id = minus_focus_id,
+            .emphasis = ButtonEmphasisSoft,
+        }))
+        minus_clicked = 1;
+
+    DrawRectangleRounded((Rectangle){x + btn + Scale(4), y, value_w, h}, 0.08f, 10, GetThemeSurface());
+    DrawRectangleRoundedLinesEx((Rectangle){x + btn + Scale(4), y, value_w, h}, 0.08f, 10, Scale(1), GetThemeText());
     snprintf(value_text, sizeof(value_text), "%d", *value);
     DrawFittedTextInRect(value_text,
-                           (Rectangle){(float)(x + btn + ScaleUIPx(4)), (float)y,
+                           (Rectangle){(float)(x + btn + Scale(4)), (float)y,
                                        (float)value_w, (float)h},
                            value_font, Text12, GetThemeText());
-    draw_button(app, font, x + btn + ScaleUIPx(8) + value_w, y, btn, h, "+", 0, plus_focus_id, &plus_clicked);
+    if(Button((ButtonProps){
+            .bounds = {(float)(x + btn + Scale(8) + value_w), (float)(y), (float)(btn), (float)(h)},
+            .label = "+",
+            .id = plus_focus_id,
+            .emphasis = ButtonEmphasisSoft,
+        }))
+        plus_clicked = 1;
+
 
     if(minus_clicked)
         *value = clampi(*value - 1, min_value, max_value);
     if(plus_clicked)
         *value = clampi(*value + 1, min_value, max_value);
 
-    return y + h + ScaleUIPx(10);
+    return y + h + Scale(10);
 }
 
 static int
 draw_negative_weight_dropdown(UkuApp *app, Font font, const UkuText *text, int x, int y, int w, int focus_id)
 {
     int label_font = ClampUIPx(12, 12, 14);
-    int h = ScaleUIPx(34);
+    int h = Scale(34);
     int box_y;
     int selected = negative_weight_to_index(app->decision.negative_weight);
     const char *options[10];
 
     draw_text_font(font, text->negative_weight_label, x, y, label_font, GetThemeText());
-    box_y = y + label_font + ScaleUIPx(8);
+    box_y = y + label_font + Scale(8);
     for(int i = 0; i < 10; i++)
         options[i] = text->negative_weight_options[i];
     if(Dropdown(focus_id, x, box_y, w, h,
@@ -5944,20 +5915,20 @@ draw_negative_weight_dropdown(UkuApp *app, Font font, const UkuText *text, int x
         app->active_field = UKU_FIELD_NONE;
     }
 
-    return box_y + h + ScaleUIPx(12);
+    return box_y + h + Scale(12);
 }
 
 static int
-draw_locale_dropdown(UkuApp *app, UkuText *text, Font font, int x, int y, int w, int view_h)
+draw_locale_dropdown(UkuApp *app, UkuText *text, Font font, int x, int y, int w)
 {
     int label_font = ClampUIPx(12, 12, 14);
-    int h = ScaleUIPx(34);
+    int h = Scale(34);
     int box_y;
     int selected = app_locale_index(app->locale);
-    UIDropdownOption options[UKU_LOCALE_COUNT];
+    DropdownOption options[UKU_LOCALE_COUNT];
 
     draw_text_font(font, tr(app, "Language"), x, y, label_font, GetThemeText());
-    box_y = y + label_font + ScaleUIPx(8);
+    box_y = y + label_font + Scale(8);
     for(int i = 0; i < UKU_LOCALE_COUNT; i++) {
         options[i].label = UKU_LOCALES[i].label;
         if(strcmp(UKU_LOCALES[i].code, "ja") == 0)
@@ -5969,14 +5940,13 @@ draw_locale_dropdown(UkuApp *app, UkuText *text, Font font, int x, int y, int w,
         else
             options[i].font_name = "ui-lang-latin";
     }
-    SetUIDropdownClipBottom(view_h - ScaleUIPx(12));
-    if(DropdownEx(UKU_FOCUS_LOCALE_DROPDOWN, x, box_y, w, h,
-                  options, UKU_LOCALE_COUNT, &selected)) {
+    if(DropdownOptions(UKU_FOCUS_LOCALE_DROPDOWN, x, box_y, w, h,
+                       options, UKU_LOCALE_COUNT, &selected)) {
         app_switch_locale(app, text, UKU_LOCALES[selected].code);
         app->active_field = UKU_FIELD_NONE;
     }
 
-    return box_y + h + ScaleUIPx(18);
+    return box_y + h + Scale(18);
 }
 
 typedef struct UkuScrollPage {
@@ -6015,8 +5985,8 @@ begin_uku_scroll_page(int view_w, int view_h, int top_h,
     page.area.content_x = content_x;
     page.area.content_width = content_w;
     page.area.scroll_offset = scroll;
-    page.area.wheel_step = ScaleUIPx(44);
-    page.area.scrollbar_x = view_w - side - ScaleUIPx(8);
+    page.area.wheel_step = Scale(44);
+    page.area.scrollbar_x = view_w - side - Scale(8);
     page.view = BeginUIScrollContainer(page.area);
     page.content_x = page.view.content_x;
     page.content_w = page.view.content_w;
@@ -6046,17 +6016,17 @@ draw_duration_group(UkuApp *app, Font font, const char *title, const UkuText *te
                     int *days, int *hours, int *minutes, int x, int y, int w, int focus_base)
 {
     int title_font = ClampUIPx(14, 14, 17);
-    int gap = ScaleUIPx(8);
+    int gap = Scale(8);
     int col_w = (w - gap * 2) / 3;
     int y2;
 
     draw_text_font(font, title, x, y, title_font, GetThemeText());
-    y += title_font + ScaleUIPx(8);
+    y += title_font + Scale(8);
 
     y2 = draw_stepper(app, font, text->days_label, days, 0, 30, x, y, col_w, focus_base, focus_base + 1);
     draw_stepper(app, font, text->hours_label, hours, 0, 23, x + col_w + gap, y, col_w, focus_base + 2, focus_base + 3);
     draw_stepper(app, font, text->minutes_label, minutes, 0, 59, x + (col_w + gap) * 2, y, col_w, focus_base + 4, focus_base + 5);
-    return y2 + ScaleUIPx(2);
+    return y2 + Scale(2);
 }
 
 static void
@@ -6214,14 +6184,14 @@ draw_phase_mode_selector(UkuApp *app, Font font, int x, int y, int w, const UkuT
     int control_h;
 
     draw_text_font(font, "Process phases", x, y, label_font, GetThemeText());
-    y += label_font + ScaleUIPx(8);
+    y += label_font + Scale(8);
     control_h = draw_segmented_index(x, y, w, UKU_FOCUS_PROCESS_TYPE_BASE,
                                      labels, 2, &selected, &changed);
     if(changed && selected == 0)
         create_set_proposal_and_voting(app);
     if(changed && selected == 1)
         create_set_voting_only(app, text);
-    return y + control_h + ScaleUIPx(14);
+    return y + control_h + Scale(14);
 }
 
 static void
@@ -6338,22 +6308,22 @@ draw_empty_state(UkuApp *app, Font font, const char *message, int x, int y, int 
                  int view_h, int body_font, int small_font, int *cta_clicked)
 {
     int mobile = !IsUIDesktopMode();
-    int icon = mobile ? ScaleUIPx(24) : ScaleUIPx(40);
-    int btn_w = mobile ? ScaleUIPx(168) : ScaleUIPx(220);
-    int h = mobile ? ScaleUIPx(132) : clampi(view_h / 3, ScaleUIPx(220), ScaleUIPx(300));
-    int pad = mobile ? ScaleUIPx(18) : ScaleUIPx(34);
+    int icon = mobile ? Scale(24) : Scale(40);
+    int btn_w = mobile ? Scale(168) : Scale(220);
+    int h = mobile ? Scale(132) : clampi(view_h / 3, Scale(220), Scale(300));
+    int pad = mobile ? Scale(18) : Scale(34);
     int title_font = mobile ? body_font : ClampUIPx(20, 20, 26);
-    int title_line_h = title_font + ScaleUIPx(8);
-    int body_line_h = small_font + ScaleUIPx(7);
+    int title_line_h = title_font + Scale(8);
+    int body_line_h = small_font + Scale(7);
     Rectangle card = {(float)x, (float)y, (float)w, (float)h};
 
     DrawRectangleRounded(card, 0.035f, 10, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(card, 0.035f, 10, ScaleUIPx(1), Fade(GetThemeText(), 0.16f));
+    DrawRectangleRoundedLinesEx(card, 0.035f, 10, Scale(1), Fade(GetThemeText(), 0.16f));
     {
         Texture2D icon_texture = app->icons[UI_ICON_TYPE_GLOBE];
 
-        if(!mobile && w >= ScaleUIPx(700)) {
-            int icon_size = ScaleUIPx(64);
+        if(!mobile && w >= Scale(700)) {
+            int icon_size = Scale(64);
             int icon_x = x + w - pad - icon_size;
             int icon_y = y + pad;
 
@@ -6362,49 +6332,52 @@ draw_empty_state(UkuApp *app, Font font, const char *message, int x, int y, int 
                                  0.18f, 12, Fade(GetThemeButton(), 0.18f));
             DrawTexturePro(icon_texture,
                            (Rectangle){0, 0, (float)icon_texture.width, (float)icon_texture.height},
-                           (Rectangle){(float)(icon_x + ScaleUIPx(14)),
-                                       (float)(icon_y + ScaleUIPx(14)),
-                                       (float)(icon_size - ScaleUIPx(28)),
-                                       (float)(icon_size - ScaleUIPx(28))},
+                           (Rectangle){(float)(icon_x + Scale(14)),
+                                       (float)(icon_y + Scale(14)),
+                                       (float)(icon_size - Scale(28)),
+                                       (float)(icon_size - Scale(28))},
                            (Vector2){0}, 0.0f, WHITE);
         } else {
             DrawTexturePro(icon_texture,
                            (Rectangle){0, 0, (float)icon_texture.width, (float)icon_texture.height},
-                           (Rectangle){(float)(x + ScaleUIPx(18)), (float)(y + ScaleUIPx(18)),
+                           (Rectangle){(float)(x + Scale(18)), (float)(y + Scale(18)),
                                        (float)icon, (float)icon},
                            (Vector2){0}, 0.0f, WHITE);
         }
     }
     {
-        int text_x = mobile ? x + ScaleUIPx(54) : x + pad;
-        int text_w = mobile ? w - ScaleUIPx(72) : w - pad * 2;
-        int text_y = mobile ? y + ScaleUIPx(18) : y + pad;
+        int text_x = mobile ? x + Scale(54) : x + pad;
+        int text_w = mobile ? w - Scale(72) : w - pad * 2;
+        int text_y = mobile ? y + Scale(18) : y + pad;
 
-        if(!mobile && w >= ScaleUIPx(700))
-            text_w -= ScaleUIPx(108);
+        if(!mobile && w >= Scale(700))
+            text_w -= Scale(108);
 
         if(mobile) {
             draw_wrapped_text(font, message, text_x, text_y, text_w,
                               title_font, title_line_h, GetThemeText());
             draw_wrapped_text(font, tr(app, "Start one and share the link with your group."),
-                              text_x, text_y + title_line_h + ScaleUIPx(6), text_w,
+                              text_x, text_y + title_line_h + Scale(6), text_w,
                               small_font, body_line_h,
                               Fade(GetThemeText(), 0.75f));
         } else {
             text_y = draw_wrapped_text(font, message, text_x, text_y, text_w,
                                        title_font, title_line_h, GetThemeText());
-            text_y += ScaleUIPx(8);
+            text_y += Scale(8);
             draw_wrapped_text(font, tr(app, "Start one and share the link with your group."),
                               text_x, text_y, text_w, small_font, body_line_h,
                               Fade(GetThemeText(), 0.75f));
         }
     }
-    draw_compact_button(app, font,
-                        mobile ? x + ScaleUIPx(54) : x + pad,
-                        y + h - ScaleUIPx(52),
-                        btn_w, ScaleUIPx(600), ScaleUIPx(36),
-                        tr(app, "Make New Process"), 1, UKU_FOCUS_DASHBOARD_NEW, cta_clicked);
-    return y + h + ScaleUIPx(12);
+    if(Button((ButtonProps){
+            .bounds = {(float)(mobile ? x + Scale(54) : x + pad), (float)(y + h - Scale(52)), (float)(UKU_MIN(btn_w, Scale(600))), (float)(Scale(36))},
+            .label = tr(app, "Make New Process"),
+            .id = UKU_FOCUS_DASHBOARD_NEW,
+            .tone = ButtonToneAccent,
+        }))
+        *cta_clicked = 1;
+
+    return y + h + Scale(12);
 }
 
 static int
@@ -6420,13 +6393,13 @@ dashboard_row_visible(const UkuApp *app, const UkuProcessRow *row)
 static void
 draw_intro_modal(UkuApp *app, Font font, int view_w, int view_h, int *dismissed)
 {
-    int panel_w = UKU_MIN(view_w - ScaleUIPx(32), ScaleUIPx(420));
-    int pad = ScaleUIPx(20);
+    int panel_w = UKU_MIN(view_w - Scale(32), Scale(420));
+    int pad = Scale(20);
     int title_font = ClampUIPx(18, 18, 22);
     int small_font = ClampUIPx(12, 12, 14);
-    int line_h = small_font + ScaleUIPx(6);
+    int line_h = small_font + Scale(6);
     int text_w = panel_w - pad * 2;
-    int button_h = ScaleUIPx(40);
+    int button_h = Scale(40);
     int text_h = 0;
     int panel_h;
     int x = (view_w - panel_w) / 2;
@@ -6444,8 +6417,8 @@ draw_intro_modal(UkuApp *app, Font font, int view_w, int view_h, int *dismissed)
     for(int i = 0; i < 4; i++)
         text_h += measure_wrapped_text_height(font, lines[i], text_w, small_font, line_h);
 
-    panel_h = pad * 3 + title_font + ScaleUIPx(14) + text_h + ScaleUIPx(16) + button_h;
-    panel_h = UKU_MIN(panel_h, view_h - ScaleUIPx(32));
+    panel_h = pad * 3 + title_font + Scale(14) + text_h + Scale(16) + button_h;
+    panel_h = UKU_MIN(panel_h, view_h - Scale(32));
     y = (view_h - panel_h) / 2;
     panel_color = GetThemeBackground();
     panel_color.a = 255;
@@ -6454,20 +6427,24 @@ draw_intro_modal(UkuApp *app, Font font, int view_w, int view_h, int *dismissed)
     DrawRectangleRounded((Rectangle){(float)x, (float)y, (float)panel_w, (float)panel_h},
                          0.05f, 12, panel_color);
     DrawRectangleRoundedLinesEx((Rectangle){(float)x, (float)y, (float)panel_w, (float)panel_h},
-                                0.05f, 12, ScaleUIPx(1), GetThemeButton());
+                                0.05f, 12, Scale(1), GetThemeButton());
     ly = y + pad;
     draw_centered_text(font, tr(app, "Decide together"), x + panel_w / 2, ly,
                        title_font, GetThemeText());
-    ly += title_font + ScaleUIPx(14);
+    ly += title_font + Scale(14);
     for(int i = 0; i < 4; i++) {
         ly = draw_wrapped_text(font, lines[i], x + pad, ly, text_w, small_font,
                                line_h, GetThemeText());
     }
-    ly += ScaleUIPx(16);
-    draw_compact_button(app, font, x + pad,
-                        UKU_MIN(ly, y + panel_h - pad - button_h), text_w,
-                        ScaleUIPx(600), button_h, tr(app, "Get started"), 1,
-                        UKU_FOCUS_HOME_START, &start_clicked);
+    ly += Scale(16);
+    if(Button((ButtonProps){
+            .bounds = {(float)(x + pad), (float)(UKU_MIN(ly, y + panel_h - pad - button_h)), (float)(UKU_MIN(text_w, Scale(600))), (float)(button_h)},
+            .label = tr(app, "Get started"),
+            .id = UKU_FOCUS_HOME_START,
+            .tone = ButtonToneAccent,
+        }))
+        start_clicked = 1;
+
     if(start_clicked) {
         app->intro_seen = 1;
         setting_save_int(app, UKU_INTRO_SEEN_KEY, 1);
@@ -6480,7 +6457,7 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
 {
     int content_x;
     int content_w;
-    int top_h = !IsUIDesktopMode() ? ScaleUIPx(42) : ScaleUIPx(46);
+    int top_h = !IsUIDesktopMode() ? Scale(42) : Scale(46);
     int body_font = ClampUIPx(14, 14, 17);
     int small_font = ClampUIPx(12, 12, 14);
     int viewport_y = top_h;
@@ -6491,8 +6468,8 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
     int join_clicked = 0;
     int new_clicked = 0;
     int scan_clicked = 0;
-    int fab_size = ScaleUIPx(46);
-    int fab_margin = ScaleUIPx(18);
+    int fab_size = Scale(46);
+    int fab_margin = Scale(18);
     Font font = app->font;
     sqlite3_int64 now = (sqlite3_int64)time(NULL);
 
@@ -6503,7 +6480,7 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
     if(app->dashboard_filter_public && !app->public_processes_loaded)
         fetch_public_processes(app, app->server_url);
     if(!IsUIDesktopMode() && app->dashboard_menu_open)
-        top_h += ScaleUIPx(212);
+        top_h += Scale(212);
     viewport_y = top_h;
     viewport_h = view_h - viewport_y;
 
@@ -6554,7 +6531,7 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                                                    IsUIDesktopMode() ? 760 : 640,
                                                    &app->dashboard_scroll,
                                                    app->dashboard_max_scroll,
-                                                   ScaleUIPx(14));
+                                                   Scale(14));
         content_x = page.content_x;
         content_w = page.content_w;
         viewport_y = page.viewport_y;
@@ -6589,7 +6566,7 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                 app->dashboard_scroll = 0;
                 UIConsumeRelease();
             }
-            y += filter_h + ScaleUIPx(12);
+            y += filter_h + Scale(12);
         }
 
         {
@@ -6602,22 +6579,22 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
 
             draw_text_font(font, section_label, content_x, y, small_font,
                            Fade(GetThemeText(), 0.75f));
-            DrawRectangle(content_x + label_w + ScaleUIPx(10), rule_y,
-                          content_w - label_w - ScaleUIPx(10), 1,
+            DrawRectangle(content_x + label_w + Scale(10), rule_y,
+                          content_w - label_w - Scale(10), 1,
                           Fade(GetThemeText(), 0.16f));
-            y += small_font + ScaleUIPx(16);
+            y += small_font + Scale(16);
         }
 
         if(app->process_count <= 0) {
             if(app->dashboard_filter_public) {
                 Rectangle empty = {(float)content_x, (float)y,
-                                   (float)content_w, (float)ScaleUIPx(54)};
+                                   (float)content_w, (float)Scale(54)};
 
                 DrawRectangleRounded(empty, 0.07f, 10, GetThemeSurface());
                 draw_centered_text(font, tr(app, "dashboard_public_empty"),
-                                   content_x + content_w / 2, y + ScaleUIPx(19),
+                                   content_x + content_w / 2, y + Scale(19),
                                    small_font, Fade(GetThemeText(), 0.65f));
-                y += ScaleUIPx(66);
+                y += Scale(66);
             } else {
                 int cta_clicked = 0;
 
@@ -6628,8 +6605,8 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                     start_new_process_flow(app, text);
             }
         } else {
-            int card_h = ScaleUIPx(92);
-            int gap = ScaleUIPx(8);
+            int card_h = Scale(92);
+            int gap = Scale(8);
             int active_count = 0;
             int completed_count = 0;
             int visible_count = 0;
@@ -6647,25 +6624,25 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
             }
             if(visible_count <= 0) {
                 Rectangle empty = {(float)content_x, (float)y,
-                                   (float)content_w, (float)ScaleUIPx(54)};
+                                   (float)content_w, (float)Scale(54)};
 
                 DrawRectangleRounded(empty, 0.07f, 10, GetThemeSurface());
                 draw_centered_text(font, tr(app, "dashboard_public_empty"),
-                                   content_x + content_w / 2, y + ScaleUIPx(19),
+                                   content_x + content_w / 2, y + Scale(19),
                                    small_font, Fade(GetThemeText(), 0.65f));
-                y += ScaleUIPx(66);
+                y += Scale(66);
             } else {
                 if(active_count <= 0) {
                     Rectangle empty = {(float)content_x, (float)y,
                                        (float)content_w,
-                                       (float)ScaleUIPx(46)};
+                                       (float)Scale(46)};
 
                     DrawRectangleRounded(empty, 0.07f, 10, GetThemeSurface());
                     draw_centered_text(font, tr(app, "No processes currently in progress."),
                                        content_x + content_w / 2,
-                                       y + ScaleUIPx(16), small_font,
+                                       y + Scale(16), small_font,
                                        Fade(GetThemeText(), 0.65f));
-                    y += ScaleUIPx(58);
+                    y += Scale(58);
                 }
                 for(int i = 0; i < app->process_count; i++) {
                     UkuProcessRow *row = &app->processes[i];
@@ -6692,22 +6669,22 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                     if(hovered)
                         app->cursor_clickable = 1;
                     DrawRectangleRounded(card, 0.07f, 10, GetThemeSurface());
-                    DrawRectangleRoundedLinesEx(card, 0.07f, 10, ScaleUIPx(1),
+                    DrawRectangleRoundedLinesEx(card, 0.07f, 10, Scale(1),
                                                 focused || hovered ? GetThemeButton() : GetThemeButton());
-                    DrawRectangleRounded((Rectangle){(float)content_x, (float)y + ScaleUIPx(10),
-                                                     (float)ScaleUIPx(4),
-                                                     (float)card_h - ScaleUIPx(20)},
+                    DrawRectangleRounded((Rectangle){(float)content_x, (float)y + Scale(10),
+                                                     (float)Scale(4),
+                                                     (float)card_h - Scale(20)},
                                          0.5f, 4, GetThemeCircle());
 
                     draw_text_font(font, fit_tail(font, row->topic, body_font,
-                                                  content_w - ScaleUIPx(30)),
-                                   content_x + ScaleUIPx(18), y + ScaleUIPx(9),
+                                                  content_w - Scale(30)),
+                                   content_x + Scale(18), y + Scale(9),
                                    body_font, GetThemeText());
                     format_process_timer(timer, sizeof(timer), text, row->created_at,
                                          row->proposal_minutes, row->voting_minutes, now);
                     draw_text_font(font, fit_tail(font, timer, small_font,
-                                                  content_w - ScaleUIPx(30)),
-                                   content_x + ScaleUIPx(18), y + ScaleUIPx(31),
+                                                  content_w - Scale(30)),
+                                   content_x + Scale(18), y + Scale(31),
                                    small_font,
                                    process_phase(row->created_at, row->proposal_minutes,
                                                  row->voting_minutes, now, NULL) ==
@@ -6718,15 +6695,15 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                     snprintf(meta, sizeof(meta), "%s  \xc2\xb7  %s",
                              process_type_label(row->type), created);
                     draw_text_font(font, fit_tail(font, meta, small_font,
-                                                  content_w - ScaleUIPx(30)),
-                                   content_x + ScaleUIPx(18), y + ScaleUIPx(52),
+                                                  content_w - Scale(30)),
+                                   content_x + Scale(18), y + Scale(52),
                                    small_font, Fade(GetThemeText(), 0.75f));
                     if(row->description[0] != '\0')
                         draw_text_font(font, fit_tail(font, row->description,
                                                       small_font,
-                                                      content_w - ScaleUIPx(30)),
-                                       content_x + ScaleUIPx(18),
-                                       y + ScaleUIPx(72), small_font,
+                                                      content_w - Scale(30)),
+                                       content_x + Scale(18),
+                                       y + Scale(72), small_font,
                                        GetThemeText());
 
                     open = (hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
@@ -6735,10 +6712,10 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                         open_process_row(app, row);
                     y += card_h + gap;
                 }
-                y += ScaleUIPx(8);
+                y += Scale(8);
                 if(completed_count > 0) {
-                    int summary_h = ScaleUIPx(58);
-                    int icon_box = ScaleUIPx(34);
+                    int summary_h = Scale(58);
+                    int icon_box = Scale(34);
                     int summary_focus = UKU_FOCUS_HISTORY_BACK;
                     Rectangle summary = {(float)content_x, (float)y,
                                          (float)content_w, (float)summary_h};
@@ -6760,11 +6737,11 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                              completed_count, tr(app, "Finished"));
                     DrawRectangleRounded(summary, 0.05f, 10, GetThemeSurface());
                     DrawRectangleRoundedLinesEx(summary, 0.05f, 10,
-                                                ScaleUIPx(focused ? 2 : 1),
+                                                Scale(focused ? 2 : 1),
                                                 focused || hovered
                                                     ? GetThemeButton()
                                                     : Fade(GetThemeText(), 0.28f));
-                    DrawRectangleRounded((Rectangle){(float)(content_x + ScaleUIPx(12)),
+                    DrawRectangleRounded((Rectangle){(float)(content_x + Scale(12)),
                                                      (float)(y + (summary_h - icon_box) / 2),
                                                      (float)icon_box, (float)icon_box},
                                          0.18f, 10, Fade(GetThemeButton(), 0.18f));
@@ -6772,23 +6749,23 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                         DrawTexturePro(icon_texture,
                                        (Rectangle){0, 0, (float)icon_texture.width,
                                                    (float)icon_texture.height},
-                                       (Rectangle){(float)(content_x + ScaleUIPx(19)),
-                                                   (float)(y + (summary_h - icon_box) / 2 + ScaleUIPx(7)),
-                                                   (float)(icon_box - ScaleUIPx(14)),
-                                                   (float)(icon_box - ScaleUIPx(14))},
+                                       (Rectangle){(float)(content_x + Scale(19)),
+                                                   (float)(y + (summary_h - icon_box) / 2 + Scale(7)),
+                                                   (float)(icon_box - Scale(14)),
+                                                   (float)(icon_box - Scale(14))},
                                        (Vector2){0}, 0.0f, WHITE);
                     draw_text_font(font, tr(app, "Completed Processes"),
-                                   content_x + ScaleUIPx(58), y + ScaleUIPx(10),
+                                   content_x + Scale(58), y + Scale(10),
                                    body_font, GetThemeText());
                     draw_text_font(font, count_text,
-                                   content_x + ScaleUIPx(58), y + ScaleUIPx(33),
+                                   content_x + Scale(58), y + Scale(33),
                                    small_font, Fade(GetThemeText(), 0.72f));
                     draw_centered_text(font,
                                        app->dashboard_completed_expanded ? "-" : "+",
-                                       content_x + content_w - ScaleUIPx(22),
+                                       content_x + content_w - Scale(22),
                                        GetUIControlTextY("+", y, summary_h, body_font),
                                        body_font, GetThemeButton());
-                    y += summary_h + ScaleUIPx(10);
+                    y += summary_h + Scale(10);
 
                     if(app->dashboard_completed_expanded) {
                         for(int i = 0; i < app->process_count; i++) {
@@ -6818,31 +6795,31 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                                 app->cursor_clickable = 1;
                             DrawRectangleRounded(card, 0.07f, 10, GetThemeSurface());
                             DrawRectangleRoundedLinesEx(card, 0.07f, 10,
-                                                        ScaleUIPx(1),
+                                                        Scale(1),
                                                         focused || hovered
                                                             ? GetThemeButton()
                                                             : Fade(GetThemeText(), 0.45f));
                             draw_text_font(font, fit_tail(font, row->topic, body_font,
-                                                          content_w - ScaleUIPx(24)),
-                                           content_x + ScaleUIPx(12),
-                                           y + ScaleUIPx(9), body_font,
+                                                          content_w - Scale(24)),
+                                           content_x + Scale(12),
+                                           y + Scale(9), body_font,
                                            GetThemeText());
                             format_created_at(created, sizeof(created), row->created_at);
                             snprintf(meta, sizeof(meta), "%s | %s | %s",
                                      tr(app, "Finished"),
                                      process_type_label(row->type), created);
                             draw_text_font(font, fit_tail(font, meta, small_font,
-                                                          content_w - ScaleUIPx(24)),
-                                           content_x + ScaleUIPx(12),
-                                           y + ScaleUIPx(33), small_font,
+                                                          content_w - Scale(24)),
+                                           content_x + Scale(12),
+                                           y + Scale(33), small_font,
                                            Fade(GetThemeText(), 0.75f));
                             if(row->description[0] != '\0')
                                 draw_text_font(font,
                                                fit_tail(font, row->description,
                                                         small_font,
-                                                        content_w - ScaleUIPx(24)),
-                                               content_x + ScaleUIPx(12),
-                                               y + ScaleUIPx(56), small_font,
+                                                        content_w - Scale(24)),
+                                               content_x + Scale(12),
+                                               y + Scale(56), small_font,
                                                GetThemeText());
                             open = (hovered &&
                                     IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
@@ -6856,14 +6833,15 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
             }
         }
         end_uku_scroll_page(page, y, &app->dashboard_scroll,
-                            &app->dashboard_max_scroll, ScaleUIPx(24));
+                            &app->dashboard_max_scroll, Scale(24));
     }
 
     if(IsUIDesktopMode() &&
-       draw_icon_button(app, view_w - fab_margin - fab_size,
-                        view_h - fab_margin - fab_size,
-                        fab_size, UI_ICON_TYPE_PLUS,
-                        UKU_FOCUS_DASHBOARD_NEW))
+       IconButton((IconButtonProps){
+               .bounds = {(float)(view_w - fab_margin - fab_size), (float)(view_h - fab_margin - fab_size), (float)(fab_size), (float)(fab_size)},
+               .icon = app->icons[UI_ICON_TYPE_PLUS],
+               .focus_id = UKU_FOCUS_DASHBOARD_NEW,
+           }))
         start_new_process_flow(app, text);
 }
 
@@ -6875,7 +6853,7 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
     int title_font = ClampUIPx(18, 18, 22);
     int body_font = ClampUIPx(14, 14, 17);
     int small_font = ClampUIPx(12, 12, 14);
-    int top_h = ScaleUIPx(46);
+    int top_h = Scale(46);
     int y;
     int back_clicked = 0;
     int previous_clicked = 0;
@@ -6894,31 +6872,36 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
         UkuScrollPage page = begin_uku_scroll_page(view_w, view_h, top_h, 600,
                                                    &app->create_scroll,
                                                    app->create_max_scroll,
-                                                   ScaleUIPx(14));
+                                                   Scale(14));
         content_x = page.content_x;
         content_w = page.content_w;
         y = page.y;
     if(app->create_step == UKU_CREATE_STEP_SETUP) {
-        y += ScaleUIPx(8);
+        y += Scale(8);
         draw_centered_text(font, "Setup Process", content_x + content_w / 2, y,
                            title_font, GetThemeText());
-        y += title_font + ScaleUIPx(22);
+        y += title_font + Scale(22);
         y = draw_phase_mode_selector(app, font, content_x, y, content_w, text);
         y = draw_text_field(app, font, text->topic_question_label, text->topic_question_placeholder,
                             d->topic, sizeof(d->topic), UKU_FIELD_TOPIC, UKU_FOCUS_TOPIC,
-                            content_x, y, content_w, ScaleUIPx(36));
+                            content_x, y, content_w, Scale(36));
         if(d->topic_error) {
-            y = draw_wrapped_text(font, text->topic_error, content_x, y - ScaleUIPx(8),
-                                  content_w, small_font, small_font + ScaleUIPx(4),
+            y = draw_wrapped_text(font, text->topic_error, content_x, y - Scale(8),
+                                  content_w, small_font, small_font + Scale(4),
                                   GetThemeButton());
-            y += ScaleUIPx(6);
+            y += Scale(6);
         }
         y = draw_text_field(app, font, text->description_label, text->description_placeholder,
                             d->description, sizeof(d->description), UKU_FIELD_DESCRIPTION,
-                            UKU_FOCUS_DESCRIPTION, content_x, y, content_w, ScaleUIPx(96));
-        draw_compact_button(app, font, content_x + content_w - ScaleUIPx(150), y,
-                            ScaleUIPx(150), ScaleUIPx(150), ScaleUIPx(34),
-                            "Continue", 1, UKU_FOCUS_CREATE_NEXT, &next_clicked);
+                            UKU_FOCUS_DESCRIPTION, content_x, y, content_w, Scale(96));
+        if(Button((ButtonProps){
+                .bounds = {(float)(content_x + content_w - Scale(150)), (float)(y), (float)(UKU_MIN(Scale(150), Scale(150))), (float)(Scale(34))},
+                .label = "Continue",
+                .id = UKU_FOCUS_CREATE_NEXT,
+                .tone = ButtonToneAccent,
+            }))
+            next_clicked = 1;
+
         if(next_clicked) {
             d->topic_error = !has_non_space(d->topic);
             if(!d->topic_error)
@@ -6950,15 +6933,15 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
         int choice_changed = 0;
 
         decision_permission_defaults(d);
-        y += ScaleUIPx(8);
+        y += Scale(8);
         draw_centered_text(font, "Rules", content_x + content_w / 2, y,
                            title_font, GetThemeText());
-        y += title_font + ScaleUIPx(28);
+        y += title_font + Scale(28);
 
         if(process_type_uses_negative_weight(d->type)) {
             y = draw_negative_weight_dropdown(app, font, text, content_x, y,
                                               content_w, UKU_FOCUS_NEGATIVE_WEIGHT);
-            y += ScaleUIPx(18);
+            y += Scale(18);
         }
 
         if(process_type_has_voting(d->type)) {
@@ -6967,26 +6950,26 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
                              UKU_FOCUS_QUORUM_MINUS, UKU_FOCUS_QUORUM_PLUS);
             if(d->quorum_votes == 0) {
                 y = draw_wrapped_text(font, tr(app, "0 means no minimum - the result counts with any number of ballots."),
-                                      content_x, y - ScaleUIPx(4), content_w, small_font,
-                                      small_font + ScaleUIPx(4), Fade(GetThemeText(), 0.6f));
-                y += ScaleUIPx(12);
+                                      content_x, y - Scale(4), content_w, small_font,
+                                      small_font + Scale(4), Fade(GetThemeText(), 0.6f));
+                y += Scale(12);
             } else
-                y += ScaleUIPx(16);
+                y += Scale(16);
         }
 
         draw_text_font(font, "Visibility", content_x, y, body_font, GetThemeText());
-        y += body_font + ScaleUIPx(8);
+        y += body_font + Scale(8);
         y += draw_segmented_text_choice(content_x, y, content_w,
                                         UKU_FOCUS_PROCESS_PUBLIC,
                                         visibility_labels, visibility_values, 3,
                                         d->visibility, sizeof(d->visibility),
                                         &choice_changed);
-        y += ScaleUIPx(18);
+        y += Scale(18);
 
         if(process_type_has_proposals(d->type)) {
             draw_text_font(font, tr(app, "Proposal visibility"), content_x, y,
                            body_font, GetThemeText());
-            y += body_font + ScaleUIPx(8);
+            y += body_font + Scale(8);
             y += draw_segmented_text_choice(content_x, y, content_w,
                                             UKU_FOCUS_PROPOSAL_VISIBILITY_PUBLIC,
                                             proposal_visibility_labels,
@@ -6994,39 +6977,49 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
                                             d->proposal_visibility,
                                             sizeof(d->proposal_visibility),
                                             &choice_changed);
-            y += ScaleUIPx(18);
+            y += Scale(18);
 
             draw_text_font(font, tr(app, "Who can add proposals"), content_x, y,
                            body_font, GetThemeText());
-            y += body_font + ScaleUIPx(8);
+            y += body_font + Scale(8);
             y += draw_segmented_text_choice(content_x, y, content_w,
                                             UKU_FOCUS_PROPOSAL_ACCESS_PUBLIC,
                                             access_labels, access_values, 3,
                                             d->proposal_access,
                                             sizeof(d->proposal_access),
                                             &choice_changed);
-            y += ScaleUIPx(18);
+            y += Scale(18);
         }
 
         if(process_type_has_voting(d->type)) {
             draw_text_font(font, tr(app, "Who can vote"), content_x, y,
                            body_font, GetThemeText());
-            y += body_font + ScaleUIPx(8);
+            y += body_font + Scale(8);
             y += draw_segmented_text_choice(content_x, y, content_w,
                                             UKU_FOCUS_VOTING_ACCESS_PUBLIC,
                                             access_labels, access_values, 3,
                                             d->voting_access,
                                             sizeof(d->voting_access),
                                             &choice_changed);
-            y += ScaleUIPx(26);
+            y += Scale(26);
         }
 
-        draw_compact_button(app, font, content_x, y, ScaleUIPx(130), ScaleUIPx(130),
-                            ScaleUIPx(34), text->back_button, 0,
-                            UKU_FOCUS_CREATE_PREVIOUS, &previous_clicked);
-        draw_compact_button(app, font, content_x + content_w - ScaleUIPx(150), y,
-                            ScaleUIPx(150), ScaleUIPx(150), ScaleUIPx(34),
-                            "Continue", 1, UKU_FOCUS_CREATE_NEXT, &next_clicked);
+        if(Button((ButtonProps){
+                .bounds = {(float)(content_x), (float)(y), (float)(UKU_MIN(Scale(130), Scale(130))), (float)(Scale(34))},
+                .label = text->back_button,
+                .id = UKU_FOCUS_CREATE_PREVIOUS,
+                .emphasis = ButtonEmphasisSoft,
+            }))
+            previous_clicked = 1;
+
+        if(Button((ButtonProps){
+                .bounds = {(float)(content_x + content_w - Scale(150)), (float)(y), (float)(UKU_MIN(Scale(150), Scale(150))), (float)(Scale(34))},
+                .label = "Continue",
+                .id = UKU_FOCUS_CREATE_NEXT,
+                .tone = ButtonToneAccent,
+            }))
+            next_clicked = 1;
+
         if(previous_clicked)
             create_go_to_step(app, UKU_CREATE_STEP_SETUP);
         if(next_clicked)
@@ -7036,30 +7029,35 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
     } else if(app->create_step == UKU_CREATE_STEP_PROPOSALS) {
         int add_clicked = 0;
 
-        y += ScaleUIPx(8);
+        y += Scale(8);
         draw_centered_text(font, "Add proposals", content_x + content_w / 2, y,
                            title_font, GetThemeText());
-        y += title_font + ScaleUIPx(22);
+        y += title_font + Scale(22);
 
         y = draw_text_field(app, font, tr(app, "Title"), tr(app, "Proposal title"),
                             app->proposal_title, sizeof(app->proposal_title),
                             UKU_FIELD_PROPOSAL_TITLE, UKU_FOCUS_PROPOSAL_TITLE,
-                            content_x, y, content_w, ScaleUIPx(36));
+                            content_x, y, content_w, Scale(36));
         y = draw_text_field(app, font, tr(app, "Description"), tr(app, "Optional details"),
                             app->proposal_description, sizeof(app->proposal_description),
                             UKU_FIELD_PROPOSAL_DESCRIPTION, UKU_FOCUS_PROPOSAL_DESCRIPTION,
-                            content_x, y, content_w, ScaleUIPx(80));
+                            content_x, y, content_w, Scale(80));
         if(has_non_space(app->proposal_description) &&
            !has_non_space(app->proposal_title)) {
             y = draw_wrapped_text(font, text->proposal_title_warning,
-                                  content_x, y - ScaleUIPx(6), content_w,
-                                  small_font, small_font + ScaleUIPx(4),
+                                  content_x, y - Scale(6), content_w,
+                                  small_font, small_font + Scale(4),
                                   GetThemeButton());
-            y += ScaleUIPx(8);
+            y += Scale(8);
         }
-        draw_compact_button(app, font, content_x, y, content_w, ScaleUIPx(180),
-                            ScaleUIPx(34), tr(app, "Add Proposal"), 1,
-                            UKU_FOCUS_PROPOSAL_SUBMIT, &add_clicked);
+        if(Button((ButtonProps){
+                .bounds = {(float)(content_x), (float)(y), (float)(UKU_MIN(content_w, Scale(180))), (float)(Scale(34))},
+                .label = tr(app, "Add Proposal"),
+                .id = UKU_FOCUS_PROPOSAL_SUBMIT,
+                .tone = ButtonToneAccent,
+            }))
+            add_clicked = 1;
+
         if(add_clicked) {
             if(!has_non_space(app->proposal_title) &&
                has_non_space(app->proposal_description)) {
@@ -7072,21 +7070,21 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
                 ShowToast(tr(app, "Could not submit proposal."));
             }
         }
-        y += ScaleUIPx(48);
+        y += Scale(48);
 
         draw_text_font(font, tr(app, "Proposals"), content_x, y, body_font,
                        GetThemeText());
-        y += body_font + ScaleUIPx(10);
+        y += body_font + Scale(10);
         if(app->proposal_count <= 0) {
             y = draw_wrapped_text(font, tr(app, "No proposals found."),
                                   content_x, y, content_w, small_font,
-                                  small_font + ScaleUIPx(5),
+                                  small_font + Scale(5),
                                   Fade(GetThemeText(), 0.75f));
-            y += ScaleUIPx(12);
+            y += Scale(12);
         } else {
             for(int i = 0; i < app->proposal_count; i++) {
                 UkuProposal *proposal = &app->proposals[i];
-                int card_h = proposal->description[0] != '\0' ? ScaleUIPx(74) : ScaleUIPx(50);
+                int card_h = proposal->description[0] != '\0' ? Scale(74) : Scale(50);
                 int delete_clicked = 0;
 
                 DrawRectangleRounded((Rectangle){(float)content_x, (float)y,
@@ -7094,39 +7092,49 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
                                      0.06f, 10, GetThemeSurface());
                 DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y,
                                                        (float)content_w, (float)card_h},
-                                            0.06f, 10, ScaleUIPx(1),
+                                            0.06f, 10, Scale(1),
                                             Fade(GetThemeText(), 0.5f));
                 draw_text_font(font, fit_tail(font, proposal->title, body_font,
-                                              content_w - ScaleUIPx(54)),
-                               content_x + ScaleUIPx(10), y + ScaleUIPx(8),
+                                              content_w - Scale(54)),
+                               content_x + Scale(10), y + Scale(8),
                                body_font, GetThemeText());
                 if(proposal->description[0] != '\0')
                     draw_text_font(font, fit_tail(font, proposal->description,
                                                   small_font,
-                                                  content_w - ScaleUIPx(54)),
-                                   content_x + ScaleUIPx(10),
-                                   y + ScaleUIPx(34), small_font,
+                                                  content_w - Scale(54)),
+                                   content_x + Scale(10),
+                                   y + Scale(34), small_font,
                                    Fade(GetThemeText(), 0.78f));
-                delete_clicked = draw_icon_button(app,
-                                                  content_x + content_w - ScaleUIPx(34),
-                                                  y + ScaleUIPx(8), ScaleUIPx(24),
-                                                  UI_ICON_TYPE_TRASH,
-                                                  UKU_FOCUS_PROPOSAL_DELETE_BASE + i);
+                delete_clicked = IconButton((IconButtonProps){
+                        .bounds = {(float)(content_x + content_w - Scale(34)), (float)(y + Scale(8)), (float)(Scale(24)), (float)(Scale(24))},
+                        .icon = app->icons[UI_ICON_TYPE_TRASH],
+                        .focus_id = UKU_FOCUS_PROPOSAL_DELETE_BASE + i,
+                    });
                 if(delete_clicked) {
                     create_remove_draft_proposal(app, i);
                     i--;
                     continue;
                 }
-                y += card_h + ScaleUIPx(8);
+                y += card_h + Scale(8);
             }
         }
-        y += ScaleUIPx(10);
-        draw_compact_button(app, font, content_x, y, ScaleUIPx(130), ScaleUIPx(130),
-                            ScaleUIPx(34), text->back_button, 0,
-                            UKU_FOCUS_CREATE_PREVIOUS, &previous_clicked);
-        draw_compact_button(app, font, content_x + content_w - ScaleUIPx(150), y,
-                            ScaleUIPx(150), ScaleUIPx(150), ScaleUIPx(34),
-                            "Continue", 1, UKU_FOCUS_CREATE_NEXT, &next_clicked);
+        y += Scale(10);
+        if(Button((ButtonProps){
+                .bounds = {(float)(content_x), (float)(y), (float)(UKU_MIN(Scale(130), Scale(130))), (float)(Scale(34))},
+                .label = text->back_button,
+                .id = UKU_FOCUS_CREATE_PREVIOUS,
+                .emphasis = ButtonEmphasisSoft,
+            }))
+            previous_clicked = 1;
+
+        if(Button((ButtonProps){
+                .bounds = {(float)(content_x + content_w - Scale(150)), (float)(y), (float)(UKU_MIN(Scale(150), Scale(150))), (float)(Scale(34))},
+                .label = "Continue",
+                .id = UKU_FOCUS_CREATE_NEXT,
+                .tone = ButtonToneAccent,
+            }))
+            next_clicked = 1;
+
         if(previous_clicked)
             create_go_to_step(app, UKU_CREATE_STEP_RULES);
         if(next_clicked) {
@@ -7136,19 +7144,19 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
                 create_go_to_step(app, UKU_CREATE_STEP_TIMING);
         }
     } else if(app->create_step == UKU_CREATE_STEP_TIMING) {
-        y += ScaleUIPx(8);
+        y += Scale(8);
         draw_centered_text(font, create_voting_only(app)
                                  ? "Select the time for voting"
                                  : "Select the time for proposals and voting",
                            content_x + content_w / 2, y, title_font, GetThemeText());
-        y += title_font + ScaleUIPx(28);
+        y += title_font + Scale(28);
         if(!create_voting_only(app) && process_type_has_proposals(d->type))
             y = draw_duration_group(app, font, text->proposal_time_label, text,
                                     &d->proposal_days, &d->proposal_hours,
                                     &d->proposal_minutes, content_x, y, content_w,
                                     UKU_FOCUS_PROPOSAL_DAYS_MINUS);
         if(process_type_has_voting(d->type)) {
-            y += ScaleUIPx(18);
+            y += Scale(18);
             y = draw_duration_group(app, font, text->voting_time_label, text,
                                     &d->voting_days, &d->voting_hours,
                                     &d->voting_minutes, content_x, y, content_w,
@@ -7157,15 +7165,25 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
         if(!process_type_has_voting(d->type)) {
             y = draw_wrapped_text(font, "This process collects proposals without a voting phase.",
                                   content_x, y, content_w, body_font,
-                                  body_font + ScaleUIPx(6), Fade(GetThemeText(), 0.78f));
-            y += ScaleUIPx(18);
+                                  body_font + Scale(6), Fade(GetThemeText(), 0.78f));
+            y += Scale(18);
         }
-        draw_compact_button(app, font, content_x, y, ScaleUIPx(130), ScaleUIPx(130),
-                            ScaleUIPx(34), text->back_button, 0,
-                            UKU_FOCUS_CREATE_PREVIOUS, &previous_clicked);
-        draw_compact_button(app, font, content_x + content_w - ScaleUIPx(150), y,
-                            ScaleUIPx(150), ScaleUIPx(150), ScaleUIPx(34),
-                            "Continue", 1, UKU_FOCUS_CREATE_NEXT, &next_clicked);
+        if(Button((ButtonProps){
+                .bounds = {(float)(content_x), (float)(y), (float)(UKU_MIN(Scale(130), Scale(130))), (float)(Scale(34))},
+                .label = text->back_button,
+                .id = UKU_FOCUS_CREATE_PREVIOUS,
+                .emphasis = ButtonEmphasisSoft,
+            }))
+            previous_clicked = 1;
+
+        if(Button((ButtonProps){
+                .bounds = {(float)(content_x + content_w - Scale(150)), (float)(y), (float)(UKU_MIN(Scale(150), Scale(150))), (float)(Scale(34))},
+                .label = "Continue",
+                .id = UKU_FOCUS_CREATE_NEXT,
+                .tone = ButtonToneAccent,
+            }))
+            next_clicked = 1;
+
         if(previous_clicked)
             create_go_to_step(app, create_previous_step(app));
         if(next_clicked)
@@ -7174,49 +7192,49 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
         int submit_clicked = 0;
         char value[128];
 
-        y += ScaleUIPx(8);
+        y += Scale(8);
         draw_centered_text(font, "Review Process", content_x + content_w / 2, y,
                            title_font, GetThemeText());
-        y += title_font + ScaleUIPx(28);
+        y += title_font + Scale(28);
 
         draw_text_font(font, text->topic_question_label, content_x, y, small_font,
                        Fade(GetThemeText(), 0.72f));
-        y += small_font + ScaleUIPx(6);
+        y += small_font + Scale(6);
         y = draw_wrapped_text(font, d->topic, content_x, y, content_w, body_font,
-                              body_font + ScaleUIPx(6), GetThemeText());
-        y += ScaleUIPx(16);
+                              body_font + Scale(6), GetThemeText());
+        y += Scale(16);
 
         if(d->description[0] != '\0') {
             draw_text_font(font, text->description_label, content_x, y, small_font,
                            Fade(GetThemeText(), 0.72f));
-            y += small_font + ScaleUIPx(6);
+            y += small_font + Scale(6);
             y = draw_wrapped_text(font, d->description, content_x, y, content_w, body_font,
-                                  body_font + ScaleUIPx(6), GetThemeText());
-            y += ScaleUIPx(16);
+                                  body_font + Scale(6), GetThemeText());
+            y += Scale(16);
         }
 
         snprintf(value, sizeof(value), "Mode: %s",
                  create_voting_only(app) ? "Voting Phase only" : "Proposal + Voting Phase");
         draw_text_font(font, value, content_x, y, body_font, GetThemeText());
-        y += body_font + ScaleUIPx(10);
+        y += body_font + Scale(10);
         snprintf(value, sizeof(value), "Visibility: %s", d->visibility);
         draw_text_font(font, value, content_x, y, body_font, GetThemeText());
-        y += body_font + ScaleUIPx(10);
+        y += body_font + Scale(10);
         if(process_type_has_proposals(d->type)) {
             snprintf(value, sizeof(value), "%s: %s", tr(app, "Proposal visibility"),
                      d->proposal_visibility);
             draw_text_font(font, value, content_x, y, body_font, GetThemeText());
-            y += body_font + ScaleUIPx(10);
+            y += body_font + Scale(10);
             snprintf(value, sizeof(value), "%s: %s", tr(app, "Who can add proposals"),
                      d->proposal_access);
             draw_text_font(font, value, content_x, y, body_font, GetThemeText());
-            y += body_font + ScaleUIPx(10);
+            y += body_font + Scale(10);
         }
         if(process_type_has_voting(d->type)) {
             snprintf(value, sizeof(value), "%s: %s", tr(app, "Who can vote"),
                      d->voting_access);
             draw_text_font(font, value, content_x, y, body_font, GetThemeText());
-            y += body_font + ScaleUIPx(10);
+            y += body_font + Scale(10);
         }
         if(process_type_uses_negative_weight(d->type)) {
             char weight_label[96];
@@ -7225,50 +7243,59 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
                                          text->negative_weight_options[0], d->negative_weight);
             snprintf(value, sizeof(value), "Negative Score Weighting: %s", weight_label);
             draw_text_font(font, value, content_x, y, body_font, GetThemeText());
-            y += body_font + ScaleUIPx(10);
+            y += body_font + Scale(10);
         }
         if(process_type_has_voting(d->type) && d->quorum_votes > 0) {
             snprintf(value, sizeof(value), "%s: %d", tr(app, "Quorum (minimum ballots)"),
                      d->quorum_votes);
             draw_text_font(font, value, content_x, y, body_font, GetThemeText());
-            y += body_font + ScaleUIPx(10);
+            y += body_font + Scale(10);
         }
         if(!create_voting_only(app) && process_type_has_proposals(d->type)) {
             snprintf(value, sizeof(value), "%s: %dd %dh %dm",
                      text->proposal_time_label, d->proposal_days,
                      d->proposal_hours, d->proposal_minutes);
             draw_text_font(font, value, content_x, y, body_font, GetThemeText());
-            y += body_font + ScaleUIPx(10);
+            y += body_font + Scale(10);
         }
         if(process_type_has_voting(d->type)) {
             snprintf(value, sizeof(value), "%s: %dd %dh %dm",
                      text->voting_time_label, d->voting_days,
                      d->voting_hours, d->voting_minutes);
             draw_text_font(font, value, content_x, y, body_font, GetThemeText());
-            y += body_font + ScaleUIPx(10);
+            y += body_font + Scale(10);
         }
         if(create_voting_only(app) && app->proposal_count > 0) {
-            y += ScaleUIPx(8);
+            y += Scale(8);
             draw_text_font(font, tr(app, "Proposals"), content_x, y, body_font,
                            GetThemeText());
-            y += body_font + ScaleUIPx(10);
+            y += body_font + Scale(10);
             for(int i = 0; i < app->proposal_count; i++) {
                 draw_text_font(font,
                                fit_tail(font, app->proposals[i].title, body_font,
                                         content_w),
                                content_x, y, body_font, GetThemeText());
-                y += body_font + ScaleUIPx(8);
+                y += body_font + Scale(8);
             }
         }
 
-        y += ScaleUIPx(18);
-        draw_compact_button(app, font, content_x, y, ScaleUIPx(130), ScaleUIPx(130),
-                            ScaleUIPx(34), text->back_button, 0,
-                            UKU_FOCUS_CREATE_PREVIOUS, &previous_clicked);
-        draw_compact_button(app, font, content_x + content_w - ScaleUIPx(170), y,
-                            ScaleUIPx(170), ScaleUIPx(170), ScaleUIPx(34),
-                            text->create_process_button, 1, UKU_FOCUS_CREATE_SUBMIT,
-                            &submit_clicked);
+        y += Scale(18);
+        if(Button((ButtonProps){
+                .bounds = {(float)(content_x), (float)(y), (float)(UKU_MIN(Scale(130), Scale(130))), (float)(Scale(34))},
+                .label = text->back_button,
+                .id = UKU_FOCUS_CREATE_PREVIOUS,
+                .emphasis = ButtonEmphasisSoft,
+            }))
+            previous_clicked = 1;
+
+        if(Button((ButtonProps){
+                .bounds = {(float)(content_x + content_w - Scale(170)), (float)(y), (float)(UKU_MIN(Scale(170), Scale(170))), (float)(Scale(34))},
+                .label = text->create_process_button,
+                .id = UKU_FOCUS_CREATE_SUBMIT,
+                .tone = ButtonToneAccent,
+            }))
+            submit_clicked = 1;
+
         if(previous_clicked) {
             app->create_step = UKU_CREATE_STEP_TIMING;
             app->create_scroll = 0;
@@ -7314,18 +7341,18 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
             }
         }
     }
-    y += ScaleUIPx(44);
+    y += Scale(44);
     if(d->submitted)
         draw_centered_text(font, text->setup_ready, content_x + content_w / 2, y, small_font, Fade(GetThemeText(), 0.75f));
     if(d->db_error)
         draw_centered_text(font, text->db_error, content_x + content_w / 2, y, small_font, Fade(GetThemeText(), 0.75f));
     if(d->remote_error)
-        draw_centered_text(font, "Saved locally, but server upload failed.", content_x + content_w / 2, y + ScaleUIPx(18), small_font, Fade(GetThemeText(), 0.75f));
+        draw_centered_text(font, "Saved locally, but server upload failed.", content_x + content_w / 2, y + Scale(18), small_font, Fade(GetThemeText(), 0.75f));
     if(app->process_status[0] != '\0')
         draw_centered_text(font, app->process_status, content_x + content_w / 2,
-                           y + ScaleUIPx(34), small_font, Fade(GetThemeText(), 0.75f));
+                           y + Scale(34), small_font, Fade(GetThemeText(), 0.75f));
     end_uku_scroll_page(page, y, &app->create_scroll,
-                        &app->create_max_scroll, ScaleUIPx(24));
+                        &app->create_max_scroll, Scale(24));
     app->create_scrollbar_visible = app->create_max_scroll > 0;
     }
 }
@@ -7334,46 +7361,50 @@ static int
 draw_proposal_card(UkuApp *app, Font font, const UkuProposal *proposal,
                    int index, int x, int y, int w, int body_font, int small_font)
 {
-    int line_h = small_font + ScaleUIPx(5);
-    int h = ScaleUIPx(54);
+    int line_h = small_font + Scale(5);
+    int h = Scale(54);
     int can_delete;
     int delete_clicked = 0;
     int edit_clicked = 0;
     Rectangle card;
 
     if(proposal->display_name[0] != '\0')
-        h += ScaleUIPx(18);
+        h += Scale(18);
     if(proposal->description[0] != '\0')
-        h += ScaleUIPx(20);
+        h += Scale(20);
     can_delete = app->account.loaded && proposal->author_user_id[0] != '\0' &&
                  strcmp(app->account.public_id, proposal->author_user_id) == 0;
     card = (Rectangle){(float)x, (float)y, (float)w, (float)h};
     DrawRectangleRounded(card, 0.10f, 12, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(card, 0.10f, 12, ScaleUIPx(1), GetThemeButton());
+    DrawRectangleRoundedLinesEx(card, 0.10f, 12, Scale(1), GetThemeButton());
     draw_text_font(font, fit_tail(font, proposal->title, body_font,
-                                  w - (can_delete ? ScaleUIPx(76) : ScaleUIPx(24))),
-                   x + ScaleUIPx(10), y + ScaleUIPx(8), body_font, GetThemeText());
+                                  w - (can_delete ? Scale(76) : Scale(24))),
+                   x + Scale(10), y + Scale(8), body_font, GetThemeText());
     if(proposal->display_name[0] != '\0')
         draw_text_font(font, fit_tail(font, proposal->display_name, small_font,
-                                      w - ScaleUIPx(24)),
-                       x + ScaleUIPx(10), y + ScaleUIPx(30), small_font,
+                                      w - Scale(24)),
+                       x + Scale(10), y + Scale(30), small_font,
                        Fade(GetThemeText(), 0.68f));
     if(proposal->description[0] != '\0')
-        draw_wrapped_text(font, proposal->description, x + ScaleUIPx(10),
-                          y + (proposal->display_name[0] != '\0' ? ScaleUIPx(48)
-                                                                  : ScaleUIPx(32)),
-                          w - ScaleUIPx(20), small_font, line_h, GetThemeText());
+        draw_wrapped_text(font, proposal->description, x + Scale(10),
+                          y + (proposal->display_name[0] != '\0' ? Scale(48)
+                                                                  : Scale(32)),
+                          w - Scale(20), small_font, line_h, GetThemeText());
     if(can_delete) {
-        int icon_y = y + ScaleUIPx(6);
-        int trash_x = x + w - ScaleUIPx(30);
-        int edit_x = trash_x - ScaleUIPx(28);
+        int icon_y = y + Scale(6);
+        int trash_x = x + w - Scale(30);
+        int edit_x = trash_x - Scale(28);
 
-        edit_clicked = draw_icon_button(app, edit_x, icon_y, ScaleUIPx(22),
-                                        UI_ICON_TYPE_PENCIL,
-                                        UKU_FOCUS_PROPOSAL_DELETE_BASE + index + 100);
-        delete_clicked = draw_icon_button(app, trash_x, icon_y, ScaleUIPx(22),
-                                          UI_ICON_TYPE_TRASH,
-                                          UKU_FOCUS_PROPOSAL_DELETE_BASE + index);
+        edit_clicked = IconButton((IconButtonProps){
+                .bounds = {(float)(edit_x), (float)(icon_y), (float)(Scale(22)), (float)(Scale(22))},
+                .icon = app->icons[UI_ICON_TYPE_PENCIL],
+                .focus_id = UKU_FOCUS_PROPOSAL_DELETE_BASE + index + 100,
+            });
+        delete_clicked = IconButton((IconButtonProps){
+                .bounds = {(float)(trash_x), (float)(icon_y), (float)(Scale(22)), (float)(Scale(22))},
+                .icon = app->icons[UI_ICON_TYPE_TRASH],
+                .focus_id = UKU_FOCUS_PROPOSAL_DELETE_BASE + index,
+            });
         if(edit_clicked) {
             copy_text(app->proposal_title, sizeof(app->proposal_title),
                       proposal->title, strlen(proposal->title));
@@ -7385,46 +7416,46 @@ draw_proposal_card(UkuApp *app, Font font, const UkuProposal *proposal,
             app->proposal_submit_ok = !app->proposal_submit_failed;
         }
     }
-    return y + h + ScaleUIPx(8);
+    return y + h + Scale(8);
 }
 
 static int
 draw_score_row(UkuApp *app, Font font, UkuProposal *proposal, int index,
                int x, int y, int w, int body_font, int small_font)
 {
-    int control_y = y + (proposal->description[0] != '\0' ? ScaleUIPx(54) : ScaleUIPx(34));
+    int control_y = y + (proposal->description[0] != '\0' ? Scale(54) : Scale(34));
     int control_h;
     int h;
     Rectangle card;
     ScoreControlProps control = {0};
 
-    control.bounds = (Rectangle){(float)(x + ScaleUIPx(12)), (float)control_y,
-                                 (float)(w - ScaleUIPx(24)), 0};
+    control.bounds = (Rectangle){(float)(x + Scale(12)), (float)control_y,
+                                 (float)(w - Scale(24)), 0};
     control.id = UKU_FOCUS_SCORE_BASE + index * 8;
     control.min_value = -3;
     control.max_value = 3;
     control.value = &proposal->score;
     control.font = small_font;
-    control.gap = ScaleUIPx(5);
-    control.height = ScaleUIPx(32);
-    control.min_item_width = ScaleUIPx(38);
+    control.gap = Scale(5);
+    control.height = Scale(32);
+    control.min_item_width = Scale(38);
     control.wrap = 1;
     control_h = GetScoreControlHeight(control);
-    h = control_y - y + control_h + ScaleUIPx(12);
+    h = control_y - y + control_h + Scale(12);
     card = (Rectangle){(float)x, (float)y, (float)w, (float)h};
 
     DrawRectangleRounded(card, 0.10f, 12, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(card, 0.10f, 12, ScaleUIPx(1), GetThemeButton());
-    draw_text_font(font, fit_tail(font, proposal->title, body_font, w - ScaleUIPx(24)),
-                   x + ScaleUIPx(12), y + ScaleUIPx(8), body_font, GetThemeText());
+    DrawRectangleRoundedLinesEx(card, 0.10f, 12, Scale(1), GetThemeButton());
+    draw_text_font(font, fit_tail(font, proposal->title, body_font, w - Scale(24)),
+                   x + Scale(12), y + Scale(8), body_font, GetThemeText());
     if(proposal->description[0] != '\0')
-        draw_text_font(font, fit_tail(font, proposal->description, small_font, w - ScaleUIPx(24)),
-                       x + ScaleUIPx(12), y + ScaleUIPx(30), small_font, GetThemeText());
+        draw_text_font(font, fit_tail(font, proposal->description, small_font, w - Scale(24)),
+                       x + Scale(12), y + Scale(30), small_font, GetThemeText());
 
     (void)app;
     control.bounds.height = (float)control_h;
     ScoreControl(control);
-    return y + h + ScaleUIPx(10);
+    return y + h + Scale(10);
 }
 
 static void
@@ -7443,7 +7474,7 @@ draw_result_score_badge(UkuApp *app, Font font, int cx, int cy, int size,
         snprintf(label, sizeof(label), avg > 0 ? "+%d" : "%d", avg);
     }
     DrawRectangleRounded(badge, 0.20f, 12, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(badge, 0.20f, 12, ScaleUIPx(1), GetThemeButton());
+    DrawRectangleRoundedLinesEx(badge, 0.20f, 12, Scale(1), GetThemeButton());
     draw_centered_text(font, label, cx,
                        GetUIControlTextY(label, (int)badge.y, (int)badge.height,
                                          small_font),
@@ -7458,19 +7489,19 @@ draw_result_row(UkuApp *app, Font font, const UkuProposal *proposal,
     char meta[160];
     char title[220];
     char resistance[80];
-    int h = ScaleUIPx(72);
-    int face = ScaleUIPx(40);
+    int h = Scale(72);
+    int face = Scale(40);
     Rectangle card = {(float)x, (float)y, (float)w, (float)h};
 
     DrawRectangleRounded(card, 0.10f, 12, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(card, 0.10f, 12, ScaleUIPx(1), GetThemeButton());
+    DrawRectangleRoundedLinesEx(card, 0.10f, 12, Scale(1), GetThemeButton());
     snprintf(title, sizeof(title), "%d. %s%s%s", rank, proposal->title,
              rank == 1 ? tr(app, " - leading") : "",
              negative_weight_is_infinite(app->decision.negative_weight) &&
                  proposal->negative_total <= -UKU_NEGATIVE_WEIGHT_INFINITY ?
                  tr(app, " - vetoed") : "");
-    draw_text_font(font, fit_tail(font, title, body_font, w - face - ScaleUIPx(40)),
-                   x + ScaleUIPx(10), y + ScaleUIPx(8), body_font, GetThemeText());
+    draw_text_font(font, fit_tail(font, title, body_font, w - face - Scale(40)),
+                   x + Scale(10), y + Scale(8), body_font, GetThemeText());
     snprintf(meta, sizeof(meta), "%s %d | %s %d | %s %d | %s %d | %s %.1f",
              tr(app, "total"), proposal->total,
              tr(app, "support"), proposal->positive_total,
@@ -7478,18 +7509,18 @@ draw_result_row(UkuApp *app, Font font, const UkuProposal *proposal,
              tr(app, "votes"), proposal->vote_count,
              tr(app, "avg"),
              proposal->vote_count > 0 ? (float)proposal->total / (float)proposal->vote_count : 0.0f);
-    draw_text_font(font, fit_tail(font, meta, small_font, w - face - ScaleUIPx(40)),
-                   x + ScaleUIPx(10), y + ScaleUIPx(34), small_font, Fade(GetThemeText(), 0.75f));
+    draw_text_font(font, fit_tail(font, meta, small_font, w - face - Scale(40)),
+                   x + Scale(10), y + Scale(34), small_font, Fade(GetThemeText(), 0.75f));
     if(proposal->vote_count > 0 && proposal->negative_total < 0 &&
        -proposal->negative_total >= proposal->positive_total) {
         snprintf(resistance, sizeof(resistance), "%s", tr(app, "resistance at least equals support"));
-        draw_text_font(font, fit_tail(font, resistance, small_font, w - face - ScaleUIPx(40)),
-                       x + ScaleUIPx(10), y + ScaleUIPx(50), small_font, GetThemeText());
+        draw_text_font(font, fit_tail(font, resistance, small_font, w - face - Scale(40)),
+                       x + Scale(10), y + Scale(50), small_font, GetThemeText());
     }
-    draw_result_score_badge(app, font, x + w - face / 2 - ScaleUIPx(10),
+    draw_result_score_badge(app, font, x + w - face / 2 - Scale(10),
                             y + h / 2, face, proposal->total,
                             proposal->vote_count, small_font);
-    return y + h + ScaleUIPx(8);
+    return y + h + Scale(8);
 }
 
 static int
@@ -7497,36 +7528,36 @@ draw_option_vote_row(UkuApp *app, Font font, UkuOption *option,
                      UkuProcessType type, int index, int x, int y, int w,
                      int body_font, int small_font)
 {
-    int control_y = y + ScaleUIPx(34);
+    int control_y = y + Scale(34);
     int control_h;
     int h;
     Rectangle card;
     ScoreControlProps control = {0};
 
     (void)type;
-    control.bounds = (Rectangle){(float)(x + ScaleUIPx(10)), (float)control_y,
-                                 (float)(w - ScaleUIPx(20)), 0};
+    control.bounds = (Rectangle){(float)(x + Scale(10)), (float)control_y,
+                                 (float)(w - Scale(20)), 0};
     control.id = UKU_FOCUS_OPTION_SCORE_BASE + index;
     control.min_value = 0;
     control.max_value = app != NULL ? app->option_count : 0;
     control.value = &option->score;
     control.font = small_font;
-    control.gap = ScaleUIPx(5);
-    control.height = ScaleUIPx(30);
-    control.min_item_width = ScaleUIPx(34);
+    control.gap = Scale(5);
+    control.height = Scale(30);
+    control.min_item_width = Scale(34);
     control.wrap = 1;
     control_h = GetScoreControlHeight(control);
-    h = control_y - y + control_h + ScaleUIPx(10);
+    h = control_y - y + control_h + Scale(10);
     card = (Rectangle){(float)x, (float)y, (float)w, (float)h};
 
     DrawRectangleRounded(card, 0.10f, 12, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(card, 0.10f, 12, ScaleUIPx(1), GetThemeButton());
-    draw_text_font(font, fit_tail(font, option->label, body_font, w - ScaleUIPx(20)),
-                   x + ScaleUIPx(10), y + ScaleUIPx(8), body_font, GetThemeText());
+    DrawRectangleRoundedLinesEx(card, 0.10f, 12, Scale(1), GetThemeButton());
+    draw_text_font(font, fit_tail(font, option->label, body_font, w - Scale(20)),
+                   x + Scale(10), y + Scale(8), body_font, GetThemeText());
 
     control.bounds.height = (float)control_h;
     ScoreControl(control);
-    return y + h + ScaleUIPx(8);
+    return y + h + Scale(8);
 }
 
 static int
@@ -7534,24 +7565,24 @@ draw_option_result_row(UkuApp *app, Font font, const UkuOption *option,
                        int rank, int x, int y, int w, int body_font, int small_font)
 {
     char meta[96];
-    int h = ScaleUIPx(50);
+    int h = Scale(50);
     Rectangle card = {(float)x, (float)y, (float)w, (float)h};
 
     DrawRectangleRounded(card, 0.10f, 12, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(card, 0.10f, 12, ScaleUIPx(1), GetThemeButton());
-    draw_text_font(font, fit_tail(font, option->label, body_font, w - ScaleUIPx(24)),
-                   x + ScaleUIPx(10), y + ScaleUIPx(8), body_font, GetThemeText());
+    DrawRectangleRoundedLinesEx(card, 0.10f, 12, Scale(1), GetThemeButton());
+    draw_text_font(font, fit_tail(font, option->label, body_font, w - Scale(24)),
+                   x + Scale(10), y + Scale(8), body_font, GetThemeText());
     snprintf(meta, sizeof(meta), "%d. %s %d | %s %d | %s %.1f", rank,
              tr(app, "total"), option->total,
              tr(app, "votes"), option->vote_count,
              tr(app, "avg"),
              option->vote_count > 0 ? (float)option->total / (float)option->vote_count : 0.0f);
-    draw_text_font(font, fit_tail(font, meta, small_font, w - ScaleUIPx(44)),
-                   x + ScaleUIPx(10), y + ScaleUIPx(30), small_font, Fade(GetThemeText(), 0.75f));
-    draw_result_score_badge(app, font, x + w - ScaleUIPx(18), y + h / 2,
-                            ScaleUIPx(26), option->total,
+    draw_text_font(font, fit_tail(font, meta, small_font, w - Scale(44)),
+                   x + Scale(10), y + Scale(30), small_font, Fade(GetThemeText(), 0.75f));
+    draw_result_score_badge(app, font, x + w - Scale(18), y + h / 2,
+                            Scale(26), option->total,
                             option->vote_count, small_font);
-    return y + h + ScaleUIPx(8);
+    return y + h + Scale(8);
 }
 
 static void
@@ -7656,47 +7687,47 @@ static int
 draw_verdict_banner(UkuApp *app, Font font, const char *verdict_text, int positive,
                     int x, int y, int w, int body_font)
 {
-    int h = ScaleUIPx(48);
+    int h = Scale(48);
     Rectangle card = {(float)x, (float)y, (float)w, (float)h};
 
     (void)app;
     DrawRectangleRounded(card, 0.10f, 12, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(card, 0.10f, 12, ScaleUIPx(2),
+    DrawRectangleRoundedLinesEx(card, 0.10f, 12, Scale(2),
                                 positive ? GetThemeText() : GetThemeButton());
-    draw_text_font(font, fit_tail(font, verdict_text, body_font, w - ScaleUIPx(24)),
-                   x + ScaleUIPx(12), y + (h - body_font) / 2, body_font, GetThemeText());
-    return y + h + ScaleUIPx(10);
+    draw_text_font(font, fit_tail(font, verdict_text, body_font, w - Scale(24)),
+                   x + Scale(12), y + (h - body_font) / 2, body_font, GetThemeText());
+    return y + h + Scale(10);
 }
 
 static int
 draw_participant_list(UkuApp *app, Font font, int x, int y, int w, int body_font, int small_font)
 {
-    int line_h = small_font + ScaleUIPx(5);
+    int line_h = small_font + Scale(5);
     char title[96];
 
     snprintf(title, sizeof(title), "%s (%d/%d)", tr(app, "Participants"),
              app->tally_from_remote ? tally_included_count(app) : app->vote_count,
              app->vote_count);
     draw_text_font(font, title, x, y, body_font, GetThemeText());
-    y += body_font + ScaleUIPx(8);
+    y += body_font + Scale(8);
     if(app->vote_count <= 0) {
         y = draw_wrapped_text(font, tr(app, "No votes submitted yet."), x, y, w, small_font,
                               line_h, Fade(GetThemeText(), 0.75f));
-        return y + ScaleUIPx(8);
+        return y + Scale(8);
     }
     if(app->tally_from_remote)
         y = draw_wrapped_text(font, tr(app, "Tap a participant to include or exclude them from the results."),
-                              x, y, w, small_font, line_h, GetThemeButton()) + ScaleUIPx(2);
+                              x, y, w, small_font, line_h, GetThemeButton()) + Scale(2);
     for(int i = 0; i < app->vote_count; i++) {
         const UkuVoteInfo *vote = &app->votes[i];
         char row[180];
         const char *name = vote->display_name[0] != '\0' ? vote->display_name : vote->voter_user_id;
         int included = !app->tally_from_remote || app->result_voter_included[i];
-        int box = small_font + ScaleUIPx(4);
-        Rectangle hit = {(float)x, (float)y - ScaleUIPx(2), (float)w, (float)line_h};
+        int box = small_font + Scale(4);
+        Rectangle hit = {(float)x, (float)y - Scale(2), (float)w, (float)line_h};
 
         if(app->tally_from_remote) {
-            Rectangle check = {(float)x + ScaleUIPx(12), (float)y, (float)box, (float)box};
+            Rectangle check = {(float)x + Scale(12), (float)y, (float)box, (float)box};
 
             if(RegisterUIFocus(UKU_FOCUS_VOTER_BASE + i, hit) && CheckCollisionPointRec(GetMousePosition(), hit))
                 app->cursor_clickable = 1;
@@ -7714,19 +7745,19 @@ draw_participant_list(UkuApp *app, Font font, int x, int y, int w, int body_font
         snprintf(row, sizeof(row), "%s%s%s", name,
                  vote->has_ballot ? "" : tr(app, " (proposal)"),
                  app->account.loaded && strcmp(vote->voter_user_id, app->account.public_id) == 0 ? tr(app, " (you)") : "");
-        draw_text_font(font, fit_tail(font, row, small_font, w - ScaleUIPx(24)),
-                       x + ScaleUIPx(12) + (app->tally_from_remote ? box + ScaleUIPx(8) : 0), y, small_font,
+        draw_text_font(font, fit_tail(font, row, small_font, w - Scale(24)),
+                       x + Scale(12) + (app->tally_from_remote ? box + Scale(8) : 0), y, small_font,
                        included ? GetThemeText() : GetThemeButton());
         y += line_h;
     }
-    return y + ScaleUIPx(8);
+    return y + Scale(8);
 }
 
 static int
 draw_history_card(UkuApp *app, Font font, const UkuProcessRow *row, int index,
                   int x, int y, int w, int body_font, int small_font)
 {
-    int card_h = ScaleUIPx(80);
+    int card_h = Scale(80);
     Rectangle card = {(float)x, (float)y, (float)w, (float)card_h};
     Vector2 mouse = GetMousePosition();
     int focus_id = UKU_FOCUS_DASHBOARD_PROCESS_BASE + index;
@@ -7739,20 +7770,20 @@ draw_history_card(UkuApp *app, Font font, const UkuProcessRow *row, int index,
     if(hovered)
         app->cursor_clickable = 1;
     DrawRectangleRounded(card, 0.07f, 10, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(card, 0.07f, 10, ScaleUIPx(1), focused ? GetThemeButton() : GetThemeText());
-    draw_text_font(font, fit_tail(font, row->topic, body_font, w - ScaleUIPx(24)),
-                   x + ScaleUIPx(12), y + ScaleUIPx(8), body_font, GetThemeText());
+    DrawRectangleRoundedLinesEx(card, 0.07f, 10, Scale(1), focused ? GetThemeButton() : GetThemeText());
+    draw_text_font(font, fit_tail(font, row->topic, body_font, w - Scale(24)),
+                   x + Scale(12), y + Scale(8), body_font, GetThemeText());
     format_created_at(created, sizeof(created), row->created_at);
     snprintf(meta, sizeof(meta), "%s | %s | %s", tr(app, "Finished"),
              process_type_label(row->type), created);
-    draw_text_font(font, fit_tail(font, meta, small_font, w - ScaleUIPx(24)),
-                   x + ScaleUIPx(12), y + ScaleUIPx(31), small_font, Fade(GetThemeText(), 0.75f));
+    draw_text_font(font, fit_tail(font, meta, small_font, w - Scale(24)),
+                   x + Scale(12), y + Scale(31), small_font, Fade(GetThemeText(), 0.75f));
     if(row->description[0] != '\0')
-        draw_text_font(font, fit_tail(font, row->description, small_font, w - ScaleUIPx(24)),
-                       x + ScaleUIPx(12), y + ScaleUIPx(52), small_font, GetThemeText());
+        draw_text_font(font, fit_tail(font, row->description, small_font, w - Scale(24)),
+                       x + Scale(12), y + Scale(52), small_font, GetThemeText());
     if((hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) || IsUIFocusActivatePressed(focus_id))
         open_process_row(app, row);
-    return y + card_h + ScaleUIPx(8);
+    return y + card_h + Scale(8);
 }
 
 static void
@@ -7760,7 +7791,7 @@ draw_history(UkuApp *app, const UkuText *text, int view_w, int view_h)
 {
     int content_x;
     int content_w;
-    int top_h = ScaleUIPx(46);
+    int top_h = Scale(46);
     int title_font = ClampUIPx(17, 17, 21);
     int body_font = ClampUIPx(14, 14, 17);
     int small_font = ClampUIPx(12, 12, 14);
@@ -7788,14 +7819,14 @@ draw_history(UkuApp *app, const UkuText *text, int view_w, int view_h)
         UkuScrollPage page = begin_uku_scroll_page(view_w, view_h, top_h, 640,
                                                    &app->history_scroll,
                                                    app->history_max_scroll,
-                                                   ScaleUIPx(14));
+                                                   Scale(14));
         content_x = page.content_x;
         content_w = page.content_w;
         viewport_y = page.viewport_y;
         viewport_h = page.viewport_h;
         y = page.y;
     draw_text_font(font, tr(app, "Finished Processes"), content_x, y, title_font, GetThemeText());
-    y += title_font + ScaleUIPx(12);
+    y += title_font + Scale(12);
 
     for(int i = 0; i < app->process_count; i++) {
         UkuProcessRow *row = &app->processes[i];
@@ -7814,14 +7845,14 @@ draw_history(UkuApp *app, const UkuText *text, int view_w, int view_h)
         if(process_phase(row->created_at, row->proposal_minutes, row->voting_minutes, now, NULL)
            != UKU_PROCESS_RESULTS)
             continue;
-        if(y + ScaleUIPx(80) < viewport_y || y > viewport_y + viewport_h) {
-            y += ScaleUIPx(88);
+        if(y + Scale(80) < viewport_y || y > viewport_y + viewport_h) {
+            y += Scale(88);
             continue;
         }
         y = draw_history_card(app, font, row, i, content_x, y, content_w, body_font, small_font);
     }
         end_uku_scroll_page(page, y, &app->history_scroll,
-                            &app->history_max_scroll, ScaleUIPx(24));
+                            &app->history_max_scroll, Scale(24));
     }
     (void)text;
 }
@@ -7937,10 +7968,10 @@ qr_ensure(UkuApp *app, const UkuDecision *d, const char *url)
 static int
 qr_panel_height(UkuApp *app, int small_font)
 {
-    int panel_pad = ScaleUIPx(12);
-    int qr_h = app != NULL && app->qr_loaded ? app->qr_texture.height : ScaleUIPx(160);
+    int panel_pad = Scale(12);
+    int qr_h = app != NULL && app->qr_loaded ? app->qr_texture.height : Scale(160);
 
-    return qr_h + panel_pad * 2 + small_font + ScaleUIPx(6);
+    return qr_h + panel_pad * 2 + small_font + Scale(6);
 }
 
 static int
@@ -8060,9 +8091,9 @@ save_file(UkuApp *app, const char *path, const char *mime_type)
 static void
 qr_draw(UkuApp *app, Font font, const char *url, int x, int y, int w, int body_font, int small_font)
 {
-    int panel_pad = ScaleUIPx(12);
-    int qr_w = app->qr_loaded ? app->qr_texture.width : ScaleUIPx(160);
-    int qr_h = app->qr_loaded ? app->qr_texture.height : ScaleUIPx(160);
+    int panel_pad = Scale(12);
+    int qr_w = app->qr_loaded ? app->qr_texture.width : Scale(160);
+    int qr_h = app->qr_loaded ? app->qr_texture.height : Scale(160);
     int panel_h = qr_panel_height(app, small_font);
     Rectangle panel = {(float)x, (float)y, (float)w, (float)panel_h};
     Vector2 mouse = GetMousePosition();
@@ -8072,11 +8103,11 @@ qr_draw(UkuApp *app, Font font, const char *url, int x, int y, int w, int body_f
     if(hovered)
         app->cursor_clickable = 1;
     DrawRectangleRounded(panel, 0.06f, 10, GetThemeBackground());
-    DrawRectangleRoundedLinesEx(panel, 0.06f, 10, ScaleUIPx(1), GetThemeText());
+    DrawRectangleRoundedLinesEx(panel, 0.06f, 10, Scale(1), GetThemeText());
     if(app->qr_loaded)
         DrawTexture(app->qr_texture, x + (w - qr_w) / 2, y + panel_pad, WHITE);
     draw_text_font(font, fit_tail(font, url, small_font, w - panel_pad * 2),
-                   x + panel_pad, y + panel_pad * 2 + qr_h + ScaleUIPx(2),
+                   x + panel_pad, y + panel_pad * 2 + qr_h + Scale(2),
                    small_font, Fade(GetThemeText(), 0.75f));
 }
 
@@ -8145,10 +8176,10 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
 {
     int content_x;
     int content_w;
-    int top_h = ScaleUIPx(46);
+    int top_h = Scale(46);
     int body_font = ClampUIPx(14, 14, 17);
     int small_font = ClampUIPx(12, 12, 14);
-    int line_h = body_font + ScaleUIPx(5);
+    int line_h = body_font + Scale(5);
     int y;
     int back_clicked = 0;
     int copy_clicked = 0;
@@ -8218,27 +8249,27 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     page = begin_uku_scroll_page(view_w, view_h, top_h, 600,
                                  &app->collect_scroll,
                                  app->collect_max_scroll,
-                                 ScaleUIPx(14));
+                                 Scale(14));
     content_x = page.content_x;
     content_w = page.content_w;
     y = page.y;
     draw_text_font(font, d->topic, content_x, y, body_font, GetThemeText());
-    y += body_font + ScaleUIPx(12);
+    y += body_font + Scale(12);
     if(d->description[0] != '\0') {
         y = draw_wrapped_text(font, d->description, content_x, y, content_w, small_font,
                               line_h, GetThemeText());
-        y += ScaleUIPx(10);
+        y += Scale(10);
     }
 
     format_process_timer(timer, sizeof(timer), text, d->created_at, proposal_total, voting_total, now);
-    DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)content_w, (float)ScaleUIPx(36)}, 0.10f, 12,
+    DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)content_w, (float)Scale(36)}, 0.10f, 12,
                          GetThemeSurface());
-    DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)content_w, (float)ScaleUIPx(36)}, 0.10f, 12,
-                                ScaleUIPx(1), GetThemeButton());
-    draw_text_font(font, fit_tail(font, timer, body_font, content_w - ScaleUIPx(24)),
-                   content_x + ScaleUIPx(10), y + ScaleUIPx(9), body_font,
+    DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)content_w, (float)Scale(36)}, 0.10f, 12,
+                                Scale(1), GetThemeButton());
+    draw_text_font(font, fit_tail(font, timer, body_font, content_w - Scale(24)),
+                   content_x + Scale(10), y + Scale(9), body_font,
                    process_phase(d->created_at, proposal_total, voting_total, now, NULL) == UKU_PROCESS_RESULTS ? GetThemeText() : GetThemeButton());
-    y += ScaleUIPx(48);
+    y += Scale(48);
 
     snprintf(governance_line, sizeof(governance_line),
              "%s %s%s%s",
@@ -8261,76 +8292,97 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
         strncat(governance_line, segment, sizeof(governance_line) - strlen(governance_line) - 1);
     }
     y = draw_wrapped_text(font, governance_line, content_x, y, content_w, small_font,
-                          small_font + ScaleUIPx(7), GetThemeButton());
+                          small_font + Scale(7), GetThemeButton());
     if(d->outcome[0] != '\0') {
         snprintf(governance_line, sizeof(governance_line), "%s %s", tr(app, "Outcome:"), d->outcome);
         y = draw_wrapped_text(font, governance_line, content_x, y, content_w, small_font,
-                              small_font + ScaleUIPx(7), GetThemeText());
+                              small_font + Scale(7), GetThemeText());
     }
     if(d->review_at[0] != '\0') {
         snprintf(governance_line, sizeof(governance_line), "%s %s", tr(app, "Review:"), d->review_at);
         y = draw_wrapped_text(font, governance_line, content_x, y, content_w, small_font,
-                              small_font + ScaleUIPx(7), GetThemeText());
+                              small_font + Scale(7), GetThemeText());
     }
-    y += ScaleUIPx(10);
+    y += Scale(10);
 
     if(d->remote_error) {
         y = draw_wrapped_text(font, tr(app, "Saved locally, but server upload failed. Check your connection and account."), content_x, y, content_w, small_font, line_h, Fade(GetThemeText(), 0.75f));
-        y += ScaleUIPx(10);
+        y += Scale(10);
     }
     if(app->process_detail_loading_failed) {
         y = draw_wrapped_text(font, tr(app, "Could not refresh this process from the server. Showing local details."), content_x, y, content_w, small_font, line_h, Fade(GetThemeText(), 0.75f));
-        y += ScaleUIPx(6);
-        draw_compact_button(app, font, content_x, y, ScaleUIPx(160), ScaleUIPx(600),
-                            ScaleUIPx(30), tr(app, "Refresh"), 0,
-                            UKU_FOCUS_COLLECT_REFRESH, &refresh_clicked);
+        y += Scale(6);
+        if(Button((ButtonProps){
+                .bounds = {(float)(content_x), (float)(y), (float)(UKU_MIN(Scale(160), Scale(600))), (float)(Scale(30))},
+                .label = tr(app, "Refresh"),
+                .id = UKU_FOCUS_COLLECT_REFRESH,
+                .emphasis = ButtonEmphasisSoft,
+            }))
+            refresh_clicked = 1;
+
         if(refresh_clicked)
             app->collect_refresh_requested = 1;
-        y += ScaleUIPx(38);
+        y += Scale(38);
     }
 
     update_local_address(app, d);
     draw_text_font(font, text->local_address_label, content_x, y, small_font, Fade(GetThemeText(), 0.75f));
-    y += small_font + ScaleUIPx(6);
-    link_box_w = TextWidth(d->local_address, body_font) + ScaleUIPx(20);
-    link_box_w = clampi(link_box_w, ScaleUIPx(96), content_w);
-    link_box_h = TextLineHeight(body_font) + ScaleUIPx(10);
+    y += small_font + Scale(6);
+    link_box_w = TextWidth(d->local_address, body_font) + Scale(20);
+    link_box_w = clampi(link_box_w, Scale(96), content_w);
+    link_box_h = TextLineHeight(body_font) + Scale(10);
     DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)link_box_w, (float)link_box_h}, 0.10f, 12, GetThemeSurface());
     DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)link_box_w, (float)link_box_h}, 0.10f, 12,
-                                ScaleUIPx(1), GetThemeButton());
-    draw_text_font(font, fit_tail(font, d->local_address, body_font, link_box_w - ScaleUIPx(20)),
-                   content_x + ScaleUIPx(10),
+                                Scale(1), GetThemeButton());
+    draw_text_font(font, fit_tail(font, d->local_address, body_font, link_box_w - Scale(20)),
+                   content_x + Scale(10),
                    GetUIControlTextY(d->local_address, y, link_box_h, body_font),
                    body_font, GetThemeText());
     {
         char share_url[320];
-        int gap = ScaleUIPx(8);
-        int button_h = ScaleUIPx(34);
-        int wide_actions = content_w >= ScaleUIPx(460);
-        int action_y = y + link_box_h + ScaleUIPx(6);
+        int gap = Scale(8);
+        int button_h = Scale(34);
+        int wide_actions = content_w >= Scale(460);
+        int action_y = y + link_box_h + Scale(6);
         int action_w = wide_actions ? (content_w - gap * 2) / 3
                                     : (content_w - gap) / 2;
 
         build_share_url(app, d, share_url, sizeof(share_url));
-        draw_compact_button(app, font, content_x, action_y,
-                            action_w, ScaleUIPx(600), button_h,
-                            tr(app, "Copy share link"), 0,
-                            UKU_FOCUS_PUBLIC_ID_COPY, &copy_clicked);
-        draw_compact_button(app, font, content_x + action_w + gap, action_y,
-                            action_w, ScaleUIPx(600), button_h,
-                            tr(app, "Share link"), 0,
-                            UKU_FOCUS_QR_SHARE_LINK, &share_link_clicked);
+        if(Button((ButtonProps){
+                .bounds = {(float)(content_x), (float)(action_y), (float)(UKU_MIN(action_w, Scale(600))), (float)(button_h)},
+                .label = tr(app, "Copy share link"),
+                .id = UKU_FOCUS_PUBLIC_ID_COPY,
+                .emphasis = ButtonEmphasisSoft,
+            }))
+            copy_clicked = 1;
+
+        if(Button((ButtonProps){
+                .bounds = {(float)(content_x + action_w + gap), (float)(action_y), (float)(UKU_MIN(action_w, Scale(600))), (float)(button_h)},
+                .label = tr(app, "Share link"),
+                .id = UKU_FOCUS_QR_SHARE_LINK,
+                .emphasis = ButtonEmphasisSoft,
+            }))
+            share_link_clicked = 1;
+
         if(wide_actions) {
-            draw_compact_button(app, font, content_x + (action_w + gap) * 2,
-                                action_y, action_w, ScaleUIPx(600), button_h,
-                                app->qr_visible ? tr(app, "Hide QR code") : tr(app, "Show QR code"),
-                                0, UKU_FOCUS_QR_TOGGLE, &qr_clicked);
+            if(Button((ButtonProps){
+                    .bounds = {(float)(content_x + (action_w + gap) * 2), (float)(action_y), (float)(UKU_MIN(action_w, Scale(600))), (float)(button_h)},
+                    .label = app->qr_visible ? tr(app, "Hide QR code") : tr(app, "Show QR code"),
+                    .id = UKU_FOCUS_QR_TOGGLE,
+                    .emphasis = ButtonEmphasisSoft,
+                }))
+                qr_clicked = 1;
+
         } else {
             action_y += button_h + gap;
-            draw_compact_button(app, font, content_x, action_y,
-                                content_w, ScaleUIPx(600), button_h,
-                                app->qr_visible ? tr(app, "Hide QR code") : tr(app, "Show QR code"),
-                                0, UKU_FOCUS_QR_TOGGLE, &qr_clicked);
+            if(Button((ButtonProps){
+                    .bounds = {(float)(content_x), (float)(action_y), (float)(UKU_MIN(content_w, Scale(600))), (float)(button_h)},
+                    .label = app->qr_visible ? tr(app, "Hide QR code") : tr(app, "Show QR code"),
+                    .id = UKU_FOCUS_QR_TOGGLE,
+                    .emphasis = ButtonEmphasisSoft,
+                }))
+                qr_clicked = 1;
+
         }
         if(copy_clicked || share_link_clicked) {
             if(share_link_clicked) {
@@ -8350,7 +8402,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
             if(app->qr_visible && !qr_ensure(app, d, share_url))
                 ShowToast(tr(app, "Could not create QR code."));
         }
-        y += link_box_h + (wide_actions ? ScaleUIPx(46) : ScaleUIPx(88));
+        y += link_box_h + (wide_actions ? Scale(46) : Scale(88));
         if(app->qr_visible) {
             int qr_action_y;
             int qr_actions_y;
@@ -8361,17 +8413,25 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
             qr_action_y = y;
             if(app->qr_loaded)
                 qr_draw(app, font, share_url, content_x, qr_action_y, content_w, body_font, small_font);
-            y += qr_panel_height(app, small_font) + ScaleUIPx(8);
+            y += qr_panel_height(app, small_font) + Scale(8);
             qr_actions_y = y;
             qr_action_w = (content_w - gap) / 2;
-            draw_compact_button(app, font, content_x, qr_actions_y,
-                                qr_action_w, ScaleUIPx(600), button_h,
-                                tr(app, "Save QR code"), 0,
-                                UKU_FOCUS_QR_SAVE, &qr_save_clicked);
-            draw_compact_button(app, font, content_x + qr_action_w + gap, qr_actions_y,
-                                qr_action_w, ScaleUIPx(600), button_h,
-                                tr(app, "Share QR code"), 0,
-                                UKU_FOCUS_QR_SHARE_IMAGE, &qr_share_clicked);
+            if(Button((ButtonProps){
+                    .bounds = {(float)(content_x), (float)(qr_actions_y), (float)(UKU_MIN(qr_action_w, Scale(600))), (float)(button_h)},
+                    .label = tr(app, "Save QR code"),
+                    .id = UKU_FOCUS_QR_SAVE,
+                    .emphasis = ButtonEmphasisSoft,
+                }))
+                qr_save_clicked = 1;
+
+            if(Button((ButtonProps){
+                    .bounds = {(float)(content_x + qr_action_w + gap), (float)(qr_actions_y), (float)(UKU_MIN(qr_action_w, Scale(600))), (float)(button_h)},
+                    .label = tr(app, "Share QR code"),
+                    .id = UKU_FOCUS_QR_SHARE_IMAGE,
+                    .emphasis = ButtonEmphasisSoft,
+                }))
+                qr_share_clicked = 1;
+
             if(qr_save_clicked) {
                 if(app->qr_file_ready && app->qr_file_path[0] != '\0' &&
                    save_file(app, app->qr_file_path, "image/png")) {
@@ -8387,14 +8447,20 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                 else
                     ShowToast(tr(app, "Could not share QR code."));
             }
-            y += button_h + ScaleUIPx(18);
+            y += button_h + Scale(18);
         } else
-            y += ScaleUIPx(4);
+            y += Scale(4);
     }
 
     if(is_owner) {
-        draw_compact_button(app, font, content_x, y, content_w, ScaleUIPx(230), ScaleUIPx(34),
-                            tr(app, "Export decision packet"), 0, UKU_FOCUS_PROCESS_EXPORT, &export_clicked);
+        if(Button((ButtonProps){
+                .bounds = {(float)(content_x), (float)(y), (float)(UKU_MIN(content_w, Scale(230))), (float)(Scale(34))},
+                .label = tr(app, "Export decision packet"),
+                .id = UKU_FOCUS_PROCESS_EXPORT,
+                .emphasis = ButtonEmphasisSoft,
+            }))
+            export_clicked = 1;
+
         if(export_clicked) {
             app->process_export_failed = !export_process(app, app->server_url);
             copy_text(app->process_status, sizeof(app->process_status),
@@ -8402,9 +8468,15 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                       strlen(tr(app, app->process_export_failed ? "Could not export decision packet." : "Decision packet copied.")));
             ShowToast(app->process_status);
         }
-        y += ScaleUIPx(42);
-        draw_compact_button(app, font, content_x, y, content_w, ScaleUIPx(190), ScaleUIPx(34),
-                            tr(app, "Archive process"), 0, UKU_FOCUS_PROCESS_DELETE, &delete_process_clicked);
+        y += Scale(42);
+        if(Button((ButtonProps){
+                .bounds = {(float)(content_x), (float)(y), (float)(UKU_MIN(content_w, Scale(190))), (float)(Scale(34))},
+                .label = tr(app, "Archive process"),
+                .id = UKU_FOCUS_PROCESS_DELETE,
+                .emphasis = ButtonEmphasisSoft,
+            }))
+            delete_process_clicked = 1;
+
         if(delete_process_clicked) {
             app->process_update_failed = !delete_process(app, app->server_url);
             if(!app->process_update_failed) {
@@ -8412,26 +8484,26 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                 app->screen = UKU_SCREEN_HOME;
                 ClearUIFocus();
                 end_uku_scroll_page(page, y, &app->collect_scroll,
-                                    &app->collect_max_scroll, ScaleUIPx(24));
+                                    &app->collect_max_scroll, Scale(24));
                 return;
             }
         }
-        y += ScaleUIPx(42);
+        y += Scale(42);
         if(app->process_update_failed) {
             y = draw_wrapped_text(font, tr(app, "Could not update process visibility."), content_x, y,
                                   content_w, small_font, line_h, Fade(GetThemeText(), 0.75f));
-            y += ScaleUIPx(12);
+            y += Scale(12);
         }
     }
 
     if(process_type_has_proposals(d->type) && phase == UKU_PROCESS_PROPOSAL) {
         draw_text_font(font, tr(app, "Add proposal"), content_x, y, body_font, GetThemeText());
-        y += body_font + ScaleUIPx(8);
+        y += body_font + Scale(8);
         if(!proposal_submit_allowed) {
             y = draw_wrapped_text(font, tr(app, "You do not have permission to add proposals to this process."),
                                   content_x, y, content_w, small_font, line_h,
                                   Fade(GetThemeText(), 0.75f));
-            y += ScaleUIPx(12);
+            y += Scale(12);
         } else {
         {
             char identity_line[128];
@@ -8444,27 +8516,32 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                 y = draw_wrapped_text(font, identity_line, content_x, y,
                                       content_w, small_font, line_h,
                                       Fade(GetThemeText(), 0.70f));
-                y += ScaleUIPx(8);
+                y += Scale(8);
             }
         }
         y = draw_text_field(app, font, tr(app, "Title"), tr(app, "Proposal title"),
                             app->proposal_title, sizeof(app->proposal_title),
                             UKU_FIELD_PROPOSAL_TITLE, UKU_FOCUS_PROPOSAL_TITLE,
-                            content_x, y, content_w, ScaleUIPx(36));
+                            content_x, y, content_w, Scale(36));
         y = draw_text_field(app, font, tr(app, "Description"), tr(app, "Optional details"),
                             app->proposal_description, sizeof(app->proposal_description),
                             UKU_FIELD_PROPOSAL_DESCRIPTION, UKU_FOCUS_PROPOSAL_DESCRIPTION,
-                            content_x, y, content_w, ScaleUIPx(68));
+                            content_x, y, content_w, Scale(68));
         if(has_non_space(app->proposal_description) &&
            !has_non_space(app->proposal_title)) {
             y = draw_wrapped_text(font, text->proposal_title_warning,
-                                  content_x, y - ScaleUIPx(6), content_w,
+                                  content_x, y - Scale(6), content_w,
                                   small_font, line_h, GetThemeButton());
-            y += ScaleUIPx(8);
+            y += Scale(8);
         }
-        draw_compact_button(app, font, content_x, y, content_w, ScaleUIPx(210),
-                            ScaleUIPx(34), tr(app, "Submit proposal"), 1,
-                            UKU_FOCUS_PROPOSAL_SUBMIT, &submit_clicked);
+        if(Button((ButtonProps){
+                .bounds = {(float)(content_x), (float)(y), (float)(UKU_MIN(content_w, Scale(210))), (float)(Scale(34))},
+                .label = tr(app, "Submit proposal"),
+                .id = UKU_FOCUS_PROPOSAL_SUBMIT,
+                .tone = ButtonToneAccent,
+            }))
+            submit_clicked = 1;
+
         if(submit_clicked) {
             char local_id[40];
             char remote_id[40];
@@ -8501,7 +8578,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
             }
         }
         }
-        y += ScaleUIPx(42);
+        y += Scale(42);
         if(app->proposal_submit_ok)
             y = draw_wrapped_text(font, tr(app, app->proposal_submit_failed ?
                                   "Proposal saved locally. It will sync when the server is reachable." :
@@ -8510,20 +8587,20 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
         if(app->proposal_submit_failed && !app->proposal_submit_ok)
             y = draw_wrapped_text(font, tr(app, "Could not submit proposal."), content_x, y, content_w,
                                   small_font, line_h, Fade(GetThemeText(), 0.75f));
-        y += ScaleUIPx(12);
+        y += Scale(12);
     } else if(process_type_has_voting(d->type) && phase == UKU_PROCESS_VOTING) {
         draw_text_font(font, tr(app, "Your ballot"), content_x, y, body_font, GetThemeText());
-        y += body_font + ScaleUIPx(8);
+        y += body_font + Scale(8);
         if(!vote_submit_allowed) {
             y = draw_wrapped_text(font, tr(app, "You do not have permission to vote in this process."),
                                   content_x, y, content_w, small_font, line_h,
                                   Fade(GetThemeText(), 0.75f));
-            y += ScaleUIPx(12);
+            y += Scale(12);
         } else if(!proposal_read_allowed && !process_type_has_options(d->type)) {
             y = draw_wrapped_text(font, tr(app, "You do not have permission to view proposals in this process."),
                                   content_x, y, content_w, small_font, line_h,
                                   Fade(GetThemeText(), 0.75f));
-            y += ScaleUIPx(12);
+            y += Scale(12);
         } else {
         {
             char identity_line[128];
@@ -8536,7 +8613,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                 y = draw_wrapped_text(font, identity_line, content_x, y,
                                       content_w, small_font, line_h,
                                       Fade(GetThemeText(), 0.70f));
-                y += ScaleUIPx(8);
+                y += Scale(8);
             }
         }
         if(process_type_has_options(d->type)) {
@@ -8549,10 +8626,14 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                 y = draw_score_row(app, font, &app->proposals[i], i, content_x, y,
                                    content_w, body_font, small_font);
         }
-        draw_compact_button(app, font, content_x, y, content_w, ScaleUIPx(190),
-                            ScaleUIPx(34),
-                            tr(app, app->current_user_voted ? "Update vote" : "Submit vote"), 1,
-                            UKU_FOCUS_VOTE_SUBMIT, &submit_clicked);
+        if(Button((ButtonProps){
+                .bounds = {(float)(content_x), (float)(y), (float)(UKU_MIN(content_w, Scale(190))), (float)(Scale(34))},
+                .label = tr(app, app->current_user_voted ? "Update vote" : "Submit vote"),
+                .id = UKU_FOCUS_VOTE_SUBMIT,
+                .tone = ButtonToneAccent,
+            }))
+            submit_clicked = 1;
+
         if(submit_clicked) {
             app->vote_submit_ok = 0;
             app->vote_submit_failed = 0;
@@ -8573,7 +8654,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
             }
         }
         }
-        y += ScaleUIPx(42);
+        y += Scale(42);
         if(app->vote_submit_ok && app->vote_name_taken)
             y = draw_wrapped_text(font, tr(app, "That name is already taken in this process. Choose another."),
                                   content_x, y, content_w, small_font, line_h, GetThemeText());
@@ -8585,11 +8666,11 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
         if(app->vote_submit_failed && !app->vote_submit_ok)
             y = draw_wrapped_text(font, tr(app, "Could not submit vote."), content_x, y, content_w,
                                   small_font, line_h, Fade(GetThemeText(), 0.75f));
-        y += ScaleUIPx(12);
+        y += Scale(12);
     } else {
         draw_text_font(font, tr(app, d->type == UKU_PROCESS_TYPE_COLLECTION ? "Collected proposals" : "Results"),
                        content_x, y, body_font, GetThemeText());
-        y += body_font + ScaleUIPx(8);
+        y += body_font + Scale(8);
         if(!proposal_read_allowed && !process_type_has_options(d->type)) {
             y = draw_wrapped_text(font, tr(app, "You do not have permission to view proposals in this process."),
                                   content_x, y, content_w, small_font, line_h,
@@ -8616,11 +8697,16 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                 y = draw_result_row(app, font, &app->proposals[result_indices[i]], i + 1,
                                     content_x, y, content_w, body_font, small_font);
         }
-        y += ScaleUIPx(4);
+        y += Scale(4);
         if(process_type_has_voting(d->type) && app->vote_count > 0) {
-            draw_compact_button(app, font, content_x, y, content_w, ScaleUIPx(230),
-                                ScaleUIPx(34), tr(app, "Copy results as text"), 0,
-                                UKU_FOCUS_EXPORT_RESULTS, &export_results_clicked);
+            if(Button((ButtonProps){
+                    .bounds = {(float)(content_x), (float)(y), (float)(UKU_MIN(content_w, Scale(230))), (float)(Scale(34))},
+                    .label = tr(app, "Copy results as text"),
+                    .id = UKU_FOCUS_EXPORT_RESULTS,
+                    .emphasis = ButtonEmphasisSoft,
+                }))
+                export_results_clicked = 1;
+
             if(export_results_clicked) {
                 char results_text[4096];
 
@@ -8630,9 +8716,9 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                           tr(app, "Results copied."), strlen(tr(app, "Results copied.")));
                 ShowToast(app->process_status);
             }
-            y += ScaleUIPx(42);
+            y += Scale(42);
         }
-        y += ScaleUIPx(8);
+        y += Scale(8);
     }
 
     if(process_type_has_voting(d->type))
@@ -8640,36 +8726,36 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
 
     if(process_type_has_proposals(d->type) && proposal_read_allowed) {
         draw_text_font(font, tr(app, "Proposals"), content_x, y, body_font, GetThemeText());
-        y += body_font + ScaleUIPx(8);
+        y += body_font + Scale(8);
         for(int i = 0; i < app->proposal_count; i++)
             y = draw_proposal_card(app, font, &app->proposals[i], i, content_x, y,
                                    content_w, body_font, small_font);
     }
     if(app->process_status[0] != '\0') {
-        y += ScaleUIPx(4);
+        y += Scale(4);
         y = draw_wrapped_text(font, app->process_status, content_x, y, content_w,
                               small_font, line_h, GetThemeText());
     }
     end_uku_scroll_page(page, y, &app->collect_scroll,
-                        &app->collect_max_scroll, ScaleUIPx(24));
+                        &app->collect_max_scroll, Scale(24));
 }
 
 static void
 draw_public_id_modal(UkuApp *app, int view_w, int view_h)
 {
-    int panel_w = UKU_MIN(view_w - ScaleUIPx(32), ScaleUIPx(380));
-    int panel_h = ScaleUIPx(274);
+    int panel_w = UKU_MIN(view_w - Scale(32), Scale(380));
+    int panel_h = Scale(274);
     int x = (view_w - panel_w) / 2;
     int y = (view_h - panel_h) / 2;
-    int pad = ScaleUIPx(18);
+    int pad = Scale(18);
     int body_font = ClampUIPx(15, 15, 19);
     int small_font = ClampUIPx(13, 13, 16);
-    int line_h = body_font + ScaleUIPx(7);
+    int line_h = body_font + Scale(7);
     int copy_clicked = 0;
     int close_clicked = 0;
     int alias_clicked = 0;
     int content_y;
-    int half_w = (panel_w - pad * 2 - ScaleUIPx(10)) / 2;
+    int half_w = (panel_w - pad * 2 - Scale(10)) / 2;
     Rectangle overlay = {0, 0, (float)view_w, (float)view_h};
     Rectangle panel = {(float)x, (float)y, (float)panel_w, (float)panel_h};
     Font font = app->font;
@@ -8683,15 +8769,15 @@ draw_public_id_modal(UkuApp *app, int view_w, int view_h)
 
     DrawRectangleRec(overlay, (Color){0, 0, 0, 96});
     DrawRectangleRounded(panel, 0.08f, 12, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(panel, 0.08f, 12, ScaleUIPx(1), GetThemeText());
+    DrawRectangleRoundedLinesEx(panel, 0.08f, 12, Scale(1), GetThemeText());
     draw_text_font(font, "Full Public ID", x + pad, y + pad, body_font, GetThemeText());
-    content_y = y + pad + body_font + ScaleUIPx(14);
+    content_y = y + pad + body_font + Scale(14);
     content_y = draw_wrapped_text(font, "This is the full account ID used by the server.",
                                   x + pad, content_y, panel_w - pad * 2, small_font, line_h,
                                   GetThemeText());
-    content_y += ScaleUIPx(10);
+    content_y += Scale(10);
     content_y = draw_readonly_field(app, font, app->account.public_id,
-                                    x + pad, content_y, panel_w - pad * 2, ScaleUIPx(46),
+                                    x + pad, content_y, panel_w - pad * 2, Scale(46),
                                     UKU_FOCUS_ACCOUNT_ID, &copy_clicked);
     if(copy_clicked) {
         SetClipboardText(app->account.public_id);
@@ -8699,11 +8785,23 @@ draw_public_id_modal(UkuApp *app, int view_w, int view_h)
                   "Public ID copied.", strlen("Public ID copied."));
         ShowToast(app->account_status);
     }
-    content_y += ScaleUIPx(4);
-    draw_button(app, font, x + pad, content_y, half_w, ScaleUIPx(40), "Copy", 1,
-                UKU_FOCUS_PUBLIC_ID_COPY, &copy_clicked);
-    draw_button(app, font, x + pad + half_w + ScaleUIPx(10), content_y, half_w, ScaleUIPx(40),
-                "Close", 0, UKU_FOCUS_PUBLIC_ID_CLOSE, &close_clicked);
+    content_y += Scale(4);
+    if(Button((ButtonProps){
+            .bounds = {(float)(x + pad), (float)(content_y), (float)(half_w), (float)(Scale(40))},
+            .label = "Copy",
+            .id = UKU_FOCUS_PUBLIC_ID_COPY,
+            .tone = ButtonToneAccent,
+        }))
+        copy_clicked = 1;
+
+    if(Button((ButtonProps){
+            .bounds = {(float)(x + pad + half_w + Scale(10)), (float)(content_y), (float)(half_w), (float)(Scale(40))},
+            .label = "Close",
+            .id = UKU_FOCUS_PUBLIC_ID_CLOSE,
+            .emphasis = ButtonEmphasisSoft,
+        }))
+        close_clicked = 1;
+
     if(copy_clicked) {
         SetClipboardText(app->account.public_id);
         copy_text(app->account_status, sizeof(app->account_status),
@@ -8717,9 +8815,14 @@ draw_public_id_modal(UkuApp *app, int view_w, int view_h)
        IsMouseButtonReleased(MOUSE_LEFT_BUTTON))
         app->account_public_id_modal_open = 0;
 
-    draw_button(app, font, x + pad, y + panel_h - pad - ScaleUIPx(40),
-                panel_w - pad * 2, ScaleUIPx(40), "Alias", 0,
-                UKU_FOCUS_PUBLIC_ID_ALIAS, &alias_clicked);
+    if(Button((ButtonProps){
+            .bounds = {(float)(x + pad), (float)(y + panel_h - pad - Scale(40)), (float)(panel_w - pad * 2), (float)(Scale(40))},
+            .label = "Alias",
+            .id = UKU_FOCUS_PUBLIC_ID_ALIAS,
+            .emphasis = ButtonEmphasisSoft,
+        }))
+        alias_clicked = 1;
+
     if(alias_clicked)
         account_open_alias_modal(app);
 }
@@ -8728,12 +8831,12 @@ static void
 draw_account_setup_modal(UkuApp *app, const UkuText *text, int view_w, int view_h)
 {
     UIPanelFrame frame;
-    int panel_w = UKU_MIN(view_w - ScaleUIPx(24), ScaleUIPx(380));
-    int panel_h = ScaleUIPx(250);
+    int panel_w = UKU_MIN(view_w - Scale(24), Scale(380));
+    int panel_h = Scale(250);
     int y;
     int save_clicked = 0;
     int pfp_clicked = 0;
-    int icon_size = ScaleUIPx(44);
+    int icon_size = Scale(44);
     Texture2D pfp;
 
     if(!app->account_setup_modal_open)
@@ -8766,7 +8869,7 @@ draw_account_setup_modal(UkuApp *app, const UkuText *text, int view_w, int view_
         return;
     }
 
-    y = frame.content_y - ScaleUIPx(18);
+    y = frame.content_y - Scale(18);
     Text((TextProps){
         .bounds = {(float)frame.content_x, (float)y, 0, 0},
         .text = "Set up account",
@@ -8774,7 +8877,7 @@ draw_account_setup_modal(UkuApp *app, const UkuText *text, int view_w, int view_
         .color = GetThemeText(),
         .wrap = TextWrapNone,
     });
-    y += ScaleUIPx(30);
+    y += Scale(30);
 
     pfp = app->account_pfp_icon > UI_ICON_TYPE_NONE &&
           app->account_pfp_icon < UI_ICON_TYPE_COUNT
@@ -8784,27 +8887,38 @@ draw_account_setup_modal(UkuApp *app, const UkuText *text, int view_w, int view_
                icon_size / 2, GetThemeButton());
     if(pfp.id != 0)
         DrawTexturePro(pfp, (Rectangle){0, 0, (float)pfp.width, (float)pfp.height},
-                       (Rectangle){(float)frame.content_x + ScaleUIPx(7),
-                                   (float)y + ScaleUIPx(7),
-                                   (float)icon_size - ScaleUIPx(14),
-                                   (float)icon_size - ScaleUIPx(14)},
+                       (Rectangle){(float)frame.content_x + Scale(7),
+                                   (float)y + Scale(7),
+                                   (float)icon_size - Scale(14),
+                                   (float)icon_size - Scale(14)},
                        (Vector2){0}, 0.0f, WHITE);
-    draw_button(app, app->font, frame.content_x + icon_size + ScaleUIPx(12),
-                y + ScaleUIPx(10), ScaleUIPx(120), ScaleUIPx(24),
-                "Picture", 0, UKU_FOCUS_ACCOUNT_ID, &pfp_clicked);
+    if(Button((ButtonProps){
+            .bounds = {(float)(frame.content_x + icon_size + Scale(12)), (float)(y + Scale(10)), (float)(Scale(120)), (float)(Scale(24))},
+            .label = "Picture",
+            .id = UKU_FOCUS_ACCOUNT_ID,
+            .emphasis = ButtonEmphasisSoft,
+        }))
+        pfp_clicked = 1;
+
     if(pfp_clicked)
         app->account_pfp_modal_open = 1;
-    y += icon_size + ScaleUIPx(14);
+    y += icon_size + Scale(14);
 
     draw_text_field(app, app->font, "Alias", "username",
                     app->alias_input, sizeof(app->alias_input), UKU_FIELD_ALIAS,
                     UKU_FOCUS_ALIAS_FIELD, frame.content_x, y,
-                    frame.content_w, ScaleUIPx(30));
+                    frame.content_w, Scale(30));
     alias_normalize(app->alias_input);
-    y += ScaleUIPx(66);
+    y += Scale(66);
 
-    draw_button(app, app->font, frame.content_x, y, ScaleUIPx(92), ScaleUIPx(24),
-                "Continue", 1, UKU_FOCUS_ACCOUNT_CREATE, &save_clicked);
+    if(Button((ButtonProps){
+            .bounds = {(float)(frame.content_x), (float)(y), (float)(Scale(92)), (float)(Scale(24))},
+            .label = "Continue",
+            .id = UKU_FOCUS_ACCOUNT_CREATE,
+            .tone = ButtonToneAccent,
+        }))
+        save_clicked = 1;
+
     if(save_clicked) {
         setting_save_int(app, UKU_ACCOUNT_PFP_KEY, app->account_pfp_icon);
         if(alias_valid(app->alias_input))
@@ -8825,9 +8939,9 @@ static void
 draw_account_required_modal(UkuApp *app, const UkuText *text, int view_w, int view_h)
 {
     ModalAction actions[3] = {
-        {"Create account", ButtonStylePrimary, 0},
-        {"Account settings", ButtonStyleSecondary, 0},
-        {"Cancel", ButtonStyleSecondary, 0}
+        {"Create account", ButtonToneAccent, ButtonEmphasisFilled, 0},
+        {"Account settings", ButtonToneNeutral, ButtonEmphasisSoft, 0},
+        {"Cancel", ButtonToneNeutral, ButtonEmphasisSoft, 0}
     };
     int result;
 
@@ -8872,14 +8986,14 @@ draw_account_required_modal(UkuApp *app, const UkuText *text, int view_w, int vi
 static void
 draw_alias_modal(UkuApp *app, int view_w, int view_h)
 {
-    int panel_w = UKU_MIN(view_w - ScaleUIPx(32), ScaleUIPx(360));
-    int panel_h = ScaleUIPx(248);
+    int panel_w = UKU_MIN(view_w - Scale(32), Scale(360));
+    int panel_h = Scale(248);
     int x = (view_w - panel_w) / 2;
     int y = (view_h - panel_h) / 2;
-    int pad = ScaleUIPx(18);
+    int pad = Scale(18);
     int body_font = ClampUIPx(15, 15, 19);
     int small_font = ClampUIPx(13, 13, 16);
-    int line_h = body_font + ScaleUIPx(7);
+    int line_h = body_font + Scale(7);
     int close_clicked = 0;
     int save_clicked = 0;
     int input_x;
@@ -8894,29 +9008,40 @@ draw_alias_modal(UkuApp *app, int view_w, int view_h)
 
     DrawRectangleRec(overlay, (Color){0, 0, 0, 96});
     DrawRectangleRounded(panel, 0.08f, 12, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(panel, 0.08f, 12, ScaleUIPx(1), GetThemeText());
+    DrawRectangleRoundedLinesEx(panel, 0.08f, 12, Scale(1), GetThemeText());
     draw_text_font(font, "Account alias", x + pad, y + pad, body_font, GetThemeText());
-    content_y = y + pad + body_font + ScaleUIPx(14);
+    content_y = y + pad + body_font + Scale(14);
     content_y = draw_wrapped_text(font, "Choose a short alias for this account on the current server.",
                                   x + pad, content_y, panel_w - pad * 2, small_font, line_h,
                                   GetThemeText());
-    content_y += ScaleUIPx(8);
-    draw_text_font(font, "@", x + pad, content_y + ScaleUIPx(30), body_font, GetThemeText());
-    input_x = x + pad + ScaleUIPx(24);
-    input_w = panel_w - pad * 2 - ScaleUIPx(24);
+    content_y += Scale(8);
+    draw_text_font(font, "@", x + pad, content_y + Scale(30), body_font, GetThemeText());
+    input_x = x + pad + Scale(24);
+    input_w = panel_w - pad * 2 - Scale(24);
     draw_text_field(app, font, "Alias", "name",
                     app->alias_input, sizeof(app->alias_input), UKU_FIELD_ALIAS,
-                    UKU_FOCUS_ALIAS_FIELD, input_x, content_y, input_w, ScaleUIPx(42));
+                    UKU_FOCUS_ALIAS_FIELD, input_x, content_y, input_w, Scale(42));
     alias_normalize(app->alias_input);
-    content_y += ScaleUIPx(74);
+    content_y += Scale(74);
     draw_text_font(font, "4-32 letters, numbers, or underscore.", x + pad, content_y,
                    small_font, Fade(GetThemeText(), 0.75f));
-    content_y += ScaleUIPx(28);
-    draw_button(app, font, x + pad, content_y, (panel_w - pad * 2 - ScaleUIPx(10)) / 2,
-                ScaleUIPx(40), "Close", 0, UKU_FOCUS_ALIAS_CLOSE, &close_clicked);
-    draw_button(app, font, x + pad + (panel_w - pad * 2 + ScaleUIPx(10)) / 2, content_y,
-                (panel_w - pad * 2 - ScaleUIPx(10)) / 2, ScaleUIPx(40), "Save", 1,
-                UKU_FOCUS_ALIAS_SAVE, &save_clicked);
+    content_y += Scale(28);
+    if(Button((ButtonProps){
+            .bounds = {(float)(x + pad), (float)(content_y), (float)((panel_w - pad * 2 - Scale(10)) / 2), (float)(Scale(40))},
+            .label = "Close",
+            .id = UKU_FOCUS_ALIAS_CLOSE,
+            .emphasis = ButtonEmphasisSoft,
+        }))
+        close_clicked = 1;
+
+    if(Button((ButtonProps){
+            .bounds = {(float)(x + pad + (panel_w - pad * 2 + Scale(10)) / 2), (float)(content_y), (float)((panel_w - pad * 2 - Scale(10)) / 2), (float)(Scale(40))},
+            .label = "Save",
+            .id = UKU_FOCUS_ALIAS_SAVE,
+            .tone = ButtonToneAccent,
+        }))
+        save_clicked = 1;
+
 
     if(close_clicked) {
         app->account_alias_modal_open = 0;
@@ -8942,11 +9067,11 @@ draw_account(UkuApp *app, const UkuText *text, int view_w, int view_h)
     int side = GetUIPageSidePadding();
     int content_x;
     int content_w;
-    int top_h = ScaleUIPx(46);
-    int y = top_h + ScaleUIPx(16);
+    int top_h = Scale(46);
+    int y = top_h + Scale(16);
     int body_font = ClampUIPx(14, 14, 17);
     int small_font = ClampUIPx(12, 12, 14);
-    int line_h = body_font + ScaleUIPx(5);
+    int line_h = body_font + Scale(5);
     int back_clicked = 0;
     int create_clicked = 0;
     int import_clicked = 0;
@@ -8967,15 +9092,21 @@ draw_account(UkuApp *app, const UkuText *text, int view_w, int view_h)
 
     y = draw_text_field(app, font, "Server", "https://api.waozi.xyz",
                         app->server_url, sizeof(app->server_url), UKU_FIELD_SERVER_URL,
-                        UKU_FOCUS_TOPIC, content_x, y, content_w, ScaleUIPx(36));
-    draw_compact_button(app, font, content_x, y, content_w, ScaleUIPx(200), ScaleUIPx(34),
-                        "Save server URL", 0, UKU_FOCUS_DESCRIPTION, &save_server_clicked);
+                        UKU_FOCUS_TOPIC, content_x, y, content_w, Scale(36));
+    if(Button((ButtonProps){
+            .bounds = {(float)(content_x), (float)(y), (float)(UKU_MIN(content_w, Scale(200))), (float)(Scale(34))},
+            .label = "Save server URL",
+            .id = UKU_FOCUS_DESCRIPTION,
+            .emphasis = ButtonEmphasisSoft,
+        }))
+        save_server_clicked = 1;
+
     if(save_server_clicked)
         sync_server_save(app);
-    y += ScaleUIPx(42);
+    y += Scale(42);
     if(app->server_url_error) {
         y = draw_wrapped_text(font, "Use HTTPS for remote servers, or localhost/127.0.0.1/10.0.2.2 for HTTP development.", content_x, y, content_w, small_font, line_h, Fade(GetThemeText(), 0.75f));
-        y += ScaleUIPx(12);
+        y += Scale(12);
     }
 
     if(app->account.loaded) {
@@ -8986,27 +9117,45 @@ draw_account(UkuApp *app, const UkuText *text, int view_w, int view_h)
         else
             compact_public_id(app->account.public_id, display_id, sizeof(display_id));
         draw_text_font(font, "Public ID", content_x, y, small_font, Fade(GetThemeText(), 0.75f));
-        y += small_font + ScaleUIPx(6);
-        y = draw_readonly_field(app, font, display_id, content_x, y, content_w, ScaleUIPx(36),
+        y += small_font + Scale(6);
+        y = draw_readonly_field(app, font, display_id, content_x, y, content_w, Scale(36),
                                 UKU_FOCUS_ACCOUNT_ID, &account_id_clicked);
         if(account_id_clicked)
             account_open_public_id_modal(app);
-        y += ScaleUIPx(6);
-        draw_compact_button(app, font, content_x, y, content_w, ScaleUIPx(210), ScaleUIPx(34),
-                            "Export account.key", 0, UKU_FOCUS_SETTINGS, &export_clicked);
+        y += Scale(6);
+        if(Button((ButtonProps){
+                .bounds = {(float)(content_x), (float)(y), (float)(UKU_MIN(content_w, Scale(210))), (float)(Scale(34))},
+                .label = "Export account.key",
+                .id = UKU_FOCUS_SETTINGS,
+                .emphasis = ButtonEmphasisSoft,
+            }))
+            export_clicked = 1;
+
         if(export_clicked)
             account_start_export_dialog(app);
-        y += ScaleUIPx(44);
+        y += Scale(44);
     } else {
         if(IsSyncAccountAvailable()) {
             y = draw_wrapped_text(font, "Create an account or import an account key to start processes, add proposals, or vote.", content_x, y, content_w, body_font, line_h, GetThemeText());
-            y += ScaleUIPx(12);
-            draw_compact_button(app, font, content_x, y, content_w, ScaleUIPx(190), ScaleUIPx(34),
-                                "Create account", 1, UKU_FOCUS_CREATE_SUBMIT, &create_clicked);
-            y += ScaleUIPx(42);
-            draw_compact_button(app, font, content_x, y, content_w, ScaleUIPx(210), ScaleUIPx(34),
-                                "Import account.key", 0, UKU_FOCUS_SETTINGS, &import_clicked);
-            y += ScaleUIPx(42);
+            y += Scale(12);
+            if(Button((ButtonProps){
+                    .bounds = {(float)(content_x), (float)(y), (float)(UKU_MIN(content_w, Scale(190))), (float)(Scale(34))},
+                    .label = "Create account",
+                    .id = UKU_FOCUS_CREATE_SUBMIT,
+                    .tone = ButtonToneAccent,
+                }))
+                create_clicked = 1;
+
+            y += Scale(42);
+            if(Button((ButtonProps){
+                    .bounds = {(float)(content_x), (float)(y), (float)(UKU_MIN(content_w, Scale(210))), (float)(Scale(34))},
+                    .label = "Import account.key",
+                    .id = UKU_FOCUS_SETTINGS,
+                    .emphasis = ButtonEmphasisSoft,
+                }))
+                import_clicked = 1;
+
+            y += Scale(42);
             if(create_clicked)
                 account_create(app);
             if(import_clicked)
@@ -9029,12 +9178,12 @@ draw_theme_settings(UkuApp *app, const UkuText *text, int view_w, int view_h)
     int side = GetUIPageSidePadding();
     int content_x;
     int content_w;
-    int top_h = ScaleUIPx(46);
-    int y = top_h + ScaleUIPx(16);
+    int top_h = Scale(46);
+    int y = top_h + Scale(16);
     int back_clicked = 0;
     ThemeSettingsProps settings;
-    UIThemeSettingsState state;
-    UIThemeSettingsResult result;
+    ThemeSettingsState state;
+    ThemeSettingsResult result;
 
     GetUICenteredColumn(520, side, &content_x, &content_w);
     draw_top_bar(app, "", 1, UKU_FOCUS_MANUAL_BACK, &back_clicked,
@@ -9044,7 +9193,7 @@ draw_theme_settings(UkuApp *app, const UkuText *text, int view_w, int view_h)
         ClearUIFocus();
     }
 
-    y = draw_locale_dropdown(app, (UkuText *)text, app->font, content_x, y, content_w, view_h);
+    y = draw_locale_dropdown(app, (UkuText *)text, app->font, content_x, y, content_w);
 
     settings = (ThemeSettingsProps){
         .id_base = 6000,
@@ -9081,9 +9230,9 @@ draw_manual(UkuApp *app, const UkuText *text, int view_w, int view_h)
 {
     int content_x;
     int content_w;
-    int top_h = ScaleUIPx(46);
+    int top_h = Scale(46);
     int body_font = ClampUIPx(14, 14, 17);
-    int line_h = body_font + ScaleUIPx(5);
+    int line_h = body_font + Scale(5);
     int y;
     int back_clicked = 0;
     Font font = app->font;
@@ -9099,13 +9248,13 @@ draw_manual(UkuApp *app, const UkuText *text, int view_w, int view_h)
         UkuScrollPage page = begin_uku_scroll_page(view_w, view_h, top_h, 640,
                                                    &app->manual_scroll,
                                                    app->manual_max_scroll,
-                                                   ScaleUIPx(16));
+                                                   Scale(16));
         content_x = page.content_x;
         content_w = page.content_w;
         y = page.y;
     y = draw_wrapped_text(font, text->manual_body, content_x, y, content_w, body_font, line_h, GetThemeText());
         end_uku_scroll_page(page, y, &app->manual_scroll,
-                            &app->manual_max_scroll, ScaleUIPx(24));
+                            &app->manual_max_scroll, Scale(24));
     }
 }
 
@@ -9135,7 +9284,7 @@ draw_app_frame(void *userdata)
     SyncAndroidSurfaceSize(&view_w, &view_h);
     {
         int bottom_reserved = android_bridge_bottom_reserved();
-        if(bottom_reserved > 0 && bottom_reserved < view_h - ScaleUIPx(120))
+        if(bottom_reserved > 0 && bottom_reserved < view_h - Scale(120))
             view_h -= bottom_reserved;
     }
 #endif
@@ -9150,10 +9299,8 @@ draw_app_frame(void *userdata)
 #endif
     SetUIScale(ui_scale);
     BeginUIFrame(view_w, view_h, GetUIScale());
-    SetUIDropdownClipTop(0);
-    SetUIDropdownClipBottom(view_h);
     SetUICursorClickable(&app->cursor_clickable);
-    ApplyCurrentUITheme();
+    ApplyCurrentTheme();
     poll_qr_scan_result(app, text);
 
     app->cursor_clickable = 0;
@@ -9188,6 +9335,7 @@ draw_app_frame(void *userdata)
     draw_alias_modal(app, view_w, view_h);
     Overlays();
     EndUIFocus();
+    EndUIFrame();
     EndDrawing();
 
     SetMouseCursor(app->cursor_clickable ? MOUSE_CURSOR_POINTING_HAND : MOUSE_CURSOR_DEFAULT);

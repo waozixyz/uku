@@ -163,17 +163,40 @@ include $(KRYON_MAKE_DIR)vendor.mk
 KRYON_INCLUDE += $(KRYON_PHYSICS_CPPFLAGS)
 KRYON_SRCS := $(filter-out $(KRYON_PHYSICS_SRCS),$(KRYON_SRCS))
 
+# Kryon's shared widget policies (runtime/*.kry) compile into uku's build
+# tree with k2c; kryon's own sources include the generated runtime headers.
+KRYON_RUNTIME_KRY := $(sort $(wildcard $(KRYON_DIR)/runtime/*.kry))
+KRYON_RUNTIME_C := $(patsubst $(KRYON_DIR)/%.kry,$(KRYON_GENERATED_SRC_DIR)/%.c,$(KRYON_RUNTIME_KRY))
+KRYON_RUNTIME_H := $(KRYON_RUNTIME_C:.c=.h)
+KRYON_RUNTIME_STAMP := $(KRYON_GENERATED_SRC_DIR)/runtime/.fresh
+KRYON_SRCS += $(KRYON_RUNTIME_C)
+KRYON_INCLUDE += -I$(KRYON_GENERATED_SRC_DIR)
+KRYON_NATIVE_DEPS += $(KRYON_RUNTIME_C) $(KRYON_RUNTIME_H)
+
+# Generate shared widget policies into uku's build tree, never vendor sources.
+$(KRYON_RUNTIME_STAMP): Makefile $(K2C) $(KRYON_RUNTIME_KRY)
+	mkdir -p $(dir $@)
+	$(K2C) --strict --no-main --root $(abspath $(KRYON_DIR)) -o $(abspath $(KRYON_GENERATED_SRC_DIR)) $(abspath $(KRYON_RUNTIME_KRY))
+	touch $@
+
+$(KRYON_RUNTIME_C) $(KRYON_RUNTIME_H): $(KRYON_RUNTIME_STAMP)
+	@test -f $@
+
 ifeq ($(KRYON_USE_SYSTEM_CURL),1)
 KRYON_SYSTEM_CURL_CFLAGS := $(shell pkg-config --cflags libcurl)
 KRYON_SYSTEM_CURL_LDLIBS := $(shell pkg-config --libs libcurl)
-KRYON_NATIVE_DEPS := $(KRYON_LIBOQS_A)
+# Append to KRYON_NATIVE_DEPS (never assign): common.mk already added the
+# generated icon assets/names/types that the UI headers now include.
+KRYON_NATIVE_DEPS += $(KRYON_LIBOQS_A)
 KRYON_NATIVE_CFLAGS := $(KRYON_LIBOQS_INCLUDE) $(KRYON_SYSTEM_CURL_CFLAGS) $(SQLITE_CFLAGS) -DHAS_LIBOQS=1 -DKRYON_HAS_LIBOQS=1
 KRYON_NATIVE_LDLIBS := $(KRYON_LIBOQS_A) $(KRYON_SYSTEM_CURL_LDLIBS) $(SQLITE_LDLIBS)
 else
 # common.mk clears KRYON_RUNTIME_ASSET_CFLAGS when pkg-config finds no
 # system libcurl; the vendored static build needs it set explicitly.
 KRYON_RUNTIME_ASSET_CFLAGS := -DHAS_LIBCURL=1 $(KRYON_CURL_CFLAGS)
-KRYON_NATIVE_DEPS := $(KRYON_LIBOQS_A) $(KRYON_CURL_SO)
+# Append to KRYON_NATIVE_DEPS (never assign): common.mk already added the
+# generated icon assets/names/types that the UI headers now include.
+KRYON_NATIVE_DEPS += $(KRYON_LIBOQS_A) $(KRYON_CURL_SO)
 KRYON_NATIVE_CFLAGS := $(KRYON_LIBOQS_INCLUDE) $(KRYON_CURL_CFLAGS) $(SQLITE_CFLAGS) -DHAS_LIBOQS=1 -DKRYON_HAS_LIBOQS=1
 KRYON_NATIVE_LDLIBS := $(KRYON_LIBOQS_A) $(KRYON_CURL_LDLIBS) $(KRYON_CURL_TRANSITIVE_LDLIBS) $(SQLITE_LDLIBS)
 endif
@@ -209,10 +232,11 @@ WEB_PUBLIC_FILES = $(wildcard manifest.json) $(shell find web-assets -type f 2>/
 WEB_CFLAGS = -Wall -Wextra -Wno-unused-function -Wno-typedef-redefinition -std=gnu99 -O0 -DPLATFORM_WEB -DKRYON_BACKEND_CANVAS=1 -D_DEFAULT_SOURCE -DSUPPORT_MODULE_RAUDIO=0 -DSUPPORT_FILEFORMAT_JPG=1 -DUI_EMBEDDED_ONLY=1 -DHAS_LIBOQS=1 -DKRYON_HAS_LIBOQS=1
 WEB_LDFLAGS = -sWASM=0 -sFETCH=1 -sASYNCIFY -sASYNCIFY_STACK_SIZE=1048576 -fexceptions -sFORCE_FILESYSTEM=1 -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=268435456 -sSTACK_SIZE=33554432 -lidbfs.js
 
-# All compiler sources: a bare prerequisite never rebuilds on compiler
-# changes (mirrors kryon's own K2C_SRCS).
-K2C_SRCS := $(sort $(wildcard $(KRYON_DIR)/cmd/k2c/*.c)) \
-	$(KRYON_DIR)/cmd/kir/kir.c $(KRYON_DIR)/cmd/kir/kir_parse.c
+# All compiler sources, not just main.c: k2c is multi-file now, and a
+# single-file prerequisite lets a stale binary silently regenerate with
+# old behavior (mirrors kryon's own K2C_SRCS).
+K2C_SRCS := $(sort $(wildcard $(KRYON_DIR)/cmd/k2c/*.[ch]) \
+	$(wildcard $(KRYON_DIR)/cmd/kir/*.[ch]))
 $(K2C): $(K2C_SRCS)
 	$(MAKE) -C $(KRYON_DIR) k2c
 
