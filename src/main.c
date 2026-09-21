@@ -1530,6 +1530,8 @@ setting_save_int(UkuApp *app, const char *key, int value)
     return setting_save_text(app, key, text);
 }
 
+static void app_register_style_tokens(UkuApp *app);
+
 static void
 app_apply_theme(UkuApp *app)
 {
@@ -1544,6 +1546,41 @@ app_apply_theme(UkuApp *app)
 
     app->theme_dark_mode = GetEffectiveThemeDarkMode() ? 1 : 0;
     SetCurrentTheme(app->theme_id, app->theme_dark_mode);
+    app_register_style_tokens(app);
+}
+
+/* Snapshot the applied theme palette into the "uku" token pack so app colors
+ * read StyleTokenColor() and the legacy getters can retire. Widget styling
+ * keeps the builtin material sheet; only the token table is ours. */
+static void
+app_register_style_tokens(UkuApp *app)
+{
+    const StylePack *active;
+    StyleColorToken tokens[6];
+
+    (void)app;
+    ApplyCurrentTheme();
+    active = GetActiveStylePack();
+    if(active == NULL || active->sheet == NULL)
+        return;
+    tokens[0].name = "text";
+    tokens[0].color = (uint32_t)ColorToInt(GetThemeText());
+    tokens[1].name = "muted";
+    tokens[1].color = (uint32_t)ColorToInt(GetThemeIcon());
+    tokens[2].name = "surface";
+    tokens[2].color = (uint32_t)ColorToInt(GetThemeSurface());
+    tokens[3].name = "canvas";
+    tokens[3].color = (uint32_t)ColorToInt(GetThemeBackground());
+    tokens[4].name = "accent";
+    tokens[4].color = (uint32_t)ColorToInt(GetThemeButton());
+    tokens[5].name = "accent-ink";
+    tokens[5].color = (uint32_t)ColorToInt(GetThemeButtonText());
+    if(!RegisterStylePackVariant("uku",
+                                 "@pack uku; Text { foreground: #000000; }",
+                                 "Ukuvota", tokens, 6))
+        return;
+    RegisterStylePack((StylePack){"uku", "Ukuvota", "", active->sheet});
+    SetActiveStylePack("uku");
 }
 
 static void
@@ -5373,12 +5410,12 @@ draw_readonly_field(UkuApp *app, Font font, const char *text, int x, int y, int 
 
     if(hover)
         app->cursor_clickable = 1;
-    DrawRectangleRounded(box, 0.08f, 10, GetThemeSurface());
+    DrawRectangleRounded(box, 0.08f, 10, StyleTokenColor("surface"));
     DrawRectangleRoundedLinesEx(box, 0.08f, 10, Scale(focused ? 2 : 1),
-                                focused ? GetThemeButton() : GetThemeText());
+                                focused ? StyleTokenColor("accent") : StyleTokenColor("text"));
     draw_text_font(font, fit_tail(font, text, text_font, w - pad * 2),
                    x + pad, UkuControlTextY(text, y, h, text_font),
-                   text_font, GetThemeText());
+                   text_font, StyleTokenColor("text"));
     *clicked = (hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) || IsFocusActivatePressed(focus_id);
     return y + h + Scale(16);
 }
@@ -5436,7 +5473,7 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
             app->dashboard_menu_open = !app->dashboard_menu_open;
         draw_text_font(app->font, text->home_title, title_x,
                        UkuControlTextY(text->home_title, 0, h, title_font),
-                       title_font, GetThemeText());
+                       title_font, StyleTokenColor("text"));
         if(new_clicked != NULL &&
            Button((ButtonProps){.tone = ButtonToneNeutral, .emphasis = ButtonEmphasisSoft, .icon_only = 1,
                    .bounds = {(float)(plus_x), (float)((h - icon) / 2), (float)(icon), (float)(icon)},
@@ -5464,10 +5501,10 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
 
             DrawRectangleRounded((Rectangle){(float)panel_x, (float)panel_y,
                                              (float)panel_w, (float)panel_h},
-                                 0.04f, 10, GetThemeSurface());
+                                 0.04f, 10, StyleTokenColor("surface"));
             DrawRectangleRoundedLinesEx((Rectangle){(float)panel_x, (float)panel_y,
                                                     (float)panel_w, (float)panel_h},
-                                        0.04f, 10, Scale(1), GetThemeButton());
+                                        0.04f, 10, Scale(1), StyleTokenColor("accent"));
             TextField((TextFieldProps){
                 .bounds = {(float)(panel_x + Scale(12)), (float)row_y,
                            (float)(panel_w - Scale(24) - row_h - action_gap), (float)row_h},
@@ -5622,7 +5659,7 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
     draw_text_font(app->font, fit_tail(app->font, text->home_title,
                                        brand_font, view_w / 3),
                    pad, UkuControlTextY(text->home_title, 0, h, brand_font),
-                   brand_font, GetThemeText());
+                   brand_font, StyleTokenColor("text"));
 
     search_left = pad + brand_w + Scale(22);
     search_right = button_x - gap;
@@ -5695,7 +5732,7 @@ draw_top_bar(UkuApp *app, const char *title, int show_back, int back_focus_id, i
     }
 
     if(show_back)
-        draw_text_font(app->font, title, x, UkuControlTextY(title, 0, h, font_size), font_size, GetThemeText());
+        draw_text_font(app->font, title, x, UkuControlTextY(title, 0, h, font_size), font_size, StyleTokenColor("text"));
 
     int button_x = view_w - Scale(38);
     if(show_account && account_clicked != NULL) {
@@ -5768,7 +5805,7 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
     if(app->active_field == field)
         *focused = 1;
 
-    draw_text_font(font, label, x, label_y, label_font, GetThemeText());
+    draw_text_font(font, label, x, label_y, label_font, StyleTokenColor("text"));
     if(h > Scale(48)) {
         /* RichTextEditor was removed; the multi-line surface is TextArea. */
         TextArea((TextAreaProps){
@@ -5823,7 +5860,7 @@ draw_stepper(UkuApp *app, Font font, const char *label, int *value, int min_valu
     int plus_clicked = 0;
     char value_text[16];
 
-    draw_text_font(font, label, x, y, label_font, GetThemeText());
+    draw_text_font(font, label, x, y, label_font, StyleTokenColor("text"));
     y += label_font + Scale(7);
 
     if(Button((ButtonProps){
@@ -5834,13 +5871,13 @@ draw_stepper(UkuApp *app, Font font, const char *label, int *value, int min_valu
         }))
         minus_clicked = 1;
 
-    DrawRectangleRounded((Rectangle){x + btn + Scale(4), y, value_w, h}, 0.08f, 10, GetThemeSurface());
-    DrawRectangleRoundedLinesEx((Rectangle){x + btn + Scale(4), y, value_w, h}, 0.08f, 10, Scale(1), GetThemeText());
+    DrawRectangleRounded((Rectangle){x + btn + Scale(4), y, value_w, h}, 0.08f, 10, StyleTokenColor("surface"));
+    DrawRectangleRoundedLinesEx((Rectangle){x + btn + Scale(4), y, value_w, h}, 0.08f, 10, Scale(1), StyleTokenColor("text"));
     snprintf(value_text, sizeof(value_text), "%d", *value);
     DrawFittedTextInRect(value_text,
                            (Rectangle){(float)(x + btn + Scale(4)), (float)y,
                                        (float)value_w, (float)h},
-                           value_font, Text12, GetThemeText());
+                           value_font, Text12, StyleTokenColor("text"));
     if(Button((ButtonProps){
             .bounds = {(float)(x + btn + Scale(8) + value_w), (float)(y), (float)(btn), (float)(h)},
             .label = "+",
@@ -5867,7 +5904,7 @@ draw_negative_weight_dropdown(UkuApp *app, Font font, const UkuText *text, int x
     int selected = negative_weight_to_index(app->decision.negative_weight);
     const char *options[10];
 
-    draw_text_font(font, text->negative_weight_label, x, y, label_font, GetThemeText());
+    draw_text_font(font, text->negative_weight_label, x, y, label_font, StyleTokenColor("text"));
     box_y = y + label_font + Scale(8);
     for(int i = 0; i < 10; i++)
         options[i] = text->negative_weight_options[i];
@@ -5894,7 +5931,7 @@ draw_locale_dropdown(UkuApp *app, UkuText *text, Font font, int x, int y, int w)
     int selected = app_locale_index(app->locale);
     const char *options[UKU_LOCALE_COUNT];
 
-    draw_text_font(font, tr(app, "Language"), x, y, label_font, GetThemeText());
+    draw_text_font(font, tr(app, "Language"), x, y, label_font, StyleTokenColor("text"));
     box_y = y + label_font + Scale(8);
     for(int i = 0; i < UKU_LOCALE_COUNT; i++) {
         options[i] = UKU_LOCALES[i].label;
@@ -5994,7 +6031,7 @@ uku_end_scroll_container(UkuScrollArea area, UkuScrollView view)
             thumb_h = (float)Scale(18);
         DrawRectangleRounded((Rectangle){(float)bar_x, thumb_y, (float)Scale(4),
                                          thumb_h}, 0.5f, 4,
-                             Fade(GetThemeText(), 0.28f));
+                             Fade(StyleTokenColor("text"), 0.28f));
     }
 }
 
@@ -6044,7 +6081,7 @@ ScoreControl(UkuScoreControlProps control)
         DrawText(label, (int)(seg.x + seg.width / 2 - (float)UkuTextWidth(label, control.font) / 2),
                  (int)seg.y + UkuControlTextY(label, 0, (int)seg.height, control.font),
                  control.font,
-                 selected ? GetThemeButtonText() : GetThemeText());
+                 selected ? StyleTokenColor("accent-ink") : StyleTokenColor("text"));
     }
 }
 
@@ -6119,7 +6156,7 @@ draw_duration_group(UkuApp *app, Font font, const char *title, const UkuText *te
     int col_w = (w - gap * 2) / 3;
     int y2;
 
-    draw_text_font(font, title, x, y, title_font, GetThemeText());
+    draw_text_font(font, title, x, y, title_font, StyleTokenColor("text"));
     y += title_font + Scale(8);
 
     y2 = draw_stepper(app, font, text->days_label, days, 0, 30, x, y, col_w, focus_base, focus_base + 1);
@@ -6282,7 +6319,7 @@ draw_phase_mode_selector(UkuApp *app, Font font, int x, int y, int w, const UkuT
     int changed = 0;
     int control_h;
 
-    draw_text_font(font, "Process phases", x, y, label_font, GetThemeText());
+    draw_text_font(font, "Process phases", x, y, label_font, StyleTokenColor("text"));
     y += label_font + Scale(8);
     control_h = draw_segmented_index(x, y, w, UKU_FOCUS_PROCESS_TYPE_BASE,
                                      labels, 2, &selected, &changed);
@@ -6416,8 +6453,8 @@ draw_empty_state(UkuApp *app, Font font, const char *message, int x, int y, int 
     int body_line_h = small_font + Scale(7);
     Rectangle card = {(float)x, (float)y, (float)w, (float)h};
 
-    DrawRectangleRounded(card, 0.035f, 10, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(card, 0.035f, 10, Scale(1), Fade(GetThemeText(), 0.16f));
+    DrawRectangleRounded(card, 0.035f, 10, StyleTokenColor("surface"));
+    DrawRectangleRoundedLinesEx(card, 0.035f, 10, Scale(1), Fade(StyleTokenColor("text"), 0.16f));
     {
         Texture2D icon_texture = app->icons[ICON_GLOBE];
 
@@ -6428,7 +6465,7 @@ draw_empty_state(UkuApp *app, Font font, const char *message, int x, int y, int 
 
             DrawRectangleRounded((Rectangle){(float)icon_x, (float)icon_y,
                                              (float)icon_size, (float)icon_size},
-                                 0.18f, 12, Fade(GetThemeButton(), 0.18f));
+                                 0.18f, 12, Fade(StyleTokenColor("accent"), 0.18f));
             DrawTexturePro(icon_texture,
                            (Rectangle){0, 0, (float)icon_texture.width, (float)icon_texture.height},
                            (Rectangle){(float)(icon_x + Scale(14)),
@@ -6454,18 +6491,18 @@ draw_empty_state(UkuApp *app, Font font, const char *message, int x, int y, int 
 
         if(mobile) {
             draw_wrapped_text(font, message, text_x, text_y, text_w,
-                              title_font, title_line_h, GetThemeText());
+                              title_font, title_line_h, StyleTokenColor("text"));
             draw_wrapped_text(font, tr(app, "Start one and share the link with your group."),
                               text_x, text_y + title_line_h + Scale(6), text_w,
                               small_font, body_line_h,
-                              Fade(GetThemeText(), 0.75f));
+                              Fade(StyleTokenColor("text"), 0.75f));
         } else {
             text_y = draw_wrapped_text(font, message, text_x, text_y, text_w,
-                                       title_font, title_line_h, GetThemeText());
+                                       title_font, title_line_h, StyleTokenColor("text"));
             text_y += Scale(8);
             draw_wrapped_text(font, tr(app, "Start one and share the link with your group."),
                               text_x, text_y, text_w, small_font, body_line_h,
-                              Fade(GetThemeText(), 0.75f));
+                              Fade(StyleTokenColor("text"), 0.75f));
         }
     }
     if(Button((ButtonProps){
@@ -6519,21 +6556,21 @@ draw_intro_modal(UkuApp *app, Font font, int view_w, int view_h, int *dismissed)
     panel_h = pad * 3 + title_font + Scale(14) + text_h + Scale(16) + button_h;
     panel_h = UKU_MIN(panel_h, view_h - Scale(32));
     y = (view_h - panel_h) / 2;
-    panel_color = GetThemeBackground();
+    panel_color = StyleTokenColor("canvas");
     panel_color.a = 255;
 
     DrawRectangle(0, 0, view_w, view_h, (Color){0, 0, 0, 160});
     DrawRectangleRounded((Rectangle){(float)x, (float)y, (float)panel_w, (float)panel_h},
                          0.05f, 12, panel_color);
     DrawRectangleRoundedLinesEx((Rectangle){(float)x, (float)y, (float)panel_w, (float)panel_h},
-                                0.05f, 12, Scale(1), GetThemeButton());
+                                0.05f, 12, Scale(1), StyleTokenColor("accent"));
     ly = y + pad;
     draw_centered_text(font, tr(app, "Decide together"), x + panel_w / 2, ly,
-                       title_font, GetThemeText());
+                       title_font, StyleTokenColor("text"));
     ly += title_font + Scale(14);
     for(int i = 0; i < 4; i++) {
         ly = draw_wrapped_text(font, lines[i], x + pad, ly, text_w, small_font,
-                               line_h, GetThemeText());
+                               line_h, StyleTokenColor("text"));
     }
     ly += Scale(16);
     if(Button((ButtonProps){
@@ -6677,10 +6714,10 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
             int rule_y = y + small_font / 2;
 
             draw_text_font(font, section_label, content_x, y, small_font,
-                           Fade(GetThemeText(), 0.75f));
+                           Fade(StyleTokenColor("text"), 0.75f));
             DrawRectangle(content_x + label_w + Scale(10), rule_y,
                           content_w - label_w - Scale(10), 1,
-                          Fade(GetThemeText(), 0.16f));
+                          Fade(StyleTokenColor("text"), 0.16f));
             y += small_font + Scale(16);
         }
 
@@ -6689,10 +6726,10 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                 Rectangle empty = {(float)content_x, (float)y,
                                    (float)content_w, (float)Scale(54)};
 
-                DrawRectangleRounded(empty, 0.07f, 10, GetThemeSurface());
+                DrawRectangleRounded(empty, 0.07f, 10, StyleTokenColor("surface"));
                 draw_centered_text(font, tr(app, "dashboard_public_empty"),
                                    content_x + content_w / 2, y + Scale(19),
-                                   small_font, Fade(GetThemeText(), 0.65f));
+                                   small_font, Fade(StyleTokenColor("text"), 0.65f));
                 y += Scale(66);
             } else {
                 int cta_clicked = 0;
@@ -6725,10 +6762,10 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                 Rectangle empty = {(float)content_x, (float)y,
                                    (float)content_w, (float)Scale(54)};
 
-                DrawRectangleRounded(empty, 0.07f, 10, GetThemeSurface());
+                DrawRectangleRounded(empty, 0.07f, 10, StyleTokenColor("surface"));
                 draw_centered_text(font, tr(app, "dashboard_public_empty"),
                                    content_x + content_w / 2, y + Scale(19),
-                                   small_font, Fade(GetThemeText(), 0.65f));
+                                   small_font, Fade(StyleTokenColor("text"), 0.65f));
                 y += Scale(66);
             } else {
                 if(active_count <= 0) {
@@ -6736,11 +6773,11 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                                        (float)content_w,
                                        (float)Scale(46)};
 
-                    DrawRectangleRounded(empty, 0.07f, 10, GetThemeSurface());
+                    DrawRectangleRounded(empty, 0.07f, 10, StyleTokenColor("surface"));
                     draw_centered_text(font, tr(app, "No processes currently in progress."),
                                        content_x + content_w / 2,
                                        y + Scale(16), small_font,
-                                       Fade(GetThemeText(), 0.65f));
+                                       Fade(StyleTokenColor("text"), 0.65f));
                     y += Scale(58);
                 }
                 for(int i = 0; i < app->process_count; i++) {
@@ -6767,18 +6804,18 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
 
                     if(hovered)
                         app->cursor_clickable = 1;
-                    DrawRectangleRounded(card, 0.07f, 10, GetThemeSurface());
+                    DrawRectangleRounded(card, 0.07f, 10, StyleTokenColor("surface"));
                     DrawRectangleRoundedLinesEx(card, 0.07f, 10, Scale(1),
-                                                focused || hovered ? GetThemeButton() : GetThemeButton());
+                                                focused || hovered ? StyleTokenColor("accent") : StyleTokenColor("accent"));
                     DrawRectangleRounded((Rectangle){(float)content_x, (float)y + Scale(10),
                                                      (float)Scale(4),
                                                      (float)card_h - Scale(20)},
-                                         0.5f, 4, GetThemeCircle());
+                                         0.5f, 4, StyleTokenColor("accent"));
 
                     draw_text_font(font, fit_tail(font, row->topic, body_font,
                                                   content_w - Scale(30)),
                                    content_x + Scale(18), y + Scale(9),
-                                   body_font, GetThemeText());
+                                   body_font, StyleTokenColor("text"));
                     format_process_timer(timer, sizeof(timer), text, row->created_at,
                                          row->proposal_minutes, row->voting_minutes, now);
                     draw_text_font(font, fit_tail(font, timer, small_font,
@@ -6788,22 +6825,22 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                                    process_phase(row->created_at, row->proposal_minutes,
                                                  row->voting_minutes, now, NULL) ==
                                            UKU_PROCESS_RESULTS
-                                       ? GetThemeText()
-                                       : GetThemeButton());
+                                       ? StyleTokenColor("text")
+                                       : StyleTokenColor("accent"));
                     format_created_at(created, sizeof(created), row->created_at);
                     snprintf(meta, sizeof(meta), "%s  \xc2\xb7  %s",
                              process_type_label(row->type), created);
                     draw_text_font(font, fit_tail(font, meta, small_font,
                                                   content_w - Scale(30)),
                                    content_x + Scale(18), y + Scale(52),
-                                   small_font, Fade(GetThemeText(), 0.75f));
+                                   small_font, Fade(StyleTokenColor("text"), 0.75f));
                     if(row->description[0] != '\0')
                         draw_text_font(font, fit_tail(font, row->description,
                                                       small_font,
                                                       content_w - Scale(30)),
                                        content_x + Scale(18),
                                        y + Scale(72), small_font,
-                                       GetThemeText());
+                                       StyleTokenColor("text"));
 
                     open = (hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
                            IsFocusActivatePressed(focus_id);
@@ -6834,16 +6871,16 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                         app->cursor_clickable = 1;
                     snprintf(count_text, sizeof(count_text), "%d %s",
                              completed_count, tr(app, "Finished"));
-                    DrawRectangleRounded(summary, 0.05f, 10, GetThemeSurface());
+                    DrawRectangleRounded(summary, 0.05f, 10, StyleTokenColor("surface"));
                     DrawRectangleRoundedLinesEx(summary, 0.05f, 10,
                                                 Scale(focused ? 2 : 1),
                                                 focused || hovered
-                                                    ? GetThemeButton()
-                                                    : Fade(GetThemeText(), 0.28f));
+                                                    ? StyleTokenColor("accent")
+                                                    : Fade(StyleTokenColor("text"), 0.28f));
                     DrawRectangleRounded((Rectangle){(float)(content_x + Scale(12)),
                                                      (float)(y + (summary_h - icon_box) / 2),
                                                      (float)icon_box, (float)icon_box},
-                                         0.18f, 10, Fade(GetThemeButton(), 0.18f));
+                                         0.18f, 10, Fade(StyleTokenColor("accent"), 0.18f));
                     if(icon_texture.id != 0)
                         DrawTexturePro(icon_texture,
                                        (Rectangle){0, 0, (float)icon_texture.width,
@@ -6855,15 +6892,15 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                                        (Vector2){0}, 0.0f, WHITE);
                     draw_text_font(font, tr(app, "Completed Processes"),
                                    content_x + Scale(58), y + Scale(10),
-                                   body_font, GetThemeText());
+                                   body_font, StyleTokenColor("text"));
                     draw_text_font(font, count_text,
                                    content_x + Scale(58), y + Scale(33),
-                                   small_font, Fade(GetThemeText(), 0.72f));
+                                   small_font, Fade(StyleTokenColor("text"), 0.72f));
                     draw_centered_text(font,
                                        app->dashboard_completed_expanded ? "-" : "+",
                                        content_x + content_w - Scale(22),
                                        UkuControlTextY("+", y, summary_h, body_font),
-                                       body_font, GetThemeButton());
+                                       body_font, StyleTokenColor("accent"));
                     y += summary_h + Scale(10);
 
                     if(app->dashboard_completed_expanded) {
@@ -6892,17 +6929,17 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
 
                             if(hovered)
                                 app->cursor_clickable = 1;
-                            DrawRectangleRounded(card, 0.07f, 10, GetThemeSurface());
+                            DrawRectangleRounded(card, 0.07f, 10, StyleTokenColor("surface"));
                             DrawRectangleRoundedLinesEx(card, 0.07f, 10,
                                                         Scale(1),
                                                         focused || hovered
-                                                            ? GetThemeButton()
-                                                            : Fade(GetThemeText(), 0.45f));
+                                                            ? StyleTokenColor("accent")
+                                                            : Fade(StyleTokenColor("text"), 0.45f));
                             draw_text_font(font, fit_tail(font, row->topic, body_font,
                                                           content_w - Scale(24)),
                                            content_x + Scale(12),
                                            y + Scale(9), body_font,
-                                           GetThemeText());
+                                           StyleTokenColor("text"));
                             format_created_at(created, sizeof(created), row->created_at);
                             snprintf(meta, sizeof(meta), "%s | %s | %s",
                                      tr(app, "Finished"),
@@ -6911,7 +6948,7 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                                                           content_w - Scale(24)),
                                            content_x + Scale(12),
                                            y + Scale(33), small_font,
-                                           Fade(GetThemeText(), 0.75f));
+                                           Fade(StyleTokenColor("text"), 0.75f));
                             if(row->description[0] != '\0')
                                 draw_text_font(font,
                                                fit_tail(font, row->description,
@@ -6919,7 +6956,7 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                                                         content_w - Scale(24)),
                                                content_x + Scale(12),
                                                y + Scale(56), small_font,
-                                               GetThemeText());
+                                               StyleTokenColor("text"));
                             open = (hovered &&
                                     IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
                                    IsFocusActivatePressed(focus_id);
@@ -6978,7 +7015,7 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
     if(app->create_step == UKU_CREATE_STEP_SETUP) {
         y += Scale(8);
         draw_centered_text(font, "Setup Process", content_x + content_w / 2, y,
-                           title_font, GetThemeText());
+                           title_font, StyleTokenColor("text"));
         y += title_font + Scale(22);
         y = draw_phase_mode_selector(app, font, content_x, y, content_w, text);
         y = draw_text_field(app, font, text->topic_question_label, text->topic_question_placeholder,
@@ -6987,7 +7024,7 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
         if(d->topic_error) {
             y = draw_wrapped_text(font, text->topic_error, content_x, y - Scale(8),
                                   content_w, small_font, small_font + Scale(4),
-                                  GetThemeButton());
+                                  StyleTokenColor("accent"));
             y += Scale(6);
         }
         y = draw_text_field(app, font, text->description_label, text->description_placeholder,
@@ -7034,7 +7071,7 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
         decision_permission_defaults(d);
         y += Scale(8);
         draw_centered_text(font, "Rules", content_x + content_w / 2, y,
-                           title_font, GetThemeText());
+                           title_font, StyleTokenColor("text"));
         y += title_font + Scale(28);
 
         if(process_type_uses_negative_weight(d->type)) {
@@ -7050,13 +7087,13 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
             if(d->quorum_votes == 0) {
                 y = draw_wrapped_text(font, tr(app, "0 means no minimum - the result counts with any number of ballots."),
                                       content_x, y - Scale(4), content_w, small_font,
-                                      small_font + Scale(4), Fade(GetThemeText(), 0.6f));
+                                      small_font + Scale(4), Fade(StyleTokenColor("text"), 0.6f));
                 y += Scale(12);
             } else
                 y += Scale(16);
         }
 
-        draw_text_font(font, "Visibility", content_x, y, body_font, GetThemeText());
+        draw_text_font(font, "Visibility", content_x, y, body_font, StyleTokenColor("text"));
         y += body_font + Scale(8);
         y += draw_segmented_text_choice(content_x, y, content_w,
                                         UKU_FOCUS_PROCESS_PUBLIC,
@@ -7067,7 +7104,7 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
 
         if(process_type_has_proposals(d->type)) {
             draw_text_font(font, tr(app, "Proposal visibility"), content_x, y,
-                           body_font, GetThemeText());
+                           body_font, StyleTokenColor("text"));
             y += body_font + Scale(8);
             y += draw_segmented_text_choice(content_x, y, content_w,
                                             UKU_FOCUS_PROPOSAL_VISIBILITY_PUBLIC,
@@ -7079,7 +7116,7 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
             y += Scale(18);
 
             draw_text_font(font, tr(app, "Who can add proposals"), content_x, y,
-                           body_font, GetThemeText());
+                           body_font, StyleTokenColor("text"));
             y += body_font + Scale(8);
             y += draw_segmented_text_choice(content_x, y, content_w,
                                             UKU_FOCUS_PROPOSAL_ACCESS_PUBLIC,
@@ -7092,7 +7129,7 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
 
         if(process_type_has_voting(d->type)) {
             draw_text_font(font, tr(app, "Who can vote"), content_x, y,
-                           body_font, GetThemeText());
+                           body_font, StyleTokenColor("text"));
             y += body_font + Scale(8);
             y += draw_segmented_text_choice(content_x, y, content_w,
                                             UKU_FOCUS_VOTING_ACCESS_PUBLIC,
@@ -7130,7 +7167,7 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
 
         y += Scale(8);
         draw_centered_text(font, "Add proposals", content_x + content_w / 2, y,
-                           title_font, GetThemeText());
+                           title_font, StyleTokenColor("text"));
         y += title_font + Scale(22);
 
         y = draw_text_field(app, font, tr(app, "Title"), tr(app, "Proposal title"),
@@ -7146,7 +7183,7 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
             y = draw_wrapped_text(font, text->proposal_title_warning,
                                   content_x, y - Scale(6), content_w,
                                   small_font, small_font + Scale(4),
-                                  GetThemeButton());
+                                  StyleTokenColor("accent"));
             y += Scale(8);
         }
         if(Button((ButtonProps){
@@ -7172,13 +7209,13 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
         y += Scale(48);
 
         draw_text_font(font, tr(app, "Proposals"), content_x, y, body_font,
-                       GetThemeText());
+                       StyleTokenColor("text"));
         y += body_font + Scale(10);
         if(app->proposal_count <= 0) {
             y = draw_wrapped_text(font, tr(app, "No proposals found."),
                                   content_x, y, content_w, small_font,
                                   small_font + Scale(5),
-                                  Fade(GetThemeText(), 0.75f));
+                                  Fade(StyleTokenColor("text"), 0.75f));
             y += Scale(12);
         } else {
             for(int i = 0; i < app->proposal_count; i++) {
@@ -7188,22 +7225,22 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
 
                 DrawRectangleRounded((Rectangle){(float)content_x, (float)y,
                                                  (float)content_w, (float)card_h},
-                                     0.06f, 10, GetThemeSurface());
+                                     0.06f, 10, StyleTokenColor("surface"));
                 DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y,
                                                        (float)content_w, (float)card_h},
                                             0.06f, 10, Scale(1),
-                                            Fade(GetThemeText(), 0.5f));
+                                            Fade(StyleTokenColor("text"), 0.5f));
                 draw_text_font(font, fit_tail(font, proposal->title, body_font,
                                               content_w - Scale(54)),
                                content_x + Scale(10), y + Scale(8),
-                               body_font, GetThemeText());
+                               body_font, StyleTokenColor("text"));
                 if(proposal->description[0] != '\0')
                     draw_text_font(font, fit_tail(font, proposal->description,
                                                   small_font,
                                                   content_w - Scale(54)),
                                    content_x + Scale(10),
                                    y + Scale(34), small_font,
-                                   Fade(GetThemeText(), 0.78f));
+                                   Fade(StyleTokenColor("text"), 0.78f));
                 delete_clicked = Button((ButtonProps){.tone = ButtonToneNeutral, .emphasis = ButtonEmphasisSoft, .icon_only = 1,
                         .bounds = {(float)(content_x + content_w - Scale(34)), (float)(y + Scale(8)), (float)(Scale(24)), (float)(Scale(24))},
                         .icon_type = ICON_TRASH,
@@ -7247,7 +7284,7 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
         draw_centered_text(font, create_voting_only(app)
                                  ? "Select the time for voting"
                                  : "Select the time for proposals and voting",
-                           content_x + content_w / 2, y, title_font, GetThemeText());
+                           content_x + content_w / 2, y, title_font, StyleTokenColor("text"));
         y += title_font + Scale(28);
         if(!create_voting_only(app) && process_type_has_proposals(d->type))
             y = draw_duration_group(app, font, text->proposal_time_label, text,
@@ -7264,7 +7301,7 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
         if(!process_type_has_voting(d->type)) {
             y = draw_wrapped_text(font, "This process collects proposals without a voting phase.",
                                   content_x, y, content_w, body_font,
-                                  body_font + Scale(6), Fade(GetThemeText(), 0.78f));
+                                  body_font + Scale(6), Fade(StyleTokenColor("text"), 0.78f));
             y += Scale(18);
         }
         if(Button((ButtonProps){
@@ -7293,46 +7330,46 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
 
         y += Scale(8);
         draw_centered_text(font, "Review Process", content_x + content_w / 2, y,
-                           title_font, GetThemeText());
+                           title_font, StyleTokenColor("text"));
         y += title_font + Scale(28);
 
         draw_text_font(font, text->topic_question_label, content_x, y, small_font,
-                       Fade(GetThemeText(), 0.72f));
+                       Fade(StyleTokenColor("text"), 0.72f));
         y += small_font + Scale(6);
         y = draw_wrapped_text(font, d->topic, content_x, y, content_w, body_font,
-                              body_font + Scale(6), GetThemeText());
+                              body_font + Scale(6), StyleTokenColor("text"));
         y += Scale(16);
 
         if(d->description[0] != '\0') {
             draw_text_font(font, text->description_label, content_x, y, small_font,
-                           Fade(GetThemeText(), 0.72f));
+                           Fade(StyleTokenColor("text"), 0.72f));
             y += small_font + Scale(6);
             y = draw_wrapped_text(font, d->description, content_x, y, content_w, body_font,
-                                  body_font + Scale(6), GetThemeText());
+                                  body_font + Scale(6), StyleTokenColor("text"));
             y += Scale(16);
         }
 
         snprintf(value, sizeof(value), "Mode: %s",
                  create_voting_only(app) ? "Voting Phase only" : "Proposal + Voting Phase");
-        draw_text_font(font, value, content_x, y, body_font, GetThemeText());
+        draw_text_font(font, value, content_x, y, body_font, StyleTokenColor("text"));
         y += body_font + Scale(10);
         snprintf(value, sizeof(value), "Visibility: %s", d->visibility);
-        draw_text_font(font, value, content_x, y, body_font, GetThemeText());
+        draw_text_font(font, value, content_x, y, body_font, StyleTokenColor("text"));
         y += body_font + Scale(10);
         if(process_type_has_proposals(d->type)) {
             snprintf(value, sizeof(value), "%s: %s", tr(app, "Proposal visibility"),
                      d->proposal_visibility);
-            draw_text_font(font, value, content_x, y, body_font, GetThemeText());
+            draw_text_font(font, value, content_x, y, body_font, StyleTokenColor("text"));
             y += body_font + Scale(10);
             snprintf(value, sizeof(value), "%s: %s", tr(app, "Who can add proposals"),
                      d->proposal_access);
-            draw_text_font(font, value, content_x, y, body_font, GetThemeText());
+            draw_text_font(font, value, content_x, y, body_font, StyleTokenColor("text"));
             y += body_font + Scale(10);
         }
         if(process_type_has_voting(d->type)) {
             snprintf(value, sizeof(value), "%s: %s", tr(app, "Who can vote"),
                      d->voting_access);
-            draw_text_font(font, value, content_x, y, body_font, GetThemeText());
+            draw_text_font(font, value, content_x, y, body_font, StyleTokenColor("text"));
             y += body_font + Scale(10);
         }
         if(process_type_uses_negative_weight(d->type)) {
@@ -7341,39 +7378,39 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
             format_negative_weight_label(weight_label, sizeof(weight_label),
                                          text->negative_weight_options[0], d->negative_weight);
             snprintf(value, sizeof(value), "Negative Score Weighting: %s", weight_label);
-            draw_text_font(font, value, content_x, y, body_font, GetThemeText());
+            draw_text_font(font, value, content_x, y, body_font, StyleTokenColor("text"));
             y += body_font + Scale(10);
         }
         if(process_type_has_voting(d->type) && d->quorum_votes > 0) {
             snprintf(value, sizeof(value), "%s: %d", tr(app, "Quorum (minimum ballots)"),
                      d->quorum_votes);
-            draw_text_font(font, value, content_x, y, body_font, GetThemeText());
+            draw_text_font(font, value, content_x, y, body_font, StyleTokenColor("text"));
             y += body_font + Scale(10);
         }
         if(!create_voting_only(app) && process_type_has_proposals(d->type)) {
             snprintf(value, sizeof(value), "%s: %dd %dh %dm",
                      text->proposal_time_label, d->proposal_days,
                      d->proposal_hours, d->proposal_minutes);
-            draw_text_font(font, value, content_x, y, body_font, GetThemeText());
+            draw_text_font(font, value, content_x, y, body_font, StyleTokenColor("text"));
             y += body_font + Scale(10);
         }
         if(process_type_has_voting(d->type)) {
             snprintf(value, sizeof(value), "%s: %dd %dh %dm",
                      text->voting_time_label, d->voting_days,
                      d->voting_hours, d->voting_minutes);
-            draw_text_font(font, value, content_x, y, body_font, GetThemeText());
+            draw_text_font(font, value, content_x, y, body_font, StyleTokenColor("text"));
             y += body_font + Scale(10);
         }
         if(create_voting_only(app) && app->proposal_count > 0) {
             y += Scale(8);
             draw_text_font(font, tr(app, "Proposals"), content_x, y, body_font,
-                           GetThemeText());
+                           StyleTokenColor("text"));
             y += body_font + Scale(10);
             for(int i = 0; i < app->proposal_count; i++) {
                 draw_text_font(font,
                                fit_tail(font, app->proposals[i].title, body_font,
                                         content_w),
-                               content_x, y, body_font, GetThemeText());
+                               content_x, y, body_font, StyleTokenColor("text"));
                 y += body_font + Scale(8);
             }
         }
@@ -7442,14 +7479,14 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
     }
     y += Scale(44);
     if(d->submitted)
-        draw_centered_text(font, text->setup_ready, content_x + content_w / 2, y, small_font, Fade(GetThemeText(), 0.75f));
+        draw_centered_text(font, text->setup_ready, content_x + content_w / 2, y, small_font, Fade(StyleTokenColor("text"), 0.75f));
     if(d->db_error)
-        draw_centered_text(font, text->db_error, content_x + content_w / 2, y, small_font, Fade(GetThemeText(), 0.75f));
+        draw_centered_text(font, text->db_error, content_x + content_w / 2, y, small_font, Fade(StyleTokenColor("text"), 0.75f));
     if(d->remote_error)
-        draw_centered_text(font, "Saved locally, but server upload failed.", content_x + content_w / 2, y + Scale(18), small_font, Fade(GetThemeText(), 0.75f));
+        draw_centered_text(font, "Saved locally, but server upload failed.", content_x + content_w / 2, y + Scale(18), small_font, Fade(StyleTokenColor("text"), 0.75f));
     if(app->process_status[0] != '\0')
         draw_centered_text(font, app->process_status, content_x + content_w / 2,
-                           y + Scale(34), small_font, Fade(GetThemeText(), 0.75f));
+                           y + Scale(34), small_font, Fade(StyleTokenColor("text"), 0.75f));
     end_uku_scroll_page(page, y, &app->create_scroll,
                         &app->create_max_scroll, Scale(24));
     app->create_scrollbar_visible = app->create_max_scroll > 0;
@@ -7474,21 +7511,21 @@ draw_proposal_card(UkuApp *app, Font font, const UkuProposal *proposal,
     can_delete = app->account.loaded && proposal->author_user_id[0] != '\0' &&
                  strcmp(app->account.public_id, proposal->author_user_id) == 0;
     card = (Rectangle){(float)x, (float)y, (float)w, (float)h};
-    DrawRectangleRounded(card, 0.10f, 12, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(card, 0.10f, 12, Scale(1), GetThemeButton());
+    DrawRectangleRounded(card, 0.10f, 12, StyleTokenColor("surface"));
+    DrawRectangleRoundedLinesEx(card, 0.10f, 12, Scale(1), StyleTokenColor("accent"));
     draw_text_font(font, fit_tail(font, proposal->title, body_font,
                                   w - (can_delete ? Scale(76) : Scale(24))),
-                   x + Scale(10), y + Scale(8), body_font, GetThemeText());
+                   x + Scale(10), y + Scale(8), body_font, StyleTokenColor("text"));
     if(proposal->display_name[0] != '\0')
         draw_text_font(font, fit_tail(font, proposal->display_name, small_font,
                                       w - Scale(24)),
                        x + Scale(10), y + Scale(30), small_font,
-                       Fade(GetThemeText(), 0.68f));
+                       Fade(StyleTokenColor("text"), 0.68f));
     if(proposal->description[0] != '\0')
         draw_wrapped_text(font, proposal->description, x + Scale(10),
                           y + (proposal->display_name[0] != '\0' ? Scale(48)
                                                                   : Scale(32)),
-                          w - Scale(20), small_font, line_h, GetThemeText());
+                          w - Scale(20), small_font, line_h, StyleTokenColor("text"));
     if(can_delete) {
         int icon_y = y + Scale(6);
         int trash_x = x + w - Scale(30);
@@ -7540,13 +7577,13 @@ draw_score_row(UkuApp *app, Font font, UkuProposal *proposal, int index,
     h = control_y - y + control_h + Scale(12);
     card = (Rectangle){(float)x, (float)y, (float)w, (float)h};
 
-    DrawRectangleRounded(card, 0.10f, 12, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(card, 0.10f, 12, Scale(1), GetThemeButton());
+    DrawRectangleRounded(card, 0.10f, 12, StyleTokenColor("surface"));
+    DrawRectangleRoundedLinesEx(card, 0.10f, 12, Scale(1), StyleTokenColor("accent"));
     draw_text_font(font, fit_tail(font, proposal->title, body_font, w - Scale(24)),
-                   x + Scale(12), y + Scale(8), body_font, GetThemeText());
+                   x + Scale(12), y + Scale(8), body_font, StyleTokenColor("text"));
     if(proposal->description[0] != '\0')
         draw_text_font(font, fit_tail(font, proposal->description, small_font, w - Scale(24)),
-                       x + Scale(12), y + Scale(30), small_font, GetThemeText());
+                       x + Scale(12), y + Scale(30), small_font, StyleTokenColor("text"));
 
     (void)app;
     control.bounds.height = (float)control_h;
@@ -7569,12 +7606,12 @@ draw_result_score_badge(UkuApp *app, Font font, int cx, int cy, int size,
         avg = clampi((int)roundf((float)total / (float)vote_count), -3, 3);
         snprintf(label, sizeof(label), avg > 0 ? "+%d" : "%d", avg);
     }
-    DrawRectangleRounded(badge, 0.20f, 12, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(badge, 0.20f, 12, Scale(1), GetThemeButton());
+    DrawRectangleRounded(badge, 0.20f, 12, StyleTokenColor("surface"));
+    DrawRectangleRoundedLinesEx(badge, 0.20f, 12, Scale(1), StyleTokenColor("accent"));
     draw_centered_text(font, label, cx,
                        UkuControlTextY(label, (int)badge.y, (int)badge.height,
                                          small_font),
-                       small_font, GetThemeText());
+                       small_font, StyleTokenColor("text"));
     (void)app;
 }
 
@@ -7589,15 +7626,15 @@ draw_result_row(UkuApp *app, Font font, const UkuProposal *proposal,
     int face = Scale(40);
     Rectangle card = {(float)x, (float)y, (float)w, (float)h};
 
-    DrawRectangleRounded(card, 0.10f, 12, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(card, 0.10f, 12, Scale(1), GetThemeButton());
+    DrawRectangleRounded(card, 0.10f, 12, StyleTokenColor("surface"));
+    DrawRectangleRoundedLinesEx(card, 0.10f, 12, Scale(1), StyleTokenColor("accent"));
     snprintf(title, sizeof(title), "%d. %s%s%s", rank, proposal->title,
              rank == 1 ? tr(app, " - leading") : "",
              negative_weight_is_infinite(app->decision.negative_weight) &&
                  proposal->negative_total <= -UKU_NEGATIVE_WEIGHT_INFINITY ?
                  tr(app, " - vetoed") : "");
     draw_text_font(font, fit_tail(font, title, body_font, w - face - Scale(40)),
-                   x + Scale(10), y + Scale(8), body_font, GetThemeText());
+                   x + Scale(10), y + Scale(8), body_font, StyleTokenColor("text"));
     snprintf(meta, sizeof(meta), "%s %d | %s %d | %s %d | %s %d | %s %.1f",
              tr(app, "total"), proposal->total,
              tr(app, "support"), proposal->positive_total,
@@ -7606,12 +7643,12 @@ draw_result_row(UkuApp *app, Font font, const UkuProposal *proposal,
              tr(app, "avg"),
              proposal->vote_count > 0 ? (float)proposal->total / (float)proposal->vote_count : 0.0f);
     draw_text_font(font, fit_tail(font, meta, small_font, w - face - Scale(40)),
-                   x + Scale(10), y + Scale(34), small_font, Fade(GetThemeText(), 0.75f));
+                   x + Scale(10), y + Scale(34), small_font, Fade(StyleTokenColor("text"), 0.75f));
     if(proposal->vote_count > 0 && proposal->negative_total < 0 &&
        -proposal->negative_total >= proposal->positive_total) {
         snprintf(resistance, sizeof(resistance), "%s", tr(app, "resistance at least equals support"));
         draw_text_font(font, fit_tail(font, resistance, small_font, w - face - Scale(40)),
-                       x + Scale(10), y + Scale(50), small_font, GetThemeText());
+                       x + Scale(10), y + Scale(50), small_font, StyleTokenColor("text"));
     }
     draw_result_score_badge(app, font, x + w - face / 2 - Scale(10),
                             y + h / 2, face, proposal->total,
@@ -7643,10 +7680,10 @@ draw_option_vote_row(UkuApp *app, Font font, UkuOption *option,
     h = control_y - y + control_h + Scale(10);
     card = (Rectangle){(float)x, (float)y, (float)w, (float)h};
 
-    DrawRectangleRounded(card, 0.10f, 12, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(card, 0.10f, 12, Scale(1), GetThemeButton());
+    DrawRectangleRounded(card, 0.10f, 12, StyleTokenColor("surface"));
+    DrawRectangleRoundedLinesEx(card, 0.10f, 12, Scale(1), StyleTokenColor("accent"));
     draw_text_font(font, fit_tail(font, option->label, body_font, w - Scale(20)),
-                   x + Scale(10), y + Scale(8), body_font, GetThemeText());
+                   x + Scale(10), y + Scale(8), body_font, StyleTokenColor("text"));
 
     control.bounds.height = (float)control_h;
     ScoreControl(control);
@@ -7661,17 +7698,17 @@ draw_option_result_row(UkuApp *app, Font font, const UkuOption *option,
     int h = Scale(50);
     Rectangle card = {(float)x, (float)y, (float)w, (float)h};
 
-    DrawRectangleRounded(card, 0.10f, 12, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(card, 0.10f, 12, Scale(1), GetThemeButton());
+    DrawRectangleRounded(card, 0.10f, 12, StyleTokenColor("surface"));
+    DrawRectangleRoundedLinesEx(card, 0.10f, 12, Scale(1), StyleTokenColor("accent"));
     draw_text_font(font, fit_tail(font, option->label, body_font, w - Scale(24)),
-                   x + Scale(10), y + Scale(8), body_font, GetThemeText());
+                   x + Scale(10), y + Scale(8), body_font, StyleTokenColor("text"));
     snprintf(meta, sizeof(meta), "%d. %s %d | %s %d | %s %.1f", rank,
              tr(app, "total"), option->total,
              tr(app, "votes"), option->vote_count,
              tr(app, "avg"),
              option->vote_count > 0 ? (float)option->total / (float)option->vote_count : 0.0f);
     draw_text_font(font, fit_tail(font, meta, small_font, w - Scale(44)),
-                   x + Scale(10), y + Scale(30), small_font, Fade(GetThemeText(), 0.75f));
+                   x + Scale(10), y + Scale(30), small_font, Fade(StyleTokenColor("text"), 0.75f));
     draw_result_score_badge(app, font, x + w - Scale(18), y + h / 2,
                             Scale(26), option->total,
                             option->vote_count, small_font);
@@ -7784,11 +7821,11 @@ draw_verdict_banner(UkuApp *app, Font font, const char *verdict_text, int positi
     Rectangle card = {(float)x, (float)y, (float)w, (float)h};
 
     (void)app;
-    DrawRectangleRounded(card, 0.10f, 12, GetThemeSurface());
+    DrawRectangleRounded(card, 0.10f, 12, StyleTokenColor("surface"));
     DrawRectangleRoundedLinesEx(card, 0.10f, 12, Scale(2),
-                                positive ? GetThemeText() : GetThemeButton());
+                                positive ? StyleTokenColor("text") : StyleTokenColor("accent"));
     draw_text_font(font, fit_tail(font, verdict_text, body_font, w - Scale(24)),
-                   x + Scale(12), y + (h - body_font) / 2, body_font, GetThemeText());
+                   x + Scale(12), y + (h - body_font) / 2, body_font, StyleTokenColor("text"));
     return y + h + Scale(10);
 }
 
@@ -7801,16 +7838,16 @@ draw_participant_list(UkuApp *app, Font font, int x, int y, int w, int body_font
     snprintf(title, sizeof(title), "%s (%d/%d)", tr(app, "Participants"),
              app->tally_from_remote ? tally_included_count(app) : app->vote_count,
              app->vote_count);
-    draw_text_font(font, title, x, y, body_font, GetThemeText());
+    draw_text_font(font, title, x, y, body_font, StyleTokenColor("text"));
     y += body_font + Scale(8);
     if(app->vote_count <= 0) {
         y = draw_wrapped_text(font, tr(app, "No votes submitted yet."), x, y, w, small_font,
-                              line_h, Fade(GetThemeText(), 0.75f));
+                              line_h, Fade(StyleTokenColor("text"), 0.75f));
         return y + Scale(8);
     }
     if(app->tally_from_remote)
         y = draw_wrapped_text(font, tr(app, "Tap a participant to include or exclude them from the results."),
-                              x, y, w, small_font, line_h, GetThemeButton()) + Scale(2);
+                              x, y, w, small_font, line_h, StyleTokenColor("accent")) + Scale(2);
     for(int i = 0; i < app->vote_count; i++) {
         const UkuVoteInfo *vote = &app->votes[i];
         char row[180];
@@ -7824,9 +7861,9 @@ draw_participant_list(UkuApp *app, Font font, int x, int y, int w, int body_font
 
             if(RegisterFocus(UKU_FOCUS_VOTER_BASE + i, hit) && CheckCollisionPointRec(GetMousePosition(), hit))
                 app->cursor_clickable = 1;
-            DrawRectangleLinesEx(check, 1.0f, included ? GetThemeButton() : GetThemeText());
+            DrawRectangleLinesEx(check, 1.0f, included ? StyleTokenColor("accent") : StyleTokenColor("text"));
             if(included)
-                DrawRectangle((int)check.x + 3, (int)check.y + 3, (int)check.width - 6, (int)check.height - 6, GetThemeButton());
+                DrawRectangle((int)check.x + 3, (int)check.y + 3, (int)check.width - 6, (int)check.height - 6, StyleTokenColor("accent"));
             if((CheckCollisionPointRec(GetMousePosition(), hit) && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
                IsFocusActivatePressed(UKU_FOCUS_VOTER_BASE + i)) {
                 app->result_voter_included[i] = !app->result_voter_included[i];
@@ -7840,7 +7877,7 @@ draw_participant_list(UkuApp *app, Font font, int x, int y, int w, int body_font
                  app->account.loaded && strcmp(vote->voter_user_id, app->account.public_id) == 0 ? tr(app, " (you)") : "");
         draw_text_font(font, fit_tail(font, row, small_font, w - Scale(24)),
                        x + Scale(12) + (app->tally_from_remote ? box + Scale(8) : 0), y, small_font,
-                       included ? GetThemeText() : GetThemeButton());
+                       included ? StyleTokenColor("text") : StyleTokenColor("accent"));
         y += line_h;
     }
     return y + Scale(8);
@@ -7862,18 +7899,18 @@ draw_history_card(UkuApp *app, Font font, const UkuProcessRow *row, int index,
     focused = RegisterFocus(focus_id, card);
     if(hovered)
         app->cursor_clickable = 1;
-    DrawRectangleRounded(card, 0.07f, 10, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(card, 0.07f, 10, Scale(1), focused ? GetThemeButton() : GetThemeText());
+    DrawRectangleRounded(card, 0.07f, 10, StyleTokenColor("surface"));
+    DrawRectangleRoundedLinesEx(card, 0.07f, 10, Scale(1), focused ? StyleTokenColor("accent") : StyleTokenColor("text"));
     draw_text_font(font, fit_tail(font, row->topic, body_font, w - Scale(24)),
-                   x + Scale(12), y + Scale(8), body_font, GetThemeText());
+                   x + Scale(12), y + Scale(8), body_font, StyleTokenColor("text"));
     format_created_at(created, sizeof(created), row->created_at);
     snprintf(meta, sizeof(meta), "%s | %s | %s", tr(app, "Finished"),
              process_type_label(row->type), created);
     draw_text_font(font, fit_tail(font, meta, small_font, w - Scale(24)),
-                   x + Scale(12), y + Scale(31), small_font, Fade(GetThemeText(), 0.75f));
+                   x + Scale(12), y + Scale(31), small_font, Fade(StyleTokenColor("text"), 0.75f));
     if(row->description[0] != '\0')
         draw_text_font(font, fit_tail(font, row->description, small_font, w - Scale(24)),
-                       x + Scale(12), y + Scale(52), small_font, GetThemeText());
+                       x + Scale(12), y + Scale(52), small_font, StyleTokenColor("text"));
     if((hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) || IsFocusActivatePressed(focus_id))
         open_process_row(app, row);
     return y + card_h + Scale(8);
@@ -7918,7 +7955,7 @@ draw_history(UkuApp *app, const UkuText *text, int view_w, int view_h)
         viewport_y = page.viewport_y;
         viewport_h = page.viewport_h;
         y = page.y;
-    draw_text_font(font, tr(app, "Finished Processes"), content_x, y, title_font, GetThemeText());
+    draw_text_font(font, tr(app, "Finished Processes"), content_x, y, title_font, StyleTokenColor("text"));
     y += title_font + Scale(12);
 
     for(int i = 0; i < app->process_count; i++) {
@@ -8195,13 +8232,13 @@ qr_draw(UkuApp *app, Font font, const char *url, int x, int y, int w, int body_f
     (void)body_font;
     if(hovered)
         app->cursor_clickable = 1;
-    DrawRectangleRounded(panel, 0.06f, 10, GetThemeBackground());
-    DrawRectangleRoundedLinesEx(panel, 0.06f, 10, Scale(1), GetThemeText());
+    DrawRectangleRounded(panel, 0.06f, 10, StyleTokenColor("canvas"));
+    DrawRectangleRoundedLinesEx(panel, 0.06f, 10, Scale(1), StyleTokenColor("text"));
     if(app->qr_loaded)
         DrawTexture(app->qr_texture, x + (w - qr_w) / 2, y + panel_pad, WHITE);
     draw_text_font(font, fit_tail(font, url, small_font, w - panel_pad * 2),
                    x + panel_pad, y + panel_pad * 2 + qr_h + Scale(2),
-                   small_font, Fade(GetThemeText(), 0.75f));
+                   small_font, Fade(StyleTokenColor("text"), 0.75f));
 }
 
 static void
@@ -8346,22 +8383,22 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     content_x = page.content_x;
     content_w = page.content_w;
     y = page.y;
-    draw_text_font(font, d->topic, content_x, y, body_font, GetThemeText());
+    draw_text_font(font, d->topic, content_x, y, body_font, StyleTokenColor("text"));
     y += body_font + Scale(12);
     if(d->description[0] != '\0') {
         y = draw_wrapped_text(font, d->description, content_x, y, content_w, small_font,
-                              line_h, GetThemeText());
+                              line_h, StyleTokenColor("text"));
         y += Scale(10);
     }
 
     format_process_timer(timer, sizeof(timer), text, d->created_at, proposal_total, voting_total, now);
     DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)content_w, (float)Scale(36)}, 0.10f, 12,
-                         GetThemeSurface());
+                         StyleTokenColor("surface"));
     DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)content_w, (float)Scale(36)}, 0.10f, 12,
-                                Scale(1), GetThemeButton());
+                                Scale(1), StyleTokenColor("accent"));
     draw_text_font(font, fit_tail(font, timer, body_font, content_w - Scale(24)),
                    content_x + Scale(10), y + Scale(9), body_font,
-                   process_phase(d->created_at, proposal_total, voting_total, now, NULL) == UKU_PROCESS_RESULTS ? GetThemeText() : GetThemeButton());
+                   process_phase(d->created_at, proposal_total, voting_total, now, NULL) == UKU_PROCESS_RESULTS ? StyleTokenColor("text") : StyleTokenColor("accent"));
     y += Scale(48);
 
     snprintf(governance_line, sizeof(governance_line),
@@ -8385,25 +8422,25 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
         strncat(governance_line, segment, sizeof(governance_line) - strlen(governance_line) - 1);
     }
     y = draw_wrapped_text(font, governance_line, content_x, y, content_w, small_font,
-                          small_font + Scale(7), GetThemeButton());
+                          small_font + Scale(7), StyleTokenColor("accent"));
     if(d->outcome[0] != '\0') {
         snprintf(governance_line, sizeof(governance_line), "%s %s", tr(app, "Outcome:"), d->outcome);
         y = draw_wrapped_text(font, governance_line, content_x, y, content_w, small_font,
-                              small_font + Scale(7), GetThemeText());
+                              small_font + Scale(7), StyleTokenColor("text"));
     }
     if(d->review_at[0] != '\0') {
         snprintf(governance_line, sizeof(governance_line), "%s %s", tr(app, "Review:"), d->review_at);
         y = draw_wrapped_text(font, governance_line, content_x, y, content_w, small_font,
-                              small_font + Scale(7), GetThemeText());
+                              small_font + Scale(7), StyleTokenColor("text"));
     }
     y += Scale(10);
 
     if(d->remote_error) {
-        y = draw_wrapped_text(font, tr(app, "Saved locally, but server upload failed. Check your connection and account."), content_x, y, content_w, small_font, line_h, Fade(GetThemeText(), 0.75f));
+        y = draw_wrapped_text(font, tr(app, "Saved locally, but server upload failed. Check your connection and account."), content_x, y, content_w, small_font, line_h, Fade(StyleTokenColor("text"), 0.75f));
         y += Scale(10);
     }
     if(app->process_detail_loading_failed) {
-        y = draw_wrapped_text(font, tr(app, "Could not refresh this process from the server. Showing local details."), content_x, y, content_w, small_font, line_h, Fade(GetThemeText(), 0.75f));
+        y = draw_wrapped_text(font, tr(app, "Could not refresh this process from the server. Showing local details."), content_x, y, content_w, small_font, line_h, Fade(StyleTokenColor("text"), 0.75f));
         y += Scale(6);
         if(Button((ButtonProps){
                 .bounds = {(float)(content_x), (float)(y), (float)(UKU_MIN(Scale(160), Scale(600))), (float)(Scale(30))},
@@ -8419,18 +8456,18 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     }
 
     update_local_address(app, d);
-    draw_text_font(font, text->local_address_label, content_x, y, small_font, Fade(GetThemeText(), 0.75f));
+    draw_text_font(font, text->local_address_label, content_x, y, small_font, Fade(StyleTokenColor("text"), 0.75f));
     y += small_font + Scale(6);
     link_box_w = UkuTextWidth(d->local_address, body_font) + Scale(20);
     link_box_w = clampi(link_box_w, Scale(96), content_w);
     link_box_h = body_font + Scale(10);
-    DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)link_box_w, (float)link_box_h}, 0.10f, 12, GetThemeSurface());
+    DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)link_box_w, (float)link_box_h}, 0.10f, 12, StyleTokenColor("surface"));
     DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)link_box_w, (float)link_box_h}, 0.10f, 12,
-                                Scale(1), GetThemeButton());
+                                Scale(1), StyleTokenColor("accent"));
     draw_text_font(font, fit_tail(font, d->local_address, body_font, link_box_w - Scale(20)),
                    content_x + Scale(10),
                    UkuControlTextY(d->local_address, y, link_box_h, body_font),
-                   body_font, GetThemeText());
+                   body_font, StyleTokenColor("text"));
     {
         char share_url[320];
         int gap = Scale(8);
@@ -8584,18 +8621,18 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
         y += Scale(42);
         if(app->process_update_failed) {
             y = draw_wrapped_text(font, tr(app, "Could not update process visibility."), content_x, y,
-                                  content_w, small_font, line_h, Fade(GetThemeText(), 0.75f));
+                                  content_w, small_font, line_h, Fade(StyleTokenColor("text"), 0.75f));
             y += Scale(12);
         }
     }
 
     if(process_type_has_proposals(d->type) && phase == UKU_PROCESS_PROPOSAL) {
-        draw_text_font(font, tr(app, "Add proposal"), content_x, y, body_font, GetThemeText());
+        draw_text_font(font, tr(app, "Add proposal"), content_x, y, body_font, StyleTokenColor("text"));
         y += body_font + Scale(8);
         if(!proposal_submit_allowed) {
             y = draw_wrapped_text(font, tr(app, "You do not have permission to add proposals to this process."),
                                   content_x, y, content_w, small_font, line_h,
-                                  Fade(GetThemeText(), 0.75f));
+                                  Fade(StyleTokenColor("text"), 0.75f));
             y += Scale(12);
         } else {
         {
@@ -8608,7 +8645,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                          tr(app, "Your name or persistent alias"), display_name);
                 y = draw_wrapped_text(font, identity_line, content_x, y,
                                       content_w, small_font, line_h,
-                                      Fade(GetThemeText(), 0.70f));
+                                      Fade(StyleTokenColor("text"), 0.70f));
                 y += Scale(8);
             }
         }
@@ -8624,7 +8661,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
            !has_non_space(app->proposal_title)) {
             y = draw_wrapped_text(font, text->proposal_title_warning,
                                   content_x, y - Scale(6), content_w,
-                                  small_font, line_h, GetThemeButton());
+                                  small_font, line_h, StyleTokenColor("accent"));
             y += Scale(8);
         }
         if(Button((ButtonProps){
@@ -8676,23 +8713,23 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
             y = draw_wrapped_text(font, tr(app, app->proposal_submit_failed ?
                                   "Proposal saved locally. It will sync when the server is reachable." :
                                   "Proposal submitted."), content_x, y, content_w,
-                                  small_font, line_h, GetThemeText());
+                                  small_font, line_h, StyleTokenColor("text"));
         if(app->proposal_submit_failed && !app->proposal_submit_ok)
             y = draw_wrapped_text(font, tr(app, "Could not submit proposal."), content_x, y, content_w,
-                                  small_font, line_h, Fade(GetThemeText(), 0.75f));
+                                  small_font, line_h, Fade(StyleTokenColor("text"), 0.75f));
         y += Scale(12);
     } else if(process_type_has_voting(d->type) && phase == UKU_PROCESS_VOTING) {
-        draw_text_font(font, tr(app, "Your ballot"), content_x, y, body_font, GetThemeText());
+        draw_text_font(font, tr(app, "Your ballot"), content_x, y, body_font, StyleTokenColor("text"));
         y += body_font + Scale(8);
         if(!vote_submit_allowed) {
             y = draw_wrapped_text(font, tr(app, "You do not have permission to vote in this process."),
                                   content_x, y, content_w, small_font, line_h,
-                                  Fade(GetThemeText(), 0.75f));
+                                  Fade(StyleTokenColor("text"), 0.75f));
             y += Scale(12);
         } else if(!proposal_read_allowed && !process_type_has_options(d->type)) {
             y = draw_wrapped_text(font, tr(app, "You do not have permission to view proposals in this process."),
                                   content_x, y, content_w, small_font, line_h,
-                                  Fade(GetThemeText(), 0.75f));
+                                  Fade(StyleTokenColor("text"), 0.75f));
             y += Scale(12);
         } else {
         {
@@ -8705,7 +8742,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                          tr(app, "Your name or persistent alias"), display_name);
                 y = draw_wrapped_text(font, identity_line, content_x, y,
                                       content_w, small_font, line_h,
-                                      Fade(GetThemeText(), 0.70f));
+                                      Fade(StyleTokenColor("text"), 0.70f));
                 y += Scale(8);
             }
         }
@@ -8750,24 +8787,24 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
         y += Scale(42);
         if(app->vote_submit_ok && app->vote_name_taken)
             y = draw_wrapped_text(font, tr(app, "That name is already taken in this process. Choose another."),
-                                  content_x, y, content_w, small_font, line_h, GetThemeText());
+                                  content_x, y, content_w, small_font, line_h, StyleTokenColor("text"));
         else if(app->vote_submit_ok)
             y = draw_wrapped_text(font, tr(app, app->vote_submit_failed ?
                                  "Vote saved locally. It will sync when the server is reachable." :
                                   "Vote submitted."), content_x, y, content_w,
-                                  small_font, line_h, GetThemeText());
+                                  small_font, line_h, StyleTokenColor("text"));
         if(app->vote_submit_failed && !app->vote_submit_ok)
             y = draw_wrapped_text(font, tr(app, "Could not submit vote."), content_x, y, content_w,
-                                  small_font, line_h, Fade(GetThemeText(), 0.75f));
+                                  small_font, line_h, Fade(StyleTokenColor("text"), 0.75f));
         y += Scale(12);
     } else {
         draw_text_font(font, tr(app, d->type == UKU_PROCESS_TYPE_COLLECTION ? "Collected proposals" : "Results"),
-                       content_x, y, body_font, GetThemeText());
+                       content_x, y, body_font, StyleTokenColor("text"));
         y += body_font + Scale(8);
         if(!proposal_read_allowed && !process_type_has_options(d->type)) {
             y = draw_wrapped_text(font, tr(app, "You do not have permission to view proposals in this process."),
                                   content_x, y, content_w, small_font, line_h,
-                                  Fade(GetThemeText(), 0.75f));
+                                  Fade(StyleTokenColor("text"), 0.75f));
         } else if(process_type_has_options(d->type)) {
             for(int i = 0; i < app->option_count; i++)
                 y = draw_option_result_row(app, font, &app->options[i], i + 1,
@@ -8818,7 +8855,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
         y = draw_participant_list(app, font, content_x, y, content_w, body_font, small_font);
 
     if(process_type_has_proposals(d->type) && proposal_read_allowed) {
-        draw_text_font(font, tr(app, "Proposals"), content_x, y, body_font, GetThemeText());
+        draw_text_font(font, tr(app, "Proposals"), content_x, y, body_font, StyleTokenColor("text"));
         y += body_font + Scale(8);
         for(int i = 0; i < app->proposal_count; i++)
             y = draw_proposal_card(app, font, &app->proposals[i], i, content_x, y,
@@ -8827,7 +8864,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     if(app->process_status[0] != '\0') {
         y += Scale(4);
         y = draw_wrapped_text(font, app->process_status, content_x, y, content_w,
-                              small_font, line_h, GetThemeText());
+                              small_font, line_h, StyleTokenColor("text"));
     }
     end_uku_scroll_page(page, y, &app->collect_scroll,
                         &app->collect_max_scroll, Scale(24));
@@ -8861,13 +8898,13 @@ draw_public_id_modal(UkuApp *app, int view_w, int view_h)
     }
 
     DrawRectangleRec(overlay, (Color){0, 0, 0, 96});
-    DrawRectangleRounded(panel, 0.08f, 12, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(panel, 0.08f, 12, Scale(1), GetThemeText());
-    draw_text_font(font, "Full Public ID", x + pad, y + pad, body_font, GetThemeText());
+    DrawRectangleRounded(panel, 0.08f, 12, StyleTokenColor("surface"));
+    DrawRectangleRoundedLinesEx(panel, 0.08f, 12, Scale(1), StyleTokenColor("text"));
+    draw_text_font(font, "Full Public ID", x + pad, y + pad, body_font, StyleTokenColor("text"));
     content_y = y + pad + body_font + Scale(14);
     content_y = draw_wrapped_text(font, "This is the full account ID used by the server.",
                                   x + pad, content_y, panel_w - pad * 2, small_font, line_h,
-                                  GetThemeText());
+                                  StyleTokenColor("text"));
     content_y += Scale(10);
     content_y = draw_readonly_field(app, font, app->account.public_id,
                                     x + pad, content_y, panel_w - pad * 2, Scale(46),
@@ -8975,7 +9012,7 @@ draw_account_setup_modal(UkuApp *app, const UkuText *text, int view_w, int view_
               ? app->icons[app->account_pfp_icon]
               : app->icons[ICON_PFP_PERSON1];
     DrawCircle(frame.content_x + icon_size / 2, y + icon_size / 2,
-               icon_size / 2, GetThemeButton());
+               icon_size / 2, StyleTokenColor("accent"));
     if(pfp.id != 0)
         DrawTexturePro(pfp, (Rectangle){0, 0, (float)pfp.width, (float)pfp.height},
                        (Rectangle){(float)frame.content_x + Scale(7),
@@ -9098,15 +9135,15 @@ draw_alias_modal(UkuApp *app, int view_w, int view_h)
         return;
 
     DrawRectangleRec(overlay, (Color){0, 0, 0, 96});
-    DrawRectangleRounded(panel, 0.08f, 12, GetThemeSurface());
-    DrawRectangleRoundedLinesEx(panel, 0.08f, 12, Scale(1), GetThemeText());
-    draw_text_font(font, "Account alias", x + pad, y + pad, body_font, GetThemeText());
+    DrawRectangleRounded(panel, 0.08f, 12, StyleTokenColor("surface"));
+    DrawRectangleRoundedLinesEx(panel, 0.08f, 12, Scale(1), StyleTokenColor("text"));
+    draw_text_font(font, "Account alias", x + pad, y + pad, body_font, StyleTokenColor("text"));
     content_y = y + pad + body_font + Scale(14);
     content_y = draw_wrapped_text(font, "Choose a short alias for this account on the current server.",
                                   x + pad, content_y, panel_w - pad * 2, small_font, line_h,
-                                  GetThemeText());
+                                  StyleTokenColor("text"));
     content_y += Scale(8);
-    draw_text_font(font, "@", x + pad, content_y + Scale(30), body_font, GetThemeText());
+    draw_text_font(font, "@", x + pad, content_y + Scale(30), body_font, StyleTokenColor("text"));
     input_x = x + pad + Scale(24);
     input_w = panel_w - pad * 2 - Scale(24);
     draw_text_field(app, font, "Alias", "name",
@@ -9115,7 +9152,7 @@ draw_alias_modal(UkuApp *app, int view_w, int view_h)
     alias_normalize(app->alias_input);
     content_y += Scale(74);
     draw_text_font(font, "4-32 letters, numbers, or underscore.", x + pad, content_y,
-                   small_font, Fade(GetThemeText(), 0.75f));
+                   small_font, Fade(StyleTokenColor("text"), 0.75f));
     content_y += Scale(28);
     if(Button((ButtonProps){
             .bounds = {(float)(x + pad), (float)(content_y), (float)((panel_w - pad * 2 - Scale(10)) / 2), (float)(Scale(40))},
@@ -9196,7 +9233,7 @@ draw_account(UkuApp *app, const UkuText *text, int view_w, int view_h)
         sync_server_save(app);
     y += Scale(42);
     if(app->server_url_error) {
-        y = draw_wrapped_text(font, "Use HTTPS for remote servers, or localhost/127.0.0.1/10.0.2.2 for HTTP development.", content_x, y, content_w, small_font, line_h, Fade(GetThemeText(), 0.75f));
+        y = draw_wrapped_text(font, "Use HTTPS for remote servers, or localhost/127.0.0.1/10.0.2.2 for HTTP development.", content_x, y, content_w, small_font, line_h, Fade(StyleTokenColor("text"), 0.75f));
         y += Scale(12);
     }
 
@@ -9207,7 +9244,7 @@ draw_account(UkuApp *app, const UkuText *text, int view_w, int view_h)
             snprintf(display_id, sizeof(display_id), "@%s", alias);
         else
             compact_public_id(app->account.public_id, display_id, sizeof(display_id));
-        draw_text_font(font, "Public ID", content_x, y, small_font, Fade(GetThemeText(), 0.75f));
+        draw_text_font(font, "Public ID", content_x, y, small_font, Fade(StyleTokenColor("text"), 0.75f));
         y += small_font + Scale(6);
         y = draw_readonly_field(app, font, display_id, content_x, y, content_w, Scale(36),
                                 UKU_FOCUS_ACCOUNT_ID, &account_id_clicked);
@@ -9227,7 +9264,7 @@ draw_account(UkuApp *app, const UkuText *text, int view_w, int view_h)
         y += Scale(44);
     } else {
         if(IsSyncAccountAvailable()) {
-            y = draw_wrapped_text(font, "Create an account or import an account key to start processes, add proposals, or vote.", content_x, y, content_w, body_font, line_h, GetThemeText());
+            y = draw_wrapped_text(font, "Create an account or import an account key to start processes, add proposals, or vote.", content_x, y, content_w, body_font, line_h, StyleTokenColor("text"));
             y += Scale(12);
             if(Button((ButtonProps){
                     .bounds = {(float)(content_x), (float)(y), (float)(UKU_MIN(content_w, Scale(190))), (float)(Scale(34))},
@@ -9252,12 +9289,12 @@ draw_account(UkuApp *app, const UkuText *text, int view_w, int view_h)
             if(import_clicked)
                 account_start_import_dialog(app);
         } else {
-            y = draw_wrapped_text(font, "This build does not include liboqs, so account creation and signing are unavailable.", content_x, y, content_w, body_font, line_h, Fade(GetThemeText(), 0.75f));
+            y = draw_wrapped_text(font, "This build does not include liboqs, so account creation and signing are unavailable.", content_x, y, content_w, body_font, line_h, Fade(StyleTokenColor("text"), 0.75f));
         }
     }
     if(app->account_status[0] != '\0')
         draw_wrapped_text(font, app->account_status, content_x, y, content_w, small_font, line_h,
-                          app->account.import_failed ? GetThemeButton() : GetThemeText());
+                          app->account.import_failed ? StyleTokenColor("accent") : StyleTokenColor("text"));
 
     (void)text;
     (void)view_h;
@@ -9343,7 +9380,7 @@ draw_manual(UkuApp *app, const UkuText *text, int view_w, int view_h)
         content_x = page.content_x;
         content_w = page.content_w;
         y = page.y;
-    y = draw_wrapped_text(font, text->manual_body, content_x, y, content_w, body_font, line_h, GetThemeText());
+    y = draw_wrapped_text(font, text->manual_body, content_x, y, content_w, body_font, line_h, StyleTokenColor("text"));
         end_uku_scroll_page(page, y, &app->manual_scroll,
                             &app->manual_max_scroll, Scale(24));
     }
@@ -9397,7 +9434,7 @@ draw_app_frame(void *userdata)
     app->cursor_clickable = 0;
 
     BeginDrawing();
-    ClearBackground(GetThemeBackground());
+    ClearBackground(StyleTokenColor("canvas"));
     BeginFocusScope();
     SetFocusTextInputActive(app->active_field != UKU_FIELD_NONE);
     if(app->account_required_modal_open || app->account_setup_modal_open ||
