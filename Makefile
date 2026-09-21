@@ -171,9 +171,21 @@ KRYON_RUNTIME_H := $(KRYON_RUNTIME_C:.c=.h)
 KRYON_RUNTIME_STAMP := $(KRYON_GENERATED_SRC_DIR)/runtime/.fresh
 KRYON_SRCS += $(KRYON_RUNTIME_C)
 KRYON_INCLUDE += -I$(KRYON_GENERATED_SRC_DIR)
+KRYON_INCLUDE += -I$(KRYON_DIR)/vendor/utf8proc
+KRYON_INCLUDE += -I$(KRYON_DIR)/src/ui -I$(KRYON_DIR)/src/backend -I$(KRYON_DIR)/src/platform -I$(KRYON_DIR)/src/core
+KRYON_INCLUDE += -I$(KRYON_GENERATED_SRC_DIR)/runtime
 KRYON_NATIVE_DEPS += $(KRYON_RUNTIME_C) $(KRYON_RUNTIME_H)
 
 # Generate shared widget policies into uku's build tree, never vendor sources.
+KRYON_UI_KRY := $(sort $(wildcard $(KRYON_DIR)/src/ui/*.kry))
+KRYON_UI_C := $(patsubst $(KRYON_DIR)/src/%.kry,$(KRYON_GENERATED_SRC_DIR)/%.c,$(KRYON_UI_KRY))
+KRYON_UI_H := $(KRYON_UI_C:.c=.h)
+KRYON_SRCS += $(KRYON_UI_C)
+KRYON_NATIVE_DEPS += $(KRYON_UI_C) $(KRYON_UI_H)
+
+$(KRYON_UI_C) $(KRYON_UI_H): $(K2C) $(KRYON_UI_KRY)
+	$(K2C) --no-main --root $(abspath $(KRYON_DIR))/src -o $(abspath $(KRYON_GENERATED_SRC_DIR)) $(abspath $(KRYON_UI_KRY))
+
 $(KRYON_RUNTIME_STAMP): Makefile $(K2C) $(KRYON_RUNTIME_KRY)
 	mkdir -p $(dir $@)
 	$(K2C) --strict --no-main --root $(abspath $(KRYON_DIR)) -o $(abspath $(KRYON_GENERATED_SRC_DIR)) $(abspath $(KRYON_RUNTIME_KRY))

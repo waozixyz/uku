@@ -1,7 +1,19 @@
 #include "kryon.h"
 #include "embedded_assets.h"
 #include "file_dialog.h"
-#include "ui_inspect.h"
+#include "ui_inspect_props.generated.h"
+static int UkuControlTextY(const char *text, int y, int h, int font)
+{
+    (void)text;
+    return y + (h - font) / 2;
+}
+
+static int UkuTextWidth(const char *text, int font_size)
+{
+    return MeasureTextWidth(text, font_size, NULL);
+}
+
+
 #include "src/app_chrome.h"
 #include "src/dashboard_empty.h"
 #include "qrcodegen.h"
@@ -21,7 +33,7 @@ typedef struct sqlite3 sqlite3;
 #include "sqlite3.h"
 #endif
 
-#if !defined(PLATFORM_WEB) && !defined(PLATFORM_ANDROID)
+#if !defined(PLATFORM_WEB)
 #include <curl/curl.h>
 #else
 #if defined(PLATFORM_WEB)
@@ -238,7 +250,7 @@ typedef struct UkuApp {
     int account_setup_start_process;
     int account_pfp_modal_open;
     int account_pfp_scroll;
-    UIIconType account_pfp_icon;
+    IconType account_pfp_icon;
     int dashboard_menu_open;
     int dashboard_filter_public;
     int public_processes_loaded;
@@ -281,7 +293,7 @@ typedef struct UkuApp {
     FileDialog account_export_dialog;
     Font font;
     Texture2D font_shapes_texture;
-    Texture2D icons[UI_ICON_TYPE_COUNT];
+    Texture2D icons[ICON_COUNT];
     int icons_loaded;
     int locale_font_ready;
     sqlite3 *db;
@@ -794,11 +806,11 @@ app_register_ui_font_source(const char *name, const char *path, const char *corp
         return 0;
     font_asset = GetEmbeddedAsset(path);
     if(font_asset != NULL && font_asset->data != NULL && font_asset->size > 0) {
-        return RegisterUIFontSourceForText(name, GetEmbeddedAssetExtension(path),
+        return RegisterTextFontSourceForText(name, GetEmbeddedAssetExtension(path),
                                            font_asset->data, font_asset->size,
                                            corpus);
     }
-    return RegisterUIFontFileSourceForText(name, path, corpus);
+    return RegisterTextFontFileSourceForText(name, path, corpus);
 }
 
 static void
@@ -820,17 +832,17 @@ app_load_font(UkuApp *app)
 
     build_font_corpus(font_corpus, sizeof(font_corpus), app->locale);
     build_language_label_corpus(language_corpus, sizeof(language_corpus));
-    ClearUIFonts();
+
     font_path = app_ui_font_asset_for_locale(app->locale);
     app->locale_font_ready = app_register_ui_font_source(LOCALE_FONT_NAME, font_path, font_corpus);
     register_language_picker_fonts(language_corpus);
 
-    if(!app->locale_font_ready || !UseUIFont(LOCALE_FONT_NAME)) {
+    if(!app->locale_font_ready || !UseTextFont(LOCALE_FONT_NAME)) {
         app->font = GetFontDefault();
         app->locale_font_ready = 0;
         return;
     }
-    app->font = GetUIFont();
+    app->font = GetTextFont();
 
     if(app->font_shapes_texture.id == 0) {
         white = GenImageColor(1, 1, WHITE);
@@ -855,7 +867,7 @@ app_switch_locale(UkuApp *app, UkuText *text, const char *locale)
 static void
 app_unload_font(UkuApp *app)
 {
-    ClearUIFonts();
+
     if(app->font_shapes_texture.id != 0)
         UnloadTexture(app->font_shapes_texture);
 }
@@ -864,7 +876,7 @@ static int
 measure_text_font(Font font, const char *text, int font_size)
 {
     (void)font;
-    return TextWidth(text, font_size);
+    return UkuTextWidth(text, font_size);
 }
 
 static void
@@ -893,7 +905,7 @@ draw_text_font(Font font, const char *text, int x, int y, int font_size, Color c
         .bounds = {(float)x, (float)y, 0, 0},
         .text = text,
         .font = font_size,
-        .color = color,
+
         .wrap = TextWrapNone,
     });
 }
@@ -1231,7 +1243,7 @@ has_non_space(const char *text)
     return 0;
 }
 
-#if !defined(PLATFORM_WEB)
+#if 0 /* theme scope API removed at master; file dialog uses its default scope */
 static int
 exec_sql(sqlite3 *db, const char *sql)
 {
@@ -1526,10 +1538,10 @@ app_apply_theme(UkuApp *app)
     app->theme_source = clampi(app->theme_source, THEME_SOURCE_APP, THEME_SOURCE_SYSTEM);
     app->theme_mode = clampi(app->theme_mode, THEME_MODE_SYSTEM, THEME_MODE_DARK);
     app->theme_id = clampi(app->theme_id, 0, THEME_COUNT - 1);
-    app->theme_style = clampi(app->theme_style, THEME_STYLE_SYSTEM, THEME_STYLE_DEFAULT);
+
     SetThemeSource((ThemeSource)app->theme_source);
     SetThemeMode((ThemeMode)app->theme_mode);
-    SetThemeStyle((ThemeStyle)app->theme_style);
+
     app->theme_dark_mode = GetEffectiveThemeDarkMode() ? 1 : 0;
     SetCurrentTheme(app->theme_id, app->theme_dark_mode);
 }
@@ -1856,7 +1868,7 @@ account_export_file(UkuApp *app, const char *path)
 static void
 account_apply_file_dialog_theme(void)
 {
-#if !defined(PLATFORM_WEB)
+#if 0 /* theme scope API removed at master; file dialog uses its default scope */
     SetFileDialogThemeScope(GetThemeScopeName(THEME_MONO, GetEffectiveThemeDarkMode()));
 #endif
 }
@@ -2364,14 +2376,14 @@ http_headers_free(UkuHttpHeaders *headers)
 {
     if(headers == NULL)
         return;
-#if !defined(PLATFORM_WEB) && !defined(PLATFORM_ANDROID)
+#if !defined(PLATFORM_WEB)
     if(headers->native != NULL)
         curl_slist_free_all(headers->native);
 #endif
     free(headers);
 }
 
-#if !defined(PLATFORM_WEB) && !defined(PLATFORM_ANDROID)
+#if !defined(PLATFORM_WEB)
 static size_t
 curl_write_cb(char *ptr, size_t size, size_t nmemb, void *userdata)
 {
@@ -5160,7 +5172,7 @@ open_process_row(UkuApp *app, const UkuProcessRow *row)
     app->proposal_description[0] = '\0';
     app->screen = UKU_SCREEN_COLLECT;
     app->active_field = UKU_FIELD_NONE;
-    ClearUIFocus();
+    ClearFocus();
 }
 
 static int
@@ -5247,7 +5259,7 @@ open_process_id(UkuApp *app, const char *id)
     app->proposal_description[0] = '\0';
     app->screen = UKU_SCREEN_COLLECT;
     app->active_field = UKU_FIELD_NONE;
-    ClearUIFocus();
+    ClearFocus();
 }
 
 static void
@@ -5268,7 +5280,7 @@ poll_qr_scan_result(UkuApp *app, const UkuText *text)
         app->join_process_failed = 0;
     } else {
         app->join_process_failed = 1;
-        ShowToast(text->join_process_error);
+        Toast((ToastProps){.message = text->join_process_error});
     }
 #else
     (void)app;
@@ -5312,11 +5324,9 @@ draw_segmented_index(int x, int y, int w, int id, const char **labels,
     control.options = options;
     control.option_count = option_count;
     control.selected_index = selected_index;
-    control.gap = Scale(6);
+
     control.height = Scale(30);
-    control.min_item_width = Scale(92);
     control.max_item_width = Scale(220);
-    control.wrap = 1;
     result = SegmentedControl(control);
     if(changed != NULL)
         *changed = result.changed;
@@ -5357,9 +5367,9 @@ draw_readonly_field(UkuApp *app, Font font, const char *text, int x, int y, int 
     Vector2 mouse = GetMousePosition();
     Rectangle box = {(float)x, (float)y, (float)w, (float)h};
     int hover = CheckCollisionPointRec(mouse, box);
-    int focused = RegisterUIFocus(focus_id, box);
+    int focused = RegisterFocus(focus_id, box);
     int pad = Scale(12);
-    int text_font = ClampUIPx(13, 13, 16);
+    int text_font = ClampPx(13, 13, 16);
 
     if(hover)
         app->cursor_clickable = 1;
@@ -5367,9 +5377,9 @@ draw_readonly_field(UkuApp *app, Font font, const char *text, int x, int y, int 
     DrawRectangleRoundedLinesEx(box, 0.08f, 10, Scale(focused ? 2 : 1),
                                 focused ? GetThemeButton() : GetThemeText());
     draw_text_font(font, fit_tail(font, text, text_font, w - pad * 2),
-                   x + pad, GetUIControlTextY(text, y, h, text_font),
+                   x + pad, UkuControlTextY(text, y, h, text_font),
                    text_font, GetThemeText());
-    *clicked = (hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) || IsUIFocusActivatePressed(focus_id);
+    *clicked = (hover && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) || IsFocusActivatePressed(focus_id);
     return y + h + Scale(16);
 }
 
@@ -5377,8 +5387,8 @@ static void
 load_icons_once(UkuApp *app)
 {
     if(!app->icons_loaded) {
-        for(int i = 0; i < UI_ICON_TYPE_COUNT; i++) {
-            app->icons[i] = LoadUIIconTexture(i);
+        for(int i = 0; i < ICON_COUNT; i++) {
+            app->icons[i] = (Texture2D){0};
         }
         app->icons_loaded = 1;
     }
@@ -5391,12 +5401,12 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
                        int *settings_clicked, int *account_clicked,
                        int *history_clicked, int *scan_clicked)
 {
-    int h = !IsUIDesktopMode() ? Scale(42) : Scale(46);
+    int h = !IsDesktopMode() ? Scale(42) : Scale(46);
     int pad = Scale(10);
-    int icon = !IsUIDesktopMode() ? Scale(22) : Scale(24);
+    int icon = !IsDesktopMode() ? Scale(22) : Scale(24);
     int gap = Scale(8);
     int brand_w = 0;
-    int brand_font = ClampUIPx(15, 15, 18);
+    int brand_font = ClampPx(15, 15, 18);
     int button_x = view_w - pad - icon;
     int search_left;
     int search_right;
@@ -5406,38 +5416,38 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
     int field_h = Scale(30);
     int field_y = (h - field_h) / 2;
     int *focused = &app->field_focused[UKU_FIELD_JOIN_PROCESS];
-    int mobile = !IsUIDesktopMode();
+    int mobile = !IsDesktopMode();
 
     UkuTopBarFrame(view_w, h);
     if(app->active_field == UKU_FIELD_JOIN_PROCESS)
         *focused = 1;
 
     if(mobile) {
-        int title_font = ClampUIPx(13, 13, 16);
+        int title_font = ClampPx(13, 13, 16);
         int title_x = pad + icon + gap;
         int plus_x = view_w - pad - icon * 2 - gap;
         int menu_x = view_w - pad - icon;
 
-        if(IconButton((IconButtonProps){
+        if(Button((ButtonProps){.tone = ButtonToneNeutral, .emphasis = ButtonEmphasisSoft, .icon_only = 1,
                 .bounds = {(float)(pad), (float)((h - icon) / 2), (float)(icon), (float)(icon)},
-                .icon = app->icons[UI_ICON_TYPE_LINK],
-                .focus_id = UKU_FOCUS_JOIN_PROCESS_OPEN,
+                .icon_type = ICON_LINK,
+                .id = UKU_FOCUS_JOIN_PROCESS_OPEN,
             }))
             app->dashboard_menu_open = !app->dashboard_menu_open;
         draw_text_font(app->font, text->home_title, title_x,
-                       GetUIControlTextY(text->home_title, 0, h, title_font),
+                       UkuControlTextY(text->home_title, 0, h, title_font),
                        title_font, GetThemeText());
         if(new_clicked != NULL &&
-           IconButton((IconButtonProps){
+           Button((ButtonProps){.tone = ButtonToneNeutral, .emphasis = ButtonEmphasisSoft, .icon_only = 1,
                    .bounds = {(float)(plus_x), (float)((h - icon) / 2), (float)(icon), (float)(icon)},
-                   .icon = app->icons[UI_ICON_TYPE_PLUS],
-                   .focus_id = UKU_FOCUS_DASHBOARD_NEW,
+                   .icon_type = ICON_PLUS,
+                   .id = UKU_FOCUS_DASHBOARD_NEW,
                }))
             *new_clicked = 1;
-        if(IconButton((IconButtonProps){
+        if(Button((ButtonProps){.tone = ButtonToneNeutral, .emphasis = ButtonEmphasisSoft, .icon_only = 1,
                 .bounds = {(float)(menu_x), (float)((h - icon) / 2), (float)(icon), (float)(icon)},
-                .icon = app->icons[UI_ICON_TYPE_STACK],
-                .focus_id = UKU_FOCUS_DASHBOARD_MENU,
+                .icon_type = ICON_STACK,
+                .id = UKU_FOCUS_DASHBOARD_MENU,
             }))
             app->dashboard_menu_open = !app->dashboard_menu_open;
 
@@ -5465,25 +5475,15 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
                 .text_size = sizeof(app->join_process_input),
                 .cursor_position = &app->field_cursor[UKU_FIELD_JOIN_PROCESS],
                 .focused = focused,
-                .font = ClampUIPx(12, 12, 14),
                 .focus_id = UKU_FOCUS_JOIN_PROCESS,
-                .style = {
-                    .background = GetThemeBackground(),
-                    .border = Fade(GetThemeText(), 0.45f),
-                    .focus_border = GetThemeButton(),
-                    .text = GetThemeText(),
-                    .cursor = GetThemeButton(),
-                    .radius = 0.08f,
-                    .padding_x = Scale(9)
-                }
             });
             if(*focused)
                 app->active_field = UKU_FIELD_JOIN_PROCESS;
             else if(app->active_field == UKU_FIELD_JOIN_PROCESS)
                 app->active_field = UKU_FIELD_NONE;
             if(app->join_process_input[0] == '\0' && !*focused) {
-                int placeholder_font = ClampUIPx(12, 12, 14);
-                int placeholder_y = GetUIControlTextY(
+                int placeholder_font = ClampPx(12, 12, 14);
+                int placeholder_y = UkuControlTextY(
                     "Search or paste link", row_y, row_h, placeholder_font);
 
                 Text((TextProps){
@@ -5495,15 +5495,14 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
                     },
                     .text = tr(app, "Search or paste link"),
                     .font = placeholder_font,
-                    .color = Fade(GetThemeText(), 0.55f),
                     .wrap = TextWrapNone,
                 });
             }
             if(join_clicked != NULL &&
-               IconButton((IconButtonProps){
+               Button((ButtonProps){.tone = ButtonToneNeutral, .emphasis = ButtonEmphasisSoft, .icon_only = 1,
                        .bounds = {(float)(panel_x + panel_w - Scale(12) - row_h), (float)(row_y + (row_h - icon) / 2), (float)(icon), (float)(icon)},
-                       .icon = app->icons[UI_ICON_TYPE_LINK],
-                       .focus_id = UKU_FOCUS_JOIN_PROCESS_OPEN + 300,
+                       .icon_type = ICON_LINK,
+                       .id = UKU_FOCUS_JOIN_PROCESS_OPEN + 300,
                    }))
                 *join_clicked = 1;
 
@@ -5519,7 +5518,7 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
             if(clicked) {
                 app->screen = UKU_SCREEN_MANUAL;
                 app->dashboard_menu_open = 0;
-                ClearUIFocus();
+                ClearFocus();
             }
             clicked = 0;
             if(Button((ButtonProps){
@@ -5583,7 +5582,7 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
     if(account_clicked != NULL) {
         if(Button((ButtonProps){
                 .bounds = {(float)(button_x), (float)(Scale(8)), (float)(icon), (float)(icon)},
-                .icon = app->account.loaded ? app->icons[app->account_pfp_icon] : app->icons[UI_ICON_TYPE_PROFILE],
+                .icon = app->account.loaded ? app->icons[app->account_pfp_icon] : app->icons[ICON_PROFILE],
                 .icon_only = 1,
                 .circle = 1,
                 .id = UKU_FOCUS_ACCOUNT_ID,
@@ -5592,37 +5591,37 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
         button_x -= icon + gap;
     }
     if(settings_clicked != NULL) {
-        if(IconButton((IconButtonProps){
+        if(Button((ButtonProps){.tone = ButtonToneNeutral, .emphasis = ButtonEmphasisSoft, .icon_only = 1,
                 .bounds = {(float)(button_x), (float)(Scale(8)), (float)(icon), (float)(icon)},
-                .icon = app->icons[UI_ICON_TYPE_GEAR],
-                .focus_id = UKU_FOCUS_SETTINGS,
+                .icon_type = ICON_GEAR,
+                .id = UKU_FOCUS_SETTINGS,
             }))
             *settings_clicked = 1;
         button_x -= icon + gap;
     }
     if(history_clicked != NULL) {
-        if(IconButton((IconButtonProps){
+        if(Button((ButtonProps){.tone = ButtonToneNeutral, .emphasis = ButtonEmphasisSoft, .icon_only = 1,
                 .bounds = {(float)(button_x), (float)(Scale(8)), (float)(icon), (float)(icon)},
-                .icon = app->icons[UI_ICON_TYPE_TIMELINE],
-                .focus_id = UKU_FOCUS_HISTORY_BACK,
+                .icon_type = ICON_TIMELINE,
+                .id = UKU_FOCUS_HISTORY_BACK,
             }))
             *history_clicked = 1;
         button_x -= icon + gap;
     }
     if(new_clicked != NULL) {
-        if(IconButton((IconButtonProps){
+        if(Button((ButtonProps){.tone = ButtonToneNeutral, .emphasis = ButtonEmphasisSoft, .icon_only = 1,
                 .bounds = {(float)(button_x), (float)(Scale(8)), (float)(icon), (float)(icon)},
-                .icon = app->icons[UI_ICON_TYPE_PLUS],
-                .focus_id = UKU_FOCUS_DASHBOARD_NEW,
+                .icon_type = ICON_PLUS,
+                .id = UKU_FOCUS_DASHBOARD_NEW,
             }))
             *new_clicked = 1;
         button_x -= icon + gap;
     }
 
-    brand_w = TextWidth(text->home_title, brand_font);
+    brand_w = UkuTextWidth(text->home_title, brand_font);
     draw_text_font(app->font, fit_tail(app->font, text->home_title,
                                        brand_font, view_w / 3),
-                   pad, GetUIControlTextY(text->home_title, 0, h, brand_font),
+                   pad, UkuControlTextY(text->home_title, 0, h, brand_font),
                    brand_font, GetThemeText());
 
     search_left = pad + brand_w + Scale(22);
@@ -5637,25 +5636,15 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
             .text_size = sizeof(app->join_process_input),
             .cursor_position = &app->field_cursor[UKU_FIELD_JOIN_PROCESS],
             .focused = focused,
-            .font = ClampUIPx(12, 12, 14),
             .focus_id = UKU_FOCUS_JOIN_PROCESS,
-            .style = {
-                .background = GetThemeBackground(),
-                .border = GetThemeText(),
-                .focus_border = GetThemeButton(),
-                .text = GetThemeText(),
-                .cursor = GetThemeButton(),
-                .radius = 0.08f,
-                .padding_x = Scale(9)
-            }
         });
         if(*focused)
             app->active_field = UKU_FIELD_JOIN_PROCESS;
         else if(app->active_field == UKU_FIELD_JOIN_PROCESS)
             app->active_field = UKU_FIELD_NONE;
         if(app->join_process_input[0] == '\0' && !*focused) {
-            int placeholder_font = ClampUIPx(12, 12, 14);
-            int placeholder_y = GetUIControlTextY(
+            int placeholder_font = ClampPx(12, 12, 14);
+            int placeholder_y = UkuControlTextY(
                 "Search or paste link", field_y, field_h, placeholder_font);
 
             Text((TextProps){
@@ -5667,7 +5656,6 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
                 },
                 .text = tr(app, "Search or paste link"),
                 .font = placeholder_font,
-                .color = Fade(GetThemeText(), 0.55f),
                 .wrap = TextWrapNone,
             });
         }
@@ -5675,10 +5663,10 @@ draw_dashboard_top_bar(UkuApp *app, const UkuText *text, int view_w,
     }
 
     if(join_clicked != NULL) {
-        if(IconButton((IconButtonProps){
+        if(Button((ButtonProps){.tone = ButtonToneNeutral, .emphasis = ButtonEmphasisSoft, .icon_only = 1,
                 .bounds = {(float)(button_x), (float)(Scale(8)), (float)(icon), (float)(icon)},
-                .icon = app->icons[UI_ICON_TYPE_LINK],
-                .focus_id = UKU_FOCUS_JOIN_PROCESS_OPEN,
+                .icon_type = ICON_LINK,
+                .id = UKU_FOCUS_JOIN_PROCESS_OPEN,
             }))
             *join_clicked = 1;
     }
@@ -5690,16 +5678,16 @@ draw_top_bar(UkuApp *app, const char *title, int show_back, int back_focus_id, i
              int show_account, int *account_clicked, int show_close, int *close_clicked, int view_w)
 {
     int h = Scale(46);
-    int font_size = ClampUIPx(15, 15, 18);
+    int font_size = ClampPx(15, 15, 18);
     int x = Scale(14);
 
     UkuTopBarFrame(view_w, h);
 
     if(show_back) {
-        int clicked = IconButton((IconButtonProps){
+        int clicked = Button((ButtonProps){.tone = ButtonToneNeutral, .emphasis = ButtonEmphasisSoft, .icon_only = 1,
                 .bounds = {(float)(x), (float)(Scale(8)), (float)(Scale(24)), (float)(Scale(24))},
-                .icon = app->icons[UI_ICON_TYPE_RETURN],
-                .focus_id = back_focus_id,
+                .icon_type = ICON_RETURN,
+                .id = back_focus_id,
             });
         if(back_clicked != NULL && clicked)
             *back_clicked = 1;
@@ -5707,13 +5695,13 @@ draw_top_bar(UkuApp *app, const char *title, int show_back, int back_focus_id, i
     }
 
     if(show_back)
-        draw_text_font(app->font, title, x, GetUIControlTextY(title, 0, h, font_size), font_size, GetThemeText());
+        draw_text_font(app->font, title, x, UkuControlTextY(title, 0, h, font_size), font_size, GetThemeText());
 
     int button_x = view_w - Scale(38);
     if(show_account && account_clicked != NULL) {
         int clicked = Button((ButtonProps){
                 .bounds = {(float)(button_x), (float)(Scale(8)), (float)(Scale(24)), (float)(Scale(24))},
-                .icon = app->account.loaded ? app->icons[app->account_pfp_icon] : app->icons[UI_ICON_TYPE_PROFILE],
+                .icon = app->account.loaded ? app->icons[app->account_pfp_icon] : app->icons[ICON_PROFILE],
                 .icon_only = 1,
                 .circle = 1,
                 .id = UKU_FOCUS_ACCOUNT_ID,
@@ -5724,10 +5712,10 @@ draw_top_bar(UkuApp *app, const char *title, int show_back, int back_focus_id, i
     }
 
     if(show_settings && settings_clicked != NULL) {
-        int clicked = IconButton((IconButtonProps){
+        int clicked = Button((ButtonProps){.tone = ButtonToneNeutral, .emphasis = ButtonEmphasisSoft, .icon_only = 1,
                 .bounds = {(float)(button_x), (float)(Scale(8)), (float)(Scale(24)), (float)(Scale(24))},
-                .icon = app->icons[UI_ICON_TYPE_GEAR],
-                .focus_id = UKU_FOCUS_SETTINGS,
+                .icon_type = ICON_GEAR,
+                .id = UKU_FOCUS_SETTINGS,
             });
         if(clicked)
             *settings_clicked = 1;
@@ -5735,10 +5723,10 @@ draw_top_bar(UkuApp *app, const char *title, int show_back, int back_focus_id, i
     }
 
     if(show_manual && manual_clicked != NULL) {
-        int clicked = IconButton((IconButtonProps){
+        int clicked = Button((ButtonProps){.tone = ButtonToneNeutral, .emphasis = ButtonEmphasisSoft, .icon_only = 1,
                 .bounds = {(float)(button_x), (float)(Scale(8)), (float)(Scale(24)), (float)(Scale(24))},
-                .icon = app->icons[UI_ICON_TYPE_MANUAL],
-                .focus_id = UKU_FOCUS_DASHBOARD_MANUAL,
+                .icon_type = ICON_MANUAL,
+                .id = UKU_FOCUS_DASHBOARD_MANUAL,
             });
         if(clicked)
             *manual_clicked = 1;
@@ -5746,10 +5734,10 @@ draw_top_bar(UkuApp *app, const char *title, int show_back, int back_focus_id, i
     }
 
     if(show_close && close_clicked != NULL) {
-        int clicked = IconButton((IconButtonProps){
+        int clicked = Button((ButtonProps){.tone = ButtonToneNeutral, .emphasis = ButtonEmphasisSoft, .icon_only = 1,
                 .bounds = {(float)(button_x), (float)(Scale(8)), (float)(Scale(24)), (float)(Scale(24))},
-                .icon = app->icons[UI_ICON_TYPE_RETURN],
-                .focus_id = UKU_FOCUS_DASHBOARD_CLOSE,
+                .icon_type = ICON_RETURN,
+                .id = UKU_FOCUS_DASHBOARD_CLOSE,
             });
         if(clicked)
             *close_clicked = 1;
@@ -5760,8 +5748,8 @@ static int
 draw_text_field(UkuApp *app, Font font, const char *label, const char *placeholder,
                 char *buffer, size_t cap, UkuField field, int focus_id, int x, int y, int w, int h)
 {
-    int label_font = ClampUIPx(12, 12, 14);
-    int input_font = ClampUIPx(12, 12, 14);
+    int label_font = ClampPx(12, 12, 14);
+    int input_font = ClampPx(12, 12, 14);
     int pad = Scale(10);
     int label_gap = Scale(9);
     int label_y = y;
@@ -5782,31 +5770,16 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
 
     draw_text_font(font, label, x, label_y, label_font, GetThemeText());
     if(h > Scale(48)) {
-        RichTextEditor((RichTextEditorProps){
+        /* RichTextEditor was removed; the multi-line surface is TextArea. */
+        TextArea((TextAreaProps){
             .bounds = box,
             .text = buffer,
             .text_size = cap,
             .cursor_position = cursor,
             .focused = focused,
             .scroll_y = scroll_y,
-            .font = input_font,
-            .line_gap = Scale(4),
             .focus_id = focus_id,
             .placeholder = placeholder,
-            .style = {
-                .background = GetThemeSurface(),
-                .border = GetThemeText(),
-                .focus_border = GetThemeButton(),
-                .text = GetThemeText(),
-                .cursor = GetThemeButton(),
-                .radius = 0.08f,
-                .padding_x = pad
-            },
-            .toolbar_style = {
-                .background = GetThemeSurface(),
-                .border = Fade(GetThemeText(), 0.35f),
-                .radius = 0.08f
-            },
             .wrap = 1
         });
     } else {
@@ -5816,17 +5789,7 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
             .text_size = cap,
             .cursor_position = cursor,
             .focused = focused,
-            .font = input_font,
             .focus_id = focus_id,
-            .style = {
-                .background = GetThemeSurface(),
-                .border = GetThemeText(),
-                .focus_border = GetThemeButton(),
-                .text = GetThemeText(),
-                .cursor = GetThemeButton(),
-                .radius = 0.08f,
-                .padding_x = pad
-            }
         });
     }
     if(*focused)
@@ -5834,14 +5797,13 @@ draw_text_field(UkuApp *app, Font font, const char *label, const char *placehold
     else if(app->active_field == field)
         app->active_field = UKU_FIELD_NONE;
     if(h <= Scale(48) && buffer[0] == '\0' && !*focused) {
-        int placeholder_y = GetUIControlTextY(
+        int placeholder_y = UkuControlTextY(
             placeholder, box_y, h, input_font);
 
         Text((TextProps){
             .bounds = {(float)(x + pad), (float)placeholder_y, 0, 0},
             .text = placeholder,
             .font = input_font,
-            .color = DarkenUIColor(GetThemeText(), 40),
             .wrap = TextWrapNone,
         });
     }
@@ -5852,8 +5814,8 @@ static int
 draw_stepper(UkuApp *app, Font font, const char *label, int *value, int min_value, int max_value,
              int x, int y, int w, int minus_focus_id, int plus_focus_id)
 {
-    int label_font = ClampUIPx(12, 12, 14);
-    int value_font = ClampUIPx(13, 13, 16);
+    int label_font = ClampPx(12, 12, 14);
+    int value_font = ClampPx(13, 13, 16);
     int btn = Scale(26);
     int h = Scale(28);
     int value_w = w - btn * 2 - Scale(8);
@@ -5899,7 +5861,7 @@ draw_stepper(UkuApp *app, Font font, const char *label, int *value, int min_valu
 static int
 draw_negative_weight_dropdown(UkuApp *app, Font font, const UkuText *text, int x, int y, int w, int focus_id)
 {
-    int label_font = ClampUIPx(12, 12, 14);
+    int label_font = ClampPx(12, 12, 14);
     int h = Scale(34);
     int box_y;
     int selected = negative_weight_to_index(app->decision.negative_weight);
@@ -5909,8 +5871,13 @@ draw_negative_weight_dropdown(UkuApp *app, Font font, const UkuText *text, int x
     box_y = y + label_font + Scale(8);
     for(int i = 0; i < 10; i++)
         options[i] = text->negative_weight_options[i];
-    if(Dropdown(focus_id, x, box_y, w, h,
-                options, 10, &selected)) {
+    if(Dropdown((DropdownProps){
+        .bounds = {(float)x, (float)box_y, (float)w, (float)h},
+        .id = focus_id,
+        .options = options,
+        .option_count = 10,
+        .selected_index = &selected,
+    })) {
         app->decision.negative_weight = negative_weight_from_index(selected);
         app->active_field = UKU_FIELD_NONE;
     }
@@ -5921,27 +5888,24 @@ draw_negative_weight_dropdown(UkuApp *app, Font font, const UkuText *text, int x
 static int
 draw_locale_dropdown(UkuApp *app, UkuText *text, Font font, int x, int y, int w)
 {
-    int label_font = ClampUIPx(12, 12, 14);
+    int label_font = ClampPx(12, 12, 14);
     int h = Scale(34);
     int box_y;
     int selected = app_locale_index(app->locale);
-    DropdownOption options[UKU_LOCALE_COUNT];
+    const char *options[UKU_LOCALE_COUNT];
 
     draw_text_font(font, tr(app, "Language"), x, y, label_font, GetThemeText());
     box_y = y + label_font + Scale(8);
     for(int i = 0; i < UKU_LOCALE_COUNT; i++) {
-        options[i].label = UKU_LOCALES[i].label;
-        if(strcmp(UKU_LOCALES[i].code, "ja") == 0)
-            options[i].font_name = "ui-lang-ja";
-        else if(strcmp(UKU_LOCALES[i].code, "ko") == 0)
-            options[i].font_name = "ui-lang-ko";
-        else if(strcmp(UKU_LOCALES[i].code, "zh") == 0)
-            options[i].font_name = "ui-lang-zh";
-        else
-            options[i].font_name = "ui-lang-latin";
+        options[i] = UKU_LOCALES[i].label;
     }
-    if(DropdownOptions(UKU_FOCUS_LOCALE_DROPDOWN, x, box_y, w, h,
-                       options, UKU_LOCALE_COUNT, &selected)) {
+    if(Dropdown((DropdownProps){
+        .bounds = {(float)x, (float)box_y, (float)w, (float)h},
+        .id = UKU_FOCUS_LOCALE_DROPDOWN,
+        .options = options,
+        .option_count = UKU_LOCALE_COUNT,
+        .selected_index = &selected,
+    })) {
         app_switch_locale(app, text, UKU_LOCALES[selected].code);
         app->active_field = UKU_FIELD_NONE;
     }
@@ -5949,9 +5913,144 @@ draw_locale_dropdown(UkuApp *app, UkuText *text, Font font, int x, int y, int w)
     return box_y + h + Scale(18);
 }
 
+typedef struct UkuScrollArea {
+    Rectangle bounds;
+    int content_height;
+    int content_x;
+    int content_width;
+    int *scroll_offset;
+    int wheel_step;
+    int scrollbar_x;
+} UkuScrollArea;
+
+typedef struct UkuScrollView {
+    int content_x;
+    int content_y;
+    int content_w;
+    int viewport_h;
+    int content_h;
+    int max_scroll;
+} UkuScrollView;
+
+/* Local scroll container over public primitives (clip + wheel + scrollbar):
+ * kryon keeps BeginScrollContainer internal by design; public UI uses the
+ * canonical .kry Scroll blocks. */
+static UkuScrollView
+uku_begin_scroll_container(UkuScrollArea area)
+{
+    UkuScrollView view = {0};
+    int scroll = area.scroll_offset != NULL ? *area.scroll_offset : 0;
+    int viewport_h = (int)area.bounds.height;
+
+    view.content_x = area.content_x;
+    view.content_y = (int)area.bounds.y - scroll;
+    view.content_w = area.content_width;
+    view.viewport_h = viewport_h;
+    view.content_h = area.content_height;
+    view.max_scroll = area.content_height - viewport_h;
+    if(view.max_scroll < 0)
+        view.max_scroll = 0;
+    if(scroll > view.max_scroll)
+        scroll = view.max_scroll;
+    if(scroll < 0)
+        scroll = 0;
+    if(area.scroll_offset != NULL)
+        *area.scroll_offset = scroll;
+    if(CheckCollisionPointRec(GetMousePosition(), area.bounds)) {
+        float wheel = GetMouseWheelMove();
+        if(wheel != 0.0f) {
+            int step = area.wheel_step > 0 ? area.wheel_step : Scale(44);
+            scroll -= (int)(wheel * (float)step);
+            if(scroll > view.max_scroll)
+                scroll = view.max_scroll;
+            if(scroll < 0)
+                scroll = 0;
+            if(area.scroll_offset != NULL)
+                *area.scroll_offset = scroll;
+            view.content_y = (int)area.bounds.y - scroll;
+        }
+    }
+    BeginClip((int)area.bounds.x, (int)area.bounds.y, (int)area.bounds.width, (int)area.bounds.height);
+    return view;
+}
+
+static void
+uku_end_scroll_container(UkuScrollArea area, UkuScrollView view)
+{
+    (void)area;
+    EndClip();
+    if(view.max_scroll <= 0 || view.content_h <= view.viewport_h)
+        return;
+    {
+        float track_h = (float)view.viewport_h - 2.0f;
+        float thumb_h = track_h * (float)view.viewport_h / (float)view.content_h;
+        int max_scroll = view.max_scroll > 0 ? view.max_scroll : 1;
+        int scroll = area.scroll_offset != NULL ? *area.scroll_offset : 0;
+        float thumb_y = (float)(int)area.bounds.y + 1.0f +
+                        track_h * (float)scroll / (float)max_scroll;
+        int bar_x = area.scrollbar_x > 0 ? area.scrollbar_x :
+                    (int)(area.bounds.x + area.bounds.width) - Scale(6);
+        if(thumb_h < (float)Scale(18))
+            thumb_h = (float)Scale(18);
+        DrawRectangleRounded((Rectangle){(float)bar_x, thumb_y, (float)Scale(4),
+                                         thumb_h}, 0.5f, 4,
+                             Fade(GetThemeText(), 0.28f));
+    }
+}
+
+/* Local score control: kryon no longer ships one; a row of -3..+3 segment
+ * buttons over public Button/Text primitives. */
+typedef struct UkuScoreControlProps {
+    Rectangle bounds;
+    int id;
+    int min_value;
+    int max_value;
+    int *value;
+    int font;
+    int height;
+} UkuScoreControlProps;
+
+static int
+GetScoreControlHeight(UkuScoreControlProps control)
+{
+    return control.height > 0 ? control.height : Scale(32);
+}
+
+static void
+ScoreControl(UkuScoreControlProps control)
+{
+    int count = control.max_value - control.min_value + 1;
+    float seg_w = control.bounds.width / (float)count;
+    int i;
+
+    for(i = 0; i < count; i++) {
+        int seg_value = control.min_value + i;
+        int selected = control.value != NULL && *control.value == seg_value;
+        Rectangle seg = {(float)(int)(control.bounds.x + seg_w * (float)i),
+                         control.bounds.y, seg_w - Scale(2),
+                         (float)GetScoreControlHeight(control)};
+        char label[8];
+
+        snprintf(label, sizeof(label), "%d", seg_value);
+        if(Button((ButtonProps){
+            .bounds = seg,
+            .id = control.id + i,
+            .tone = selected ? ButtonToneAccent : ButtonToneNeutral,
+            .emphasis = selected ? ButtonEmphasisFilled : ButtonEmphasisSoft,
+        }))
+            if(control.value != NULL) {
+                *control.value = seg_value;
+            }
+        DrawText(label, (int)(seg.x + seg.width / 2 - (float)UkuTextWidth(label, control.font) / 2),
+                 (int)seg.y + UkuControlTextY(label, 0, (int)seg.height, control.font),
+                 control.font,
+                 selected ? GetThemeButtonText() : GetThemeText());
+    }
+}
+
 typedef struct UkuScrollPage {
-    UIScrollArea area;
-    UIScrollView view;
+    UkuScrollArea area;
+    UkuScrollView view;
     int viewport_y;
     int viewport_h;
     int content_x;
@@ -5965,13 +6064,13 @@ begin_uku_scroll_page(int view_w, int view_h, int top_h,
                       int top_padding)
 {
     UkuScrollPage page;
-    int side = GetUIPageSidePadding();
+    int side = GetPageSidePadding();
     int content_x;
     int content_w;
     int estimated_content_h;
 
     memset(&page, 0, sizeof(page));
-    GetUICenteredColumn(max_content_w, side, &content_x, &content_w);
+    GetCenteredColumn(max_content_w, side, &content_x, &content_w);
 
     page.viewport_y = top_h;
     page.viewport_h = view_h - page.viewport_y;
@@ -5987,7 +6086,7 @@ begin_uku_scroll_page(int view_w, int view_h, int top_h,
     page.area.scroll_offset = scroll;
     page.area.wheel_step = Scale(44);
     page.area.scrollbar_x = view_w - side - Scale(8);
-    page.view = BeginUIScrollContainer(page.area);
+    page.view = uku_begin_scroll_container(page.area);
     page.content_x = page.view.content_x;
     page.content_w = page.view.content_w;
     page.y = page.view.content_y + top_padding;
@@ -6008,14 +6107,14 @@ end_uku_scroll_page(UkuScrollPage page, int final_y, int *scroll,
     page.area.content_height = content_h;
     page.view.content_h = content_h;
     page.view.max_scroll = *max_scroll;
-    EndUIScrollContainer(page.area, page.view);
+    uku_end_scroll_container(page.area, page.view);
 }
 
 static int
 draw_duration_group(UkuApp *app, Font font, const char *title, const UkuText *text,
                     int *days, int *hours, int *minutes, int x, int y, int w, int focus_base)
 {
-    int title_font = ClampUIPx(14, 14, 17);
+    int title_font = ClampPx(14, 14, 17);
     int gap = Scale(8);
     int col_w = (w - gap * 2) / 3;
     int y2;
@@ -6069,7 +6168,7 @@ start_new_process_flow(UkuApp *app, const UkuText *text)
         reset_decision(app, text);
     app->screen = UKU_SCREEN_CREATE;
     app->active_field = UKU_FIELD_NONE;
-    ClearUIFocus();
+    ClearFocus();
 }
 
 static void
@@ -6080,7 +6179,7 @@ create_return_to_dashboard(UkuApp *app)
     app->create_draft_saved = 1;
     app->screen = UKU_SCREEN_HOME;
     app->active_field = UKU_FIELD_NONE;
-    ClearUIFocus();
+    ClearFocus();
 }
 
 static int
@@ -6110,7 +6209,7 @@ create_go_to_step(UkuApp *app, UkuCreateStep step)
     app->create_scroll = 0;
     app->create_max_scroll = 0;
     app->active_field = UKU_FIELD_NONE;
-    ClearUIFocus();
+    ClearFocus();
 }
 
 static void
@@ -6174,7 +6273,7 @@ create_remove_draft_proposal(UkuApp *app, int index)
 static int
 draw_phase_mode_selector(UkuApp *app, Font font, int x, int y, int w, const UkuText *text)
 {
-    int label_font = ClampUIPx(12, 12, 14);
+    int label_font = ClampPx(12, 12, 14);
     const char *labels[] = {
         "Proposal + Voting Phase",
         "Voting Phase only"
@@ -6307,12 +6406,12 @@ static int
 draw_empty_state(UkuApp *app, Font font, const char *message, int x, int y, int w,
                  int view_h, int body_font, int small_font, int *cta_clicked)
 {
-    int mobile = !IsUIDesktopMode();
+    int mobile = !IsDesktopMode();
     int icon = mobile ? Scale(24) : Scale(40);
     int btn_w = mobile ? Scale(168) : Scale(220);
     int h = mobile ? Scale(132) : clampi(view_h / 3, Scale(220), Scale(300));
     int pad = mobile ? Scale(18) : Scale(34);
-    int title_font = mobile ? body_font : ClampUIPx(20, 20, 26);
+    int title_font = mobile ? body_font : ClampPx(20, 20, 26);
     int title_line_h = title_font + Scale(8);
     int body_line_h = small_font + Scale(7);
     Rectangle card = {(float)x, (float)y, (float)w, (float)h};
@@ -6320,7 +6419,7 @@ draw_empty_state(UkuApp *app, Font font, const char *message, int x, int y, int 
     DrawRectangleRounded(card, 0.035f, 10, GetThemeSurface());
     DrawRectangleRoundedLinesEx(card, 0.035f, 10, Scale(1), Fade(GetThemeText(), 0.16f));
     {
-        Texture2D icon_texture = app->icons[UI_ICON_TYPE_GLOBE];
+        Texture2D icon_texture = app->icons[ICON_GLOBE];
 
         if(!mobile && w >= Scale(700)) {
             int icon_size = Scale(64);
@@ -6395,8 +6494,8 @@ draw_intro_modal(UkuApp *app, Font font, int view_w, int view_h, int *dismissed)
 {
     int panel_w = UKU_MIN(view_w - Scale(32), Scale(420));
     int pad = Scale(20);
-    int title_font = ClampUIPx(18, 18, 22);
-    int small_font = ClampUIPx(12, 12, 14);
+    int title_font = ClampPx(18, 18, 22);
+    int small_font = ClampPx(12, 12, 14);
     int line_h = small_font + Scale(6);
     int text_w = panel_w - pad * 2;
     int button_h = Scale(40);
@@ -6457,9 +6556,9 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
 {
     int content_x;
     int content_w;
-    int top_h = !IsUIDesktopMode() ? Scale(42) : Scale(46);
-    int body_font = ClampUIPx(14, 14, 17);
-    int small_font = ClampUIPx(12, 12, 14);
+    int top_h = !IsDesktopMode() ? Scale(42) : Scale(46);
+    int body_font = ClampPx(14, 14, 17);
+    int small_font = ClampPx(12, 12, 14);
     int viewport_y = top_h;
     int viewport_h = view_h - viewport_y;
     int y;
@@ -6479,21 +6578,21 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
     }
     if(app->dashboard_filter_public && !app->public_processes_loaded)
         fetch_public_processes(app, app->server_url);
-    if(!IsUIDesktopMode() && app->dashboard_menu_open)
+    if(!IsDesktopMode() && app->dashboard_menu_open)
         top_h += Scale(212);
     viewport_y = top_h;
     viewport_h = view_h - viewport_y;
 
     {
         int history_clicked = 0;
-        int *history_target = !IsUIDesktopMode() ? &history_clicked : NULL;
+        int *history_target = !IsDesktopMode() ? &history_clicked : NULL;
 
         draw_dashboard_top_bar(app, text, view_w, &join_clicked, &new_clicked,
                                &settings_clicked, &account_clicked, history_target,
                                &scan_clicked);
         if(history_clicked) {
             app->screen = UKU_SCREEN_HISTORY;
-            ClearUIFocus();
+            ClearFocus();
         }
     }
     if(new_clicked) {
@@ -6501,11 +6600,11 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
     }
     if(settings_clicked) {
         app->screen = UKU_SCREEN_THEME;
-        ClearUIFocus();
+        ClearFocus();
     }
     if(account_clicked) {
         app->screen = UKU_SCREEN_ACCOUNT;
-        ClearUIFocus();
+        ClearFocus();
     }
     if(join_clicked) {
         char process_id[40];
@@ -6515,20 +6614,20 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
         if(!app->join_process_failed)
             open_process_id(app, process_id);
         else
-            ShowToast(text->join_process_error);
+            Toast((ToastProps){.message = text->join_process_error});
     }
     if(scan_clicked) {
 #if defined(PLATFORM_ANDROID)
         if(!android_bridge_scan_qr())
-            ShowToast(tr(app, "Scan QR unavailable. Paste the link instead."));
+            Toast((ToastProps){.message = tr(app, "Scan QR unavailable. Paste the link instead.")});
 #else
-            ShowToast(tr(app, "Paste a QR link into search."));
+            Toast((ToastProps){.message = tr(app, "Paste a QR link into search.")});
 #endif
     }
 
     {
         UkuScrollPage page = begin_uku_scroll_page(view_w, view_h, top_h,
-                                                   IsUIDesktopMode() ? 760 : 640,
+                                                   IsDesktopMode() ? 760 : 640,
                                                    &app->dashboard_scroll,
                                                    app->dashboard_max_scroll,
                                                    Scale(14));
@@ -6555,7 +6654,7 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                 db_load_processes(app);
                 app->remote_processes_loaded = 1;
                 app->dashboard_scroll = 0;
-                UIConsumeRelease();
+                ConsumeRelease();
             }
             if(changed && selected == 1 && !app->dashboard_filter_public) {
                 app->dashboard_filter_public = 1;
@@ -6564,7 +6663,7 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                 app->remote_processes_loaded = 1;
                 fetch_public_processes(app, app->server_url);
                 app->dashboard_scroll = 0;
-                UIConsumeRelease();
+                ConsumeRelease();
             }
             y += filter_h + Scale(12);
         }
@@ -6650,7 +6749,7 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                     Vector2 mouse = GetMousePosition();
                     int focus_id = UKU_FOCUS_DASHBOARD_PROCESS_BASE + i;
                     int hovered = CheckCollisionPointRec(mouse, card);
-                    int focused = RegisterUIFocus(focus_id, card);
+                    int focused = RegisterFocus(focus_id, card);
                     char meta[160];
                     char created[32];
                     char timer[128];
@@ -6707,7 +6806,7 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                                        GetThemeText());
 
                     open = (hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
-                           IsUIFocusActivatePressed(focus_id);
+                           IsFocusActivatePressed(focus_id);
                     if(open)
                         open_process_row(app, row);
                     y += card_h + gap;
@@ -6721,15 +6820,15 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                                          (float)content_w, (float)summary_h};
                     Vector2 mouse = GetMousePosition();
                     int hovered = CheckCollisionPointRec(mouse, summary);
-                    int focused = RegisterUIFocus(summary_focus, summary);
+                    int focused = RegisterFocus(summary_focus, summary);
                     int summary_clicked = (hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
-                                          IsUIFocusActivatePressed(summary_focus);
+                                          IsFocusActivatePressed(summary_focus);
                     char count_text[80];
-                    Texture2D icon_texture = app->icons[UI_ICON_TYPE_TIMELINE];
+                    Texture2D icon_texture = app->icons[ICON_TIMELINE];
 
                     if(summary_clicked) {
                         app->dashboard_completed_expanded = !app->dashboard_completed_expanded;
-                        UIConsumeRelease();
+                        ConsumeRelease();
                     }
                     if(hovered)
                         app->cursor_clickable = 1;
@@ -6763,7 +6862,7 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                     draw_centered_text(font,
                                        app->dashboard_completed_expanded ? "-" : "+",
                                        content_x + content_w - Scale(22),
-                                       GetUIControlTextY("+", y, summary_h, body_font),
+                                       UkuControlTextY("+", y, summary_h, body_font),
                                        body_font, GetThemeButton());
                     y += summary_h + Scale(10);
 
@@ -6775,7 +6874,7 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                             Vector2 mouse = GetMousePosition();
                             int focus_id = UKU_FOCUS_DASHBOARD_PROCESS_BASE + i + UKU_MAX_PROCESSES;
                             int hovered = CheckCollisionPointRec(mouse, card);
-                            int focused = RegisterUIFocus(focus_id, card);
+                            int focused = RegisterFocus(focus_id, card);
                             char meta[160];
                             char created[32];
                             int open = 0;
@@ -6823,7 +6922,7 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                                                GetThemeText());
                             open = (hovered &&
                                     IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
-                                   IsUIFocusActivatePressed(focus_id);
+                                   IsFocusActivatePressed(focus_id);
                             if(open)
                                 open_process_row(app, row);
                             y += card_h + gap;
@@ -6836,11 +6935,11 @@ draw_home(UkuApp *app, const UkuText *text, int view_w, int view_h)
                             &app->dashboard_max_scroll, Scale(24));
     }
 
-    if(IsUIDesktopMode() &&
-       IconButton((IconButtonProps){
+    if(IsDesktopMode() &&
+       Button((ButtonProps){.tone = ButtonToneNeutral, .emphasis = ButtonEmphasisSoft, .icon_only = 1,
                .bounds = {(float)(view_w - fab_margin - fab_size), (float)(view_h - fab_margin - fab_size), (float)(fab_size), (float)(fab_size)},
-               .icon = app->icons[UI_ICON_TYPE_PLUS],
-               .focus_id = UKU_FOCUS_DASHBOARD_NEW,
+               .icon_type = ICON_PLUS,
+               .id = UKU_FOCUS_DASHBOARD_NEW,
            }))
         start_new_process_flow(app, text);
 }
@@ -6850,9 +6949,9 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
 {
     int content_x;
     int content_w;
-    int title_font = ClampUIPx(18, 18, 22);
-    int body_font = ClampUIPx(14, 14, 17);
-    int small_font = ClampUIPx(12, 12, 14);
+    int title_font = ClampPx(18, 18, 22);
+    int body_font = ClampPx(14, 14, 17);
+    int small_font = ClampPx(12, 12, 14);
     int top_h = Scale(46);
     int y;
     int back_clicked = 0;
@@ -7061,13 +7160,13 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
         if(add_clicked) {
             if(!has_non_space(app->proposal_title) &&
                has_non_space(app->proposal_description)) {
-                ShowToast(text->proposal_title_warning);
+                Toast((ToastProps){.message = text->proposal_title_warning});
             } else if(create_add_draft_proposal(app, app->proposal_title,
                                                 app->proposal_description)) {
                 app->proposal_title[0] = '\0';
                 app->proposal_description[0] = '\0';
             } else {
-                ShowToast(tr(app, "Could not submit proposal."));
+                Toast((ToastProps){.message = tr(app, "Could not submit proposal.")});
             }
         }
         y += Scale(48);
@@ -7105,10 +7204,10 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
                                    content_x + Scale(10),
                                    y + Scale(34), small_font,
                                    Fade(GetThemeText(), 0.78f));
-                delete_clicked = IconButton((IconButtonProps){
+                delete_clicked = Button((ButtonProps){.tone = ButtonToneNeutral, .emphasis = ButtonEmphasisSoft, .icon_only = 1,
                         .bounds = {(float)(content_x + content_w - Scale(34)), (float)(y + Scale(8)), (float)(Scale(24)), (float)(Scale(24))},
-                        .icon = app->icons[UI_ICON_TYPE_TRASH],
-                        .focus_id = UKU_FOCUS_PROPOSAL_DELETE_BASE + i,
+                        .icon_type = ICON_TRASH,
+                        .id = UKU_FOCUS_PROPOSAL_DELETE_BASE + i,
                     });
                 if(delete_clicked) {
                     create_remove_draft_proposal(app, i);
@@ -7139,7 +7238,7 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
             create_go_to_step(app, UKU_CREATE_STEP_RULES);
         if(next_clicked) {
             if(app->proposal_count <= 0)
-                ShowToast(tr(app, "Add at least one proposal."));
+                Toast((ToastProps){.message = tr(app, "Add at least one proposal.")});
             else
                 create_go_to_step(app, UKU_CREATE_STEP_TIMING);
         }
@@ -7301,7 +7400,7 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
             app->create_scroll = 0;
             app->create_max_scroll = 0;
             app->active_field = UKU_FIELD_NONE;
-            ClearUIFocus();
+            ClearFocus();
         }
         if(submit_clicked) {
             int proposal_error = 0;
@@ -7311,7 +7410,7 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
             d->db_error = 0;
             d->remote_error = 0;
             if(proposal_error)
-                ShowToast(tr(app, "Add at least one proposal."));
+                Toast((ToastProps){.message = tr(app, "Add at least one proposal.")});
             if(!d->topic_error && !proposal_error) {
                 d->submitted = db_save_process(app, text);
                 d->db_error = !d->submitted;
@@ -7336,7 +7435,7 @@ draw_create_placeholder(UkuApp *app, const UkuText *text, int view_w, int view_h
                         load_default_proposals(app, text);
                     app->screen = UKU_SCREEN_COLLECT;
                     app->active_field = UKU_FIELD_NONE;
-                    ClearUIFocus();
+                    ClearFocus();
                 }
             }
         }
@@ -7395,15 +7494,15 @@ draw_proposal_card(UkuApp *app, Font font, const UkuProposal *proposal,
         int trash_x = x + w - Scale(30);
         int edit_x = trash_x - Scale(28);
 
-        edit_clicked = IconButton((IconButtonProps){
+        edit_clicked = Button((ButtonProps){.tone = ButtonToneNeutral, .emphasis = ButtonEmphasisSoft, .icon_only = 1,
                 .bounds = {(float)(edit_x), (float)(icon_y), (float)(Scale(22)), (float)(Scale(22))},
-                .icon = app->icons[UI_ICON_TYPE_PENCIL],
-                .focus_id = UKU_FOCUS_PROPOSAL_DELETE_BASE + index + 100,
+                .icon_type = ICON_PENCIL,
+                .id = UKU_FOCUS_PROPOSAL_DELETE_BASE + index + 100,
             });
-        delete_clicked = IconButton((IconButtonProps){
+        delete_clicked = Button((ButtonProps){.tone = ButtonToneNeutral, .emphasis = ButtonEmphasisSoft, .icon_only = 1,
                 .bounds = {(float)(trash_x), (float)(icon_y), (float)(Scale(22)), (float)(Scale(22))},
-                .icon = app->icons[UI_ICON_TYPE_TRASH],
-                .focus_id = UKU_FOCUS_PROPOSAL_DELETE_BASE + index,
+                .icon_type = ICON_TRASH,
+                .id = UKU_FOCUS_PROPOSAL_DELETE_BASE + index,
             });
         if(edit_clicked) {
             copy_text(app->proposal_title, sizeof(app->proposal_title),
@@ -7427,7 +7526,7 @@ draw_score_row(UkuApp *app, Font font, UkuProposal *proposal, int index,
     int control_h;
     int h;
     Rectangle card;
-    ScoreControlProps control = {0};
+    UkuScoreControlProps control = {0};
 
     control.bounds = (Rectangle){(float)(x + Scale(12)), (float)control_y,
                                  (float)(w - Scale(24)), 0};
@@ -7436,10 +7535,7 @@ draw_score_row(UkuApp *app, Font font, UkuProposal *proposal, int index,
     control.max_value = 3;
     control.value = &proposal->score;
     control.font = small_font;
-    control.gap = Scale(5);
     control.height = Scale(32);
-    control.min_item_width = Scale(38);
-    control.wrap = 1;
     control_h = GetScoreControlHeight(control);
     h = control_y - y + control_h + Scale(12);
     card = (Rectangle){(float)x, (float)y, (float)w, (float)h};
@@ -7476,7 +7572,7 @@ draw_result_score_badge(UkuApp *app, Font font, int cx, int cy, int size,
     DrawRectangleRounded(badge, 0.20f, 12, GetThemeSurface());
     DrawRectangleRoundedLinesEx(badge, 0.20f, 12, Scale(1), GetThemeButton());
     draw_centered_text(font, label, cx,
-                       GetUIControlTextY(label, (int)badge.y, (int)badge.height,
+                       UkuControlTextY(label, (int)badge.y, (int)badge.height,
                                          small_font),
                        small_font, GetThemeText());
     (void)app;
@@ -7532,20 +7628,17 @@ draw_option_vote_row(UkuApp *app, Font font, UkuOption *option,
     int control_h;
     int h;
     Rectangle card;
-    ScoreControlProps control = {0};
+    UkuScoreControlProps control = {0};
 
     (void)type;
     control.bounds = (Rectangle){(float)(x + Scale(10)), (float)control_y,
                                  (float)(w - Scale(20)), 0};
     control.id = UKU_FOCUS_OPTION_SCORE_BASE + index;
     control.min_value = 0;
-    control.max_value = app != NULL ? app->option_count : 0;
+    control.max_value = 3;
     control.value = &option->score;
     control.font = small_font;
-    control.gap = Scale(5);
     control.height = Scale(30);
-    control.min_item_width = Scale(34);
-    control.wrap = 1;
     control_h = GetScoreControlHeight(control);
     h = control_y - y + control_h + Scale(10);
     card = (Rectangle){(float)x, (float)y, (float)w, (float)h};
@@ -7729,13 +7822,13 @@ draw_participant_list(UkuApp *app, Font font, int x, int y, int w, int body_font
         if(app->tally_from_remote) {
             Rectangle check = {(float)x + Scale(12), (float)y, (float)box, (float)box};
 
-            if(RegisterUIFocus(UKU_FOCUS_VOTER_BASE + i, hit) && CheckCollisionPointRec(GetMousePosition(), hit))
+            if(RegisterFocus(UKU_FOCUS_VOTER_BASE + i, hit) && CheckCollisionPointRec(GetMousePosition(), hit))
                 app->cursor_clickable = 1;
             DrawRectangleLinesEx(check, 1.0f, included ? GetThemeButton() : GetThemeText());
             if(included)
                 DrawRectangle((int)check.x + 3, (int)check.y + 3, (int)check.width - 6, (int)check.height - 6, GetThemeButton());
             if((CheckCollisionPointRec(GetMousePosition(), hit) && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) ||
-               IsUIFocusActivatePressed(UKU_FOCUS_VOTER_BASE + i)) {
+               IsFocusActivatePressed(UKU_FOCUS_VOTER_BASE + i)) {
                 app->result_voter_included[i] = !app->result_voter_included[i];
                 tally_recompute(app);
             }
@@ -7766,7 +7859,7 @@ draw_history_card(UkuApp *app, Font font, const UkuProcessRow *row, int index,
     char meta[160];
     char created[32];
 
-    focused = RegisterUIFocus(focus_id, card);
+    focused = RegisterFocus(focus_id, card);
     if(hovered)
         app->cursor_clickable = 1;
     DrawRectangleRounded(card, 0.07f, 10, GetThemeSurface());
@@ -7781,7 +7874,7 @@ draw_history_card(UkuApp *app, Font font, const UkuProcessRow *row, int index,
     if(row->description[0] != '\0')
         draw_text_font(font, fit_tail(font, row->description, small_font, w - Scale(24)),
                        x + Scale(12), y + Scale(52), small_font, GetThemeText());
-    if((hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) || IsUIFocusActivatePressed(focus_id))
+    if((hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) || IsFocusActivatePressed(focus_id))
         open_process_row(app, row);
     return y + card_h + Scale(8);
 }
@@ -7792,9 +7885,9 @@ draw_history(UkuApp *app, const UkuText *text, int view_w, int view_h)
     int content_x;
     int content_w;
     int top_h = Scale(46);
-    int title_font = ClampUIPx(17, 17, 21);
-    int body_font = ClampUIPx(14, 14, 17);
-    int small_font = ClampUIPx(12, 12, 14);
+    int title_font = ClampPx(17, 17, 21);
+    int body_font = ClampPx(14, 14, 17);
+    int small_font = ClampPx(12, 12, 14);
     int viewport_y;
     int viewport_h;
     int y;
@@ -7812,7 +7905,7 @@ draw_history(UkuApp *app, const UkuText *text, int view_w, int view_h)
                  0, NULL, 0, NULL, 0, NULL, 0, NULL, view_w);
     if(back_clicked) {
         app->screen = UKU_SCREEN_HOME;
-        ClearUIFocus();
+        ClearFocus();
     }
 
     {
@@ -8177,8 +8270,8 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     int content_x;
     int content_w;
     int top_h = Scale(46);
-    int body_font = ClampUIPx(14, 14, 17);
-    int small_font = ClampUIPx(12, 12, 14);
+    int body_font = ClampPx(14, 14, 17);
+    int small_font = ClampPx(12, 12, 14);
     int line_h = body_font + Scale(5);
     int y;
     int back_clicked = 0;
@@ -8243,7 +8336,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
         db_load_processes(app);
         qr_unload(app);
         app->qr_visible = 0;
-        ClearUIFocus();
+        ClearFocus();
     }
 
     page = begin_uku_scroll_page(view_w, view_h, top_h, 600,
@@ -8328,15 +8421,15 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
     update_local_address(app, d);
     draw_text_font(font, text->local_address_label, content_x, y, small_font, Fade(GetThemeText(), 0.75f));
     y += small_font + Scale(6);
-    link_box_w = TextWidth(d->local_address, body_font) + Scale(20);
+    link_box_w = UkuTextWidth(d->local_address, body_font) + Scale(20);
     link_box_w = clampi(link_box_w, Scale(96), content_w);
-    link_box_h = TextLineHeight(body_font) + Scale(10);
+    link_box_h = body_font + Scale(10);
     DrawRectangleRounded((Rectangle){(float)content_x, (float)y, (float)link_box_w, (float)link_box_h}, 0.10f, 12, GetThemeSurface());
     DrawRectangleRoundedLinesEx((Rectangle){(float)content_x, (float)y, (float)link_box_w, (float)link_box_h}, 0.10f, 12,
                                 Scale(1), GetThemeButton());
     draw_text_font(font, fit_tail(font, d->local_address, body_font, link_box_w - Scale(20)),
                    content_x + Scale(10),
-                   GetUIControlTextY(d->local_address, y, link_box_h, body_font),
+                   UkuControlTextY(d->local_address, y, link_box_h, body_font),
                    body_font, GetThemeText());
     {
         char share_url[320];
@@ -8387,20 +8480,20 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
         if(copy_clicked || share_link_clicked) {
             if(share_link_clicked) {
                 if(!share_text(app, share_url, tr(app, "Share Uku link")))
-                    ShowToast(tr(app, "Could not share link."));
+                    Toast((ToastProps){.message = tr(app, "Could not share link.")});
                 else
-                    ShowToast(tr(app, "Share link ready."));
+                    Toast((ToastProps){.message = tr(app, "Share link ready.")});
             } else {
                 SetClipboardText(share_url);
                 copy_text(app->process_status, sizeof(app->process_status),
                           tr(app, "Share link copied."), strlen(tr(app, "Share link copied.")));
-                ShowToast(app->process_status);
+                Toast((ToastProps){.message = app->process_status});
             }
         }
         if(qr_clicked) {
             app->qr_visible = !app->qr_visible;
             if(app->qr_visible && !qr_ensure(app, d, share_url))
-                ShowToast(tr(app, "Could not create QR code."));
+                Toast((ToastProps){.message = tr(app, "Could not create QR code.")});
         }
         y += link_box_h + (wide_actions ? Scale(46) : Scale(88));
         if(app->qr_visible) {
@@ -8409,7 +8502,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
             int qr_action_w;
 
             if(!qr_ensure(app, d, share_url))
-                ShowToast(tr(app, "Could not create QR code."));
+                Toast((ToastProps){.message = tr(app, "Could not create QR code.")});
             qr_action_y = y;
             if(app->qr_loaded)
                 qr_draw(app, font, share_url, content_x, qr_action_y, content_w, body_font, small_font);
@@ -8435,17 +8528,17 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
             if(qr_save_clicked) {
                 if(app->qr_file_ready && app->qr_file_path[0] != '\0' &&
                    save_file(app, app->qr_file_path, "image/png")) {
-                    ShowToast(tr(app, "QR code saved."));
+                    Toast((ToastProps){.message = tr(app, "QR code saved.")});
                 } else
-                    ShowToast(tr(app, "Could not create QR code."));
+                    Toast((ToastProps){.message = tr(app, "Could not create QR code.")});
             }
             if(qr_share_clicked) {
                 if(app->qr_file_ready && app->qr_file_path[0] != '\0' &&
                    share_file(app, app->qr_file_path, "image/png",
                               tr(app, "Share QR code"), share_url))
-                    ShowToast(tr(app, "QR code ready to share."));
+                    Toast((ToastProps){.message = tr(app, "QR code ready to share.")});
                 else
-                    ShowToast(tr(app, "Could not share QR code."));
+                    Toast((ToastProps){.message = tr(app, "Could not share QR code.")});
             }
             y += button_h + Scale(18);
         } else
@@ -8466,7 +8559,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
             copy_text(app->process_status, sizeof(app->process_status),
                       tr(app, app->process_export_failed ? "Could not export decision packet." : "Decision packet copied."),
                       strlen(tr(app, app->process_export_failed ? "Could not export decision packet." : "Decision packet copied.")));
-            ShowToast(app->process_status);
+            Toast((ToastProps){.message = app->process_status});
         }
         y += Scale(42);
         if(Button((ButtonProps){
@@ -8482,7 +8575,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
             if(!app->process_update_failed) {
                 app->remote_processes_loaded = 0;
                 app->screen = UKU_SCREEN_HOME;
-                ClearUIFocus();
+                ClearFocus();
                 end_uku_scroll_page(page, y, &app->collect_scroll,
                                     &app->collect_max_scroll, Scale(24));
                 return;
@@ -8553,7 +8646,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
             if(!has_non_space(app->proposal_title) &&
                has_non_space(app->proposal_description)) {
                 app->proposal_submit_failed = 1;
-                ShowToast(text->proposal_title_warning);
+                Toast((ToastProps){.message = text->proposal_title_warning});
             } else if(db_save_local_proposal(app, local_id, sizeof(local_id))) {
                 app->pending_sync_attempted = 0;
                 app->proposal_submit_failed = !submit_proposal_text(
@@ -8569,12 +8662,12 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                 app->proposal_submit_ok = 1;
                 app->proposal_title[0] = '\0';
                 app->proposal_description[0] = '\0';
-                ShowToast(app->proposal_submit_failed ?
+                Toast((ToastProps){.message = app->proposal_submit_failed ?
                             tr(app, "Proposal saved locally. It will sync when the server is reachable.") :
-                            tr(app, "Proposal submitted."));
+                            tr(app, "Proposal submitted.")});
             } else {
                 app->proposal_submit_failed = 1;
-                ShowToast(tr(app, "Could not submit proposal."));
+                Toast((ToastProps){.message = tr(app, "Could not submit proposal.")});
             }
         }
         }
@@ -8643,14 +8736,14 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                 app->vote_submit_failed = !submit_vote(app, app->server_url);
                 app->vote_submit_ok = 1;
                 if(app->vote_name_taken)
-                    ShowToast(tr(app, "That name is already taken in this process. Choose another."));
+                    Toast((ToastProps){.message = tr(app, "That name is already taken in this process. Choose another.")});
                 else
-                    ShowToast(app->vote_submit_failed ?
+                    Toast((ToastProps){.message = app->vote_submit_failed ?
                                 tr(app, "Vote saved locally. It will sync when the server is reachable.") :
-                                tr(app, "Vote submitted."));
+                                tr(app, "Vote submitted.")});
             } else {
                 app->vote_submit_failed = 1;
-                ShowToast(tr(app, "Could not submit vote."));
+                Toast((ToastProps){.message = tr(app, "Could not submit vote.")});
             }
         }
         }
@@ -8714,7 +8807,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
                 SetClipboardText(results_text);
                 copy_text(app->process_status, sizeof(app->process_status),
                           tr(app, "Results copied."), strlen(tr(app, "Results copied.")));
-                ShowToast(app->process_status);
+                Toast((ToastProps){.message = app->process_status});
             }
             y += Scale(42);
         }
@@ -8748,8 +8841,8 @@ draw_public_id_modal(UkuApp *app, int view_w, int view_h)
     int x = (view_w - panel_w) / 2;
     int y = (view_h - panel_h) / 2;
     int pad = Scale(18);
-    int body_font = ClampUIPx(15, 15, 19);
-    int small_font = ClampUIPx(13, 13, 16);
+    int body_font = ClampPx(15, 15, 19);
+    int small_font = ClampPx(13, 13, 16);
     int line_h = body_font + Scale(7);
     int copy_clicked = 0;
     int close_clicked = 0;
@@ -8783,7 +8876,7 @@ draw_public_id_modal(UkuApp *app, int view_w, int view_h)
         SetClipboardText(app->account.public_id);
         copy_text(app->account_status, sizeof(app->account_status),
                   "Public ID copied.", strlen("Public ID copied."));
-        ShowToast(app->account_status);
+        Toast((ToastProps){.message = app->account_status});
     }
     content_y += Scale(4);
     if(Button((ButtonProps){
@@ -8806,7 +8899,7 @@ draw_public_id_modal(UkuApp *app, int view_w, int view_h)
         SetClipboardText(app->account.public_id);
         copy_text(app->account_status, sizeof(app->account_status),
                   "Public ID copied.", strlen("Public ID copied."));
-        ShowToast(app->account_status);
+        Toast((ToastProps){.message = app->account_status});
     }
     if(close_clicked)
         app->account_public_id_modal_open = 0;
@@ -8830,7 +8923,7 @@ draw_public_id_modal(UkuApp *app, int view_w, int view_h)
 static void
 draw_account_setup_modal(UkuApp *app, const UkuText *text, int view_w, int view_h)
 {
-    UIPanelFrame frame;
+    PanelFrame frame;
     int panel_w = UKU_MIN(view_w - Scale(24), Scale(380));
     int panel_h = Scale(250);
     int y;
@@ -8844,12 +8937,12 @@ draw_account_setup_modal(UkuApp *app, const UkuText *text, int view_w, int view_
     (void)view_h;
 
     if(app->account_pfp_modal_open) {
-        ProfilePicturePickerResult result =
-            ProfilePicturePicker((ProfilePicturePickerProps){
+        ProfileImagePickerResult result =
+            RenderProfileImagePickerModal((ProfileImagePickerProps){
                 .title = "Picture",
                 .icons = app->icons,
                 .selected_icon_type = &app->account_pfp_icon,
-                .close_icon = app->icons[UI_ICON_TYPE_X],
+                .close_icon = app->icons[ICON_X],
                 .max_width = 360,
                 .scroll_offset = &app->account_pfp_scroll
             });
@@ -8860,8 +8953,8 @@ draw_account_setup_modal(UkuApp *app, const UkuText *text, int view_w, int view_
         return;
     }
 
-    frame = ModalFrame(panel_w, panel_h, "", (Texture2D){0},
-                             app->icons[UI_ICON_TYPE_X]);
+    frame = RenderModalFrame(panel_w, panel_h, "", (Texture2D){0},
+                             app->icons[ICON_X]);
     if(frame.right_clicked || IsKeyPressed(KEY_ESCAPE)) {
         app->account_setup_modal_open = 0;
         app->account_setup_start_process = 0;
@@ -8873,16 +8966,14 @@ draw_account_setup_modal(UkuApp *app, const UkuText *text, int view_w, int view_
     Text((TextProps){
         .bounds = {(float)frame.content_x, (float)y, 0, 0},
         .text = "Set up account",
-        .font = ClampUIPx(14, 14, 17),
-        .color = GetThemeText(),
         .wrap = TextWrapNone,
     });
     y += Scale(30);
 
-    pfp = app->account_pfp_icon > UI_ICON_TYPE_NONE &&
-          app->account_pfp_icon < UI_ICON_TYPE_COUNT
+    pfp = app->account_pfp_icon > ICON_NONE &&
+          app->account_pfp_icon < ICON_COUNT
               ? app->icons[app->account_pfp_icon]
-              : app->icons[UI_ICON_TYPE_PFP_PERSON1];
+              : app->icons[ICON_PFP_PERSON1];
     DrawCircle(frame.content_x + icon_size / 2, y + icon_size / 2,
                icon_size / 2, GetThemeButton());
     if(pfp.id != 0)
@@ -8929,7 +9020,7 @@ draw_account_setup_modal(UkuApp *app, const UkuText *text, int view_w, int view_
             app->account_setup_start_process = 0;
             reset_decision(app, text);
             app->screen = UKU_SCREEN_CREATE;
-            ClearUIFocus();
+            ClearFocus();
         }
     }
 
@@ -8949,7 +9040,7 @@ draw_account_required_modal(UkuApp *app, const UkuText *text, int view_w, int vi
         return;
 
     (void)text;
-    result = ActionModal((ModalProps){
+    result = RenderActionModal((ModalProps){
         .title = "Account required",
         .message = "Create or import an account before starting a process.",
         .actions = actions,
@@ -8971,12 +9062,12 @@ draw_account_required_modal(UkuApp *app, const UkuText *text, int view_w, int vi
     if(result == 2) {
         app->account_required_modal_open = 0;
         app->screen = UKU_SCREEN_ACCOUNT;
-        ClearUIFocus();
+        ClearFocus();
     }
     if(result == 3 || result == -1 || IsKeyPressed(KEY_ESCAPE)) {
         app->account_required_modal_open = 0;
         app->account_required_start_process = 0;
-        ClearUIFocus();
+        ClearFocus();
     }
 
     (void)view_w;
@@ -8991,8 +9082,8 @@ draw_alias_modal(UkuApp *app, int view_w, int view_h)
     int x = (view_w - panel_w) / 2;
     int y = (view_h - panel_h) / 2;
     int pad = Scale(18);
-    int body_font = ClampUIPx(15, 15, 19);
-    int small_font = ClampUIPx(13, 13, 16);
+    int body_font = ClampPx(15, 15, 19);
+    int small_font = ClampPx(13, 13, 16);
     int line_h = body_font + Scale(7);
     int close_clicked = 0;
     int save_clicked = 0;
@@ -9064,13 +9155,13 @@ draw_alias_modal(UkuApp *app, int view_w, int view_h)
 static void
 draw_account(UkuApp *app, const UkuText *text, int view_w, int view_h)
 {
-    int side = GetUIPageSidePadding();
+    int side = GetPageSidePadding();
     int content_x;
     int content_w;
     int top_h = Scale(46);
     int y = top_h + Scale(16);
-    int body_font = ClampUIPx(14, 14, 17);
-    int small_font = ClampUIPx(12, 12, 14);
+    int body_font = ClampPx(14, 14, 17);
+    int small_font = ClampPx(12, 12, 14);
     int line_h = body_font + Scale(5);
     int back_clicked = 0;
     int create_clicked = 0;
@@ -9082,12 +9173,12 @@ draw_account(UkuApp *app, const UkuText *text, int view_w, int view_h)
     char display_id[96];
     Font font = app->font;
 
-    GetUICenteredColumn(600, side, &content_x, &content_w);
+    GetCenteredColumn(600, side, &content_x, &content_w);
     draw_top_bar(app, "Account", 1, UKU_FOCUS_MANUAL_BACK, &back_clicked,
                  0, NULL, 0, NULL, 0, NULL, 0, NULL, view_w);
     if(back_clicked) {
         app->screen = UKU_SCREEN_HOME;
-        ClearUIFocus();
+        ClearFocus();
     }
 
     y = draw_text_field(app, font, "Server", "https://api.waozi.xyz",
@@ -9175,51 +9266,51 @@ draw_account(UkuApp *app, const UkuText *text, int view_w, int view_h)
 static void
 draw_theme_settings(UkuApp *app, const UkuText *text, int view_w, int view_h)
 {
-    int side = GetUIPageSidePadding();
+    int side = GetPageSidePadding();
     int content_x;
     int content_w;
     int top_h = Scale(46);
     int y = top_h + Scale(16);
     int back_clicked = 0;
-    ThemeSettingsProps settings;
-    ThemeSettingsState state;
-    ThemeSettingsResult result;
 
-    GetUICenteredColumn(520, side, &content_x, &content_w);
+    GetCenteredColumn(520, side, &content_x, &content_w);
     draw_top_bar(app, "", 1, UKU_FOCUS_MANUAL_BACK, &back_clicked,
                  0, NULL, 0, NULL, 0, NULL, 0, NULL, view_w);
     if(back_clicked) {
         app->screen = UKU_SCREEN_HOME;
-        ClearUIFocus();
+        ClearFocus();
     }
 
     y = draw_locale_dropdown(app, (UkuText *)text, app->font, content_x, y, content_w);
 
-    settings = (ThemeSettingsProps){
-        .id_base = 6000,
-        .x = content_x,
-        .y = y,
-        .w = content_w,
-        .theme_source = &app->theme_source,
-        .theme_mode = &app->theme_mode,
-        .theme_id = &app->theme_id,
-        .theme_style = &app->theme_style,
-        .allow_system_source = IsSystemThemeAvailable() ? 1 : 0,
-        .allow_system_mode = 1,
-        .theme_label = tr(app, "Theme"),
-        .source_app_label = "Ukuvota",
-        .source_system_label = tr(app, "System"),
-        .mode_label = tr(app, "Mode"),
-        .mode_system_label = tr(app, "Follow device"),
-        .mode_light_label = tr(app, "Light"),
-        .mode_dark_label = tr(app, "Dark"),
-        .palette_label = tr(app, "Palette"),
-        .system_theme_label = GetSystemThemeNameCached()
-    };
-    ThemeSettings(settings, &state, &result);
-    if(result.changed) {
-        app_apply_theme(app);
-        app_save_theme(app);
+    /* ThemeSettings was removed with the theme catalog; the palette picker is
+     * StylePicker and the light/dark choice is a Toggle. */
+    {
+        int changed = 0;
+        if(StylePicker((StylePickerProps){
+            .bounds = {(float)content_x, (float)y, (float)content_w, (float)Scale(34)},
+            .id = 6000,
+        }))
+            changed = 1;
+        y += Scale(44);
+        {
+            int dark = app->theme_mode == THEME_MODE_DARK ? 1 : 0;
+            if(Toggle((ToggleProps){
+                .bounds = {(float)content_x, (float)y, (float)Scale(128), (float)Scale(26)},
+                .id = 6001,
+                .value = &dark,
+                .off_label = tr(app, "Light"),
+                .on_label = tr(app, "Dark"),
+            })) {
+                app->theme_source = THEME_SOURCE_APP;
+                app->theme_mode = dark ? THEME_MODE_DARK : THEME_MODE_LIGHT;
+                changed = 1;
+            }
+        }
+        if(changed) {
+            app_apply_theme(app);
+            app_save_theme(app);
+        }
     }
 
     (void)view_h;
@@ -9231,7 +9322,7 @@ draw_manual(UkuApp *app, const UkuText *text, int view_w, int view_h)
     int content_x;
     int content_w;
     int top_h = Scale(46);
-    int body_font = ClampUIPx(14, 14, 17);
+    int body_font = ClampPx(14, 14, 17);
     int line_h = body_font + Scale(5);
     int y;
     int back_clicked = 0;
@@ -9241,7 +9332,7 @@ draw_manual(UkuApp *app, const UkuText *text, int view_w, int view_h)
                  0, NULL, 0, NULL, 0, NULL, 0, NULL, view_w);
     if(back_clicked) {
         app->screen = UKU_SCREEN_HOME;
-        ClearUIFocus();
+        ClearFocus();
     }
 
     {
@@ -9289,17 +9380,17 @@ draw_app_frame(void *userdata)
     }
 #endif
 
-    UpdateUIDPI(view_w, view_h);
-    ui_scale = ui_dpi_state.ui_scale_clamped;
+    UpdateDPI(view_w, view_h);
+    ui_scale = dpi_state.ui_scale_clamped;
 #if defined(PLATFORM_WEB)
     if(view_w >= 720 && ui_scale > 1.0f)
         ui_scale = 1.0f;
     else if(view_w >= 560 && ui_scale > 1.1f)
         ui_scale = 1.1f;
 #endif
-    SetUIScale(ui_scale);
-    BeginUIFrame(view_w, view_h, GetUIScale());
-    SetUICursorClickable(&app->cursor_clickable);
+    SetScale(ui_scale);
+
+    SetCursorClickable(&app->cursor_clickable);
     ApplyCurrentTheme();
     poll_qr_scan_result(app, text);
 
@@ -9307,12 +9398,12 @@ draw_app_frame(void *userdata)
 
     BeginDrawing();
     ClearBackground(GetThemeBackground());
-    BeginUIFocus();
-    SetUIFocusTextInputActive(app->active_field != UKU_FIELD_NONE);
+    BeginFocusScope();
+    SetFocusTextInputActive(app->active_field != UKU_FIELD_NONE);
     if(app->account_required_modal_open || app->account_setup_modal_open ||
        app->account_pfp_modal_open ||
        app->account_public_id_modal_open || app->account_alias_modal_open)
-        BeginUIModalLayer();
+        BeginModalLayer();
     if(app->screen == UKU_SCREEN_HOME)
         draw_home(app, text, view_w, view_h);
     else if(app->screen == UKU_SCREEN_CREATE)
@@ -9334,8 +9425,8 @@ draw_app_frame(void *userdata)
     draw_public_id_modal(app, view_w, view_h);
     draw_alias_modal(app, view_w, view_h);
     Overlays();
-    EndUIFocus();
-    EndUIFrame();
+    EndFocusScope();
+    EndFrame();
     EndDrawing();
 
     SetMouseCursor(app->cursor_clickable ? MOUSE_CURSOR_POINTING_HAND : MOUSE_CURSOR_DEFAULT);
@@ -9374,20 +9465,19 @@ main(void)
 #endif
     app.theme_source = THEME_SOURCE_SYSTEM;
     app.theme_mode = THEME_MODE_SYSTEM;
-    app.theme_style = THEME_STYLE_SYSTEM;
-    app.theme_id = clampi(GetDefaultThemeForThemeStyle(THEME_STYLE_SYSTEM),
-                          0, THEME_COUNT - 1);
+
+    app.theme_id = 1;
     app.theme_dark_mode = 0;
 #if defined(PLATFORM_ANDROID) || defined(PLATFORM_WEB)
     app.intro_seen = 1;
 #else
     app.intro_seen = setting_load_int(&app, UKU_INTRO_SEEN_KEY, 0) != 0;
 #endif
-    app.account_pfp_icon = (UIIconType)setting_load_int(&app, UKU_ACCOUNT_PFP_KEY,
-                                                        UI_ICON_TYPE_PFP_PERSON1);
-    if(app.account_pfp_icon <= UI_ICON_TYPE_NONE ||
-       app.account_pfp_icon >= UI_ICON_TYPE_COUNT)
-        app.account_pfp_icon = UI_ICON_TYPE_PFP_PERSON1;
+    app.account_pfp_icon = (IconType)setting_load_int(&app, UKU_ACCOUNT_PFP_KEY,
+                                                        ICON_PFP_PERSON1);
+    if(app.account_pfp_icon <= ICON_NONE ||
+       app.account_pfp_icon >= ICON_COUNT)
+        app.account_pfp_icon = ICON_PFP_PERSON1;
     setting_load_text(&app, UKU_SYNC_SERVER_URL_KEY, UKU_SYNC_SERVER_URL_DEFAULT,
                       app.server_url, sizeof(app.server_url));
     {
@@ -9398,7 +9488,7 @@ main(void)
             snprintf(app.server_url, sizeof(app.server_url), "%s", UKU_SYNC_SERVER_URL_DEFAULT);
     }
     account_load(&app);
-#if !defined(PLATFORM_WEB)
+#if 0 /* theme scope API removed at master; file dialog uses its default scope */
     InitFileDialog(&app.account_import_dialog);
     InitFileDialog(&app.account_export_dialog);
 #else
@@ -9415,7 +9505,7 @@ main(void)
        the whole app on the same keypress. */
     SetExitKey(0);
     SetTargetFPS(60);
-    InitUIDPI();
+    InitDPI();
 #if defined(PLATFORM_ANDROID)
     android_bridge_apply_system_theme();
     SetTextInputPlatformCallback(android_bridge_set_soft_keyboard);
