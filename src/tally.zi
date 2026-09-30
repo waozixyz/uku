@@ -1,0 +1,162 @@
+// Ukuvota counting. Every participant scores each proposal from -3 to +3.
+// In a consent process resistance (a negative score) counts negative_weight
+// times, so it stays visible against support; the "Infinity" weight means one
+// resister outweighs every possible supporter. Ranked-process options are
+// plain sums.
+//
+// Totals are 64-bit: with the Infinity weight, a few hundred -3 scores
+// already exceed a 32-bit total.
+
+SCORE_UNSET :: 127
+SCORE_MIN :: -3
+SCORE_MAX :: 3
+// Larger than all possible support: 1024 voters x +3 = 3072.
+NEGATIVE_WEIGHT_INFINITY :: 1000000
+NEGATIVE_WEIGHT_MAX :: 9
+
+ProposalTally :: struct {
+    total: s64
+    positive_total: s64
+    negative_total: s64
+    vote_count: s32
+}
+
+OptionTally :: struct {
+    total: s64
+    vote_count: s32
+}
+
+Verdict :: enum {
+    // No included ballots yet.
+    VerdictPending :: 0
+    // Fewer included ballots than the quorum.
+    VerdictNoQuorum :: 1
+    // The leading proposal's support outweighs its resistance.
+    VerdictConsent :: 2
+    // The leading proposal's resistance matches or outweighs its support.
+    VerdictObjections :: 3
+    // Under the Infinity weight every proposal was resisted; the least
+    // resisted one leads.
+    VerdictAllResisted :: 4
+}
+
+NegativeWeightIsInfinite :: (weight: s32) -> bool {
+    return weight >= NEGATIVE_WEIGHT_INFINITY
+}
+
+// The weight dropdown lists Infinity at index 0, then weights 1 to 9.
+NegativeWeightFromIndex :: (index: s32) -> s32 {
+    if index <= 0 { return NEGATIVE_WEIGHT_INFINITY }
+    return index
+}
+
+NegativeWeightToIndex :: (weight: s32) -> s32 {
+    if NegativeWeightIsInfinite(weight) { return 0 }
+    if weight < 1 { return 1 }
+    if weight > NEGATIVE_WEIGHT_MAX { return NEGATIVE_WEIGHT_MAX }
+    return weight
+}
+
+// Older data stored the Infinity weight as 0, which counted resistance as
+// nothing; read it back as Infinity.
+NegativeWeightNormalize :: (weight: s32) -> s32 {
+    if weight <= 0 { return NEGATIVE_WEIGHT_INFINITY }
+    return weight
+}
+
+ScoreIsValid :: (score: s32) -> bool {
+    return score >= SCORE_MIN && score <= SCORE_MAX
+}
+
+// The tally with one more participant's score for a proposal.
+TallyWithScore :: (tally: ProposalTally, score: s32, negative_weight: s32) -> ProposalTally {
+    if !ScoreIsValid(score) { return tally }
+    result := tally
+    weighted: s64 = cast(s64)score
+    if score < 0 {
+        weighted = weighted * cast(s64)negative_weight
+        result.negative_total = result.negative_total + weighted
+    } else {
+        result.positive_total = result.positive_total + weighted
+    }
+    result.total = result.total + weighted
+    result.vote_count = result.vote_count + 1
+    return result
+}
+
+OptionTallyWithScore :: (tally: OptionTally, score: s32) -> OptionTally {
+    if !ScoreIsValid(score) { return tally }
+    result := tally
+    result.total = result.total + cast(s64)score
+    result.vote_count = result.vote_count + 1
+    return result
+}
+
+// True when a ranks before b: higher total, then less resistance, then more
+// support. Equal proposals keep their order.
+TallyRanksBefore :: (a: ProposalTally, b: ProposalTally) -> bool {
+    if a.total != b.total { return a.total > b.total }
+    if a.negative_total != b.negative_total {
+        return a.negative_total > b.negative_total
+    }
+    return a.positive_total >= b.positive_total
+}
+
+// Fills indices[0:count] with the proposals in result order.
+TallySortIndices :: (tallies: []ProposalTally, indices: []s32, count: s32) {
+    if count > cast(s32)tallies.count { count = cast(s32)tallies.count }
+    if count > cast(s32)indices.count { count = cast(s32)indices.count }
+    index: s32 = 0
+    while index < count {
+        indices[index] = index
+        index += 1
+    }
+    // Insertion sort keeps equal proposals in their original order.
+    index = 1
+    while index < count {
+        key := indices[index]
+        place := index - 1
+        while place >= 0 && !TallyRanksBefore(tallies[indices[place]], tallies[key]) {
+            indices[place + 1] = indices[place]
+            place -= 1
+        }
+        indices[place + 1] = key
+        index += 1
+    }
+}
+
+VerdictResult :: struct {
+    verdict: Verdict
+    // The leading proposal, or -1 before any ballot counts.
+    winner: s32
+}
+
+// The outcome from the included ballots: quorum first, then whether the
+// leading proposal's support survives its weighted resistance.
+TallyVerdict :: (tallies: []ProposalTally, count: s32, included_ballots: s32,
+    quorum_votes: s32, negative_weight: s32) -> VerdictResult {
+    result: VerdictResult
+    result.verdict = Verdict.VerdictPending
+    result.winner = -1
+    if count > cast(s32)tallies.count { count = cast(s32)tallies.count }
+    if count <= 0 || included_ballots <= 0 { return result }
+    if quorum_votes > 0 && included_ballots < quorum_votes {
+        result.verdict = Verdict.VerdictNoQuorum
+        return result
+    }
+    indices: [64]s32
+    if count > 64 { count = 64 }
+    TallySortIndices(tallies, indices[:], count)
+    leader := tallies[indices[0]]
+    result.winner = indices[0]
+    result.verdict = Verdict.VerdictConsent
+    // Under Infinity any resistance excludes a proposal, so a resisted leader
+    // means every proposal was resisted.
+    if NegativeWeightIsInfinite(negative_weight) &&
+        leader.negative_total <= -cast(s64)NEGATIVE_WEIGHT_INFINITY {
+        result.verdict = Verdict.VerdictAllResisted
+    } else if leader.negative_total < 0 && -leader.negative_total >= leader.positive_total {
+        result.verdict = Verdict.VerdictObjections
+    }
+    return result
+}

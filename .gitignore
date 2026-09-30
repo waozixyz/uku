@@ -13,3 +13,4 @@ uku.sqlite3
 *.core
 __pycache__/
 vendor-builds/
+/ziran.local.toml

@@ -1,0 +1,87 @@
+#import "tally"
+
+Score :: (scores: []s32, weight: s32) -> ProposalTally {
+    tally: ProposalTally
+    index: s64 = 0
+    while index < scores.count {
+        tally = TallyWithScore(tally, scores[index], weight)
+        index += 1
+    }
+    return tally
+}
+
+#program_export
+TallyAnswer :: () -> s32 {
+    if NegativeWeightFromIndex(0) != NEGATIVE_WEIGHT_INFINITY || NegativeWeightFromIndex(3) != 3 { return 1 }
+    if NegativeWeightToIndex(NEGATIVE_WEIGHT_INFINITY) != 0 || NegativeWeightToIndex(0) != 1 || NegativeWeightToIndex(12) != 9 { return 2 }
+    if NegativeWeightNormalize(0) != NEGATIVE_WEIGHT_INFINITY || NegativeWeightNormalize(2) != 2 { return 3 }
+
+    // Weight 2: support +3 +2, resistance -1 counts double.
+    scores: [3]s32 = .{3, 2, -1}
+    a := Score(scores[:], 2)
+    if a.total != 3 || a.positive_total != 5 || a.negative_total != -2 || a.vote_count != 3 { return 4 }
+    // Unset and out-of-range scores are ignored.
+    a = TallyWithScore(a, SCORE_UNSET, 2)
+    a = TallyWithScore(a, 4, 2)
+    if a.vote_count != 3 { return 5 }
+
+    // Ranking: higher total first; then less resistance; then more support.
+    tallies: [4]ProposalTally
+    tallies[0].total = 2
+    tallies[0].negative_total = -4
+    tallies[0].positive_total = 6
+    tallies[1].total = 5
+    tallies[2].total = 2
+    tallies[2].positive_total = 2
+    tallies[3].total = 2
+    tallies[3].positive_total = 2
+    order: [4]s32
+    TallySortIndices(tallies[:], order[:], 4)
+    // Ties keep their original order (2 before 3).
+    if order[0] != 1 || order[1] != 2 || order[2] != 3 || order[3] != 0 { return 6 }
+
+    v := TallyVerdict(tallies[:], 4, 0, 0, 2)
+    if v.verdict != Verdict.VerdictPending || v.winner != -1 { return 7 }
+    if TallyVerdict(tallies[:], 4, 2, 3, 2).verdict != Verdict.VerdictNoQuorum { return 8 }
+    v = TallyVerdict(tallies[:], 4, 3, 3, 2)
+    if v.verdict != Verdict.VerdictConsent || v.winner != 1 { return 9 }
+
+    // Resistance matching support is an objection.
+    b: [1]ProposalTally
+    even: [2]s32 = .{2, -1}
+    b[0] = Score(even[:], 2)
+    v = TallyVerdict(b[:], 1, 2, 0, 2)
+    if v.verdict != Verdict.VerdictObjections || v.winner != 0 { return 10 }
+
+    // Under Infinity one resister excludes a proposal; if all are resisted,
+    // the least resisted one leads.
+    c: [2]ProposalTally
+    heavy: [2]s32 = .{3, -3}
+    light: [2]s32 = .{3, -1}
+    c[0] = Score(heavy[:], NEGATIVE_WEIGHT_INFINITY)
+    c[1] = Score(light[:], NEGATIVE_WEIGHT_INFINITY)
+    v = TallyVerdict(c[:], 2, 2, 0, NEGATIVE_WEIGHT_INFINITY)
+    if v.verdict != Verdict.VerdictAllResisted || v.winner != 1 { return 11 }
+
+    // 1024 voters at -3 under Infinity must not overflow into support.
+    d: ProposalTally
+    voter: s32 = 0
+    while voter < 1024 {
+        d = TallyWithScore(d, -3, NEGATIVE_WEIGHT_INFINITY)
+        voter += 1
+    }
+    if d.total != -3072000000 || d.total >= 0 { return 12 }
+
+    o: OptionTally
+    o = OptionTallyWithScore(o, -2)
+    o = OptionTallyWithScore(o, 3)
+    o = OptionTallyWithScore(o, SCORE_UNSET)
+    if o.total != 1 || o.vote_count != 2 { return 13 }
+    return 42
+}
+
+#program_export
+main :: () -> s32 {
+    if TallyAnswer() == 42 { return 0 }
+    return 1
+}
