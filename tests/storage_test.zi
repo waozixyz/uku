@@ -1,5 +1,6 @@
 #import "sqlite/SQLite"
 #import "storage"
+#import "ballot"
 #import "process"
 #import "tally"
 #import "c_string"
@@ -100,8 +101,12 @@ main :: () -> s32 {
     if !CheckDetail() {
         return 19
     }
+    if !CheckLocalChanges() {
+        return 20
+    }
     // A duplicate id fails and leaves nothing half-saved.
-    if SaveConsent("consent-1", 300) || Count("select count(*) from processes") != 2 || Count("select count(*) from proposals") != 2 {
+    proposals := Count("select count(*) from proposals")
+    if SaveConsent("consent-1", 300) || Count("select count(*) from processes") != 2 || Count("select count(*) from proposals") != proposals {
         return 18
     }
     StorageClose()
@@ -176,4 +181,37 @@ CheckDetail :: () -> bool {
     process.participants[ben].excluded = true
     first = ProcessProposalTally(0)
     return ProcessSubsetActive() && first.total == 3 && first.vote_count == 1 && TextUntilNul(process.participants[ben].updated_at[:]) == "20"
+}
+
+// A proposal and ballot written here wait to sync; the proposal's server
+// id then replaces its local id in every ballot.
+CheckLocalChanges :: () -> bool {
+    unused StorageMarkProcessSynced("consent-1")
+    if !StorageProcessSynced("consent-1") || StorageProcessSynced("ranked-1") {
+        return false
+    }
+    // Ann's and Ben's ballots from CheckDetail are unsynced.
+    if StoragePendingCount("consent-1") != 2 {
+        return false
+    }
+    rowid := StorageSaveLocalProposal("consent-1", "ann", "Ann", "Picnic", "", 30)
+    if rowid <= 0 || StorageSaveLocalProposal("consent-1", "ann", "Ann", "   ", "", 31) != -1 {
+        return false
+    }
+    local: [24]u8
+    local_id := StorageLocalProposalId(rowid, local[:])
+    ballot: [64]u8
+    length := BallotAppend(ballot[:], 0, "local-1", 1)
+    length = BallotAppend(ballot[:], length, local_id, 3)
+    if !StorageSaveLocalVote("consent-1", "ann", "Ann", TextUntilNul(ballot[:]), 40) {
+        return false
+    }
+    // Ann's ballot replaced her earlier one; the proposal is new.
+    if StoragePendingCount("consent-1") != 3 || Count("select count(*) from votes where voter_user_id = 'ann'") != 1 {
+        return false
+    }
+    if !StorageMarkProposalSynced(rowid, "srv-9") || !StorageRewriteBallotId("consent-1", local_id, "srv-9") {
+        return false
+    }
+    return Count("select count(*) from votes where scores = 'local-1=1;srv-9=3'") == 1 && StoragePendingCount("consent-1") == 2
 }

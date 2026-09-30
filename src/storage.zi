@@ -1,4 +1,5 @@
 #import "sqlite/SQLite"
+#import "ballot"
 #import "process"
 #import "tally"
 #import "byte_text_linux"
@@ -541,4 +542,151 @@ StorageLoadProcessDetail :: (row: ProcessRow, standing: StandingProposals) -> bo
         index += 1
     }
     return true
+}
+
+// The id a proposal has before the server gives it one.
+StorageLocalProposalId :: (rowid: s64, output: []u8) -> string {
+    number: [24]u8
+    length := StorageAppend(output, 0, "local-")
+    unused StorageAppend(output, length, FormatInteger(rowid, number[:]))
+    return TextUntilNul(output)
+}
+
+// Saves a proposal written here, not yet synced. Returns its rowid, or -1.
+StorageSaveLocalProposal :: (process_id: string, author: string, display_name: string, title: string, description: string, now: s64) -> s64 {
+    if database == null || !StorageHasText(title) {
+        return -1
+    }
+    return StorageInsertProposal(process_id, author, display_name, title, description, now, false)
+}
+
+// Saves this participant's ballot, replacing an earlier one; it waits to
+// be synced.
+StorageSaveLocalVote :: (process_id: string, voter: string, display_name: string, ballot: string, now: s64) -> bool {
+    if database == null || voter.count == 0 {
+        return false
+    }
+    statement: *void = null
+    if SqlitePrepareText(database, "insert into votes(process_id, voter_user_id, display_name, reason, scores, updated_at, synced) values(?, ?, ?, ?, ?, ?, 0) on conflict(process_id, voter_user_id) do update set display_name=excluded.display_name, reason=excluded.reason, scores=excluded.scores, updated_at=excluded.updated_at, synced=0", -1, *statement, null) != SQLITE_OK {
+        return false
+    }
+    unused SqliteBindTextString(statement, 1, process_id, -1)
+    unused SqliteBindTextString(statement, 2, voter, -1)
+    unused SqliteBindTextString(statement, 3, display_name, -1)
+    unused SqliteBindTextString(statement, 4, "", -1)
+    unused SqliteBindTextString(statement, 5, ballot, -1)
+    unused SqliteBindInt64(statement, 6, now)
+    saved := SqliteStep(statement) == SQLITE_DONE
+    unused SqliteFinalize(statement)
+    return saved
+}
+
+StorageExecWithId :: (sql: string, id: string) -> bool {
+    if database == null {
+        return false
+    }
+    statement: *void = null
+    if SqlitePrepareText(database, sql, -1, *statement, null) != SQLITE_OK {
+        return false
+    }
+    unused SqliteBindTextString(statement, 1, id, -1)
+    done := SqliteStep(statement) == SQLITE_DONE
+    unused SqliteFinalize(statement)
+    return done
+}
+
+StorageMarkProcessSynced :: (process_id: string) -> bool {
+    return StorageExecWithId("update processes set synced=1 where id=?", process_id)
+}
+
+StorageProcessSynced :: (process_id: string) -> bool {
+    if database == null {
+        return false
+    }
+    statement: *void = null
+    if SqlitePrepareText(database, "select synced from processes where id=?", -1, *statement, null) != SQLITE_OK {
+        return false
+    }
+    unused SqliteBindTextString(statement, 1, process_id, -1)
+    synced := SqliteStep(statement) == SQLITE_ROW && SqliteColumnInt(statement, 0) != 0
+    unused SqliteFinalize(statement)
+    return synced
+}
+
+// Changes to the process, its proposals, and its ballots waiting to sync.
+StoragePendingCount :: (process_id: string) -> s32 {
+    if database == null {
+        return 0
+    }
+    statement: *void = null
+    if SqlitePrepareText(database, "select (select count(*) from processes where id=?1 and synced=0) + (select count(*) from proposals where process_id=?1 and synced=0) + (select count(*) from votes where process_id=?1 and synced=0)", -1, *statement, null) != SQLITE_OK {
+        return 0
+    }
+    unused SqliteBindTextString(statement, 1, process_id, -1)
+    count: s32 = 0
+    if SqliteStep(statement) == SQLITE_ROW {
+        count = SqliteColumnInt(statement, 0)
+    }
+    unused SqliteFinalize(statement)
+    return count
+}
+
+// Records the server's id for a proposal written here.
+StorageMarkProposalSynced :: (rowid: s64, remote_id: string) -> bool {
+    if database == null {
+        return false
+    }
+    statement: *void = null
+    if SqlitePrepareText(database, "update proposals set synced=1, remote_id=? where id=?", -1, *statement, null) != SQLITE_OK {
+        return false
+    }
+    unused SqliteBindTextString(statement, 1, remote_id, -1)
+    unused SqliteBindInt64(statement, 2, rowid)
+    done := SqliteStep(statement) == SQLITE_DONE
+    unused SqliteFinalize(statement)
+    return done
+}
+
+// Renames a proposal in every stored ballot of the process, as when a local
+// proposal gets its server id. A ballot whose renamed form would not fit is
+// left as it was, and the result is false.
+StorageRewriteBallotId :: (process_id: string, old_id: string, new_id: string) -> bool {
+    if database == null {
+        return false
+    }
+    select: *void = null
+    update: *void = null
+    if SqlitePrepareText(database, "select voter_user_id, scores from votes where process_id=?", -1, *select, null) != SQLITE_OK {
+        return false
+    }
+    if SqlitePrepareText(database, "update votes set scores=? where process_id=? and voter_user_id=?", -1, *update, null) != SQLITE_OK {
+        unused SqliteFinalize(select)
+        return false
+    }
+    unused SqliteBindTextString(select, 1, process_id, -1)
+    all := true
+    while SqliteStep(select) == SQLITE_ROW {
+        voter := SqliteColumnText(select, 0)
+        ballot := SqliteColumnText(select, 1)
+        renamed: [8192]u8
+        length: s64 = -1
+        if voter != null && ballot != null {
+            length = BallotReplaceId(TextFromCString(ballot), old_id, new_id, renamed[:])
+        }
+        if length < 0 {
+            all = false
+        } else {
+            unused SqliteReset(update)
+            unused SqliteClearBindings(update)
+            unused SqliteBindTextString(update, 1, TextUntilNul(renamed[:]), -1)
+            unused SqliteBindTextString(update, 2, process_id, -1)
+            unused SqliteBindTextString(update, 3, TextFromCString(voter), -1)
+            if SqliteStep(update) != SQLITE_DONE {
+                all = false
+            }
+        }
+    }
+    unused SqliteFinalize(update)
+    unused SqliteFinalize(select)
+    return all
 }
