@@ -22,3 +22,7 @@ backend = "canvas"
 [dependencies.sqlite]
 git = "https://github.com/ziranlang/sqlite.git"
 ref = "master"
+
+[dependencies.daochi_client]
+git = "https://github.com/kryonlabs/daochi-client.git"
+ref = "master"

@@ -1,4 +1,5 @@
 #import "sqlite/SQLite"
+#import "daochi_client/keys"
 #import "ballot"
 #import "process"
 #import "tally"
@@ -689,4 +690,58 @@ StorageRewriteBallotId :: (process_id: string, old_id: string, new_id: string) -
     unused SqliteFinalize(update)
     unused SqliteFinalize(select)
     return all
+}
+
+// The sync account: its keys, the server's bearer token, and the server.
+StoredAccount :: struct {
+    keys: AccountKeys
+    auth_token: [768]u8
+    server_url: [256]u8
+    loaded: bool
+}
+
+// Loads the account; `loaded` is false when there is none or its keys do
+// not form a valid key pair.
+StorageLoadAccount :: () -> StoredAccount {
+    account: StoredAccount
+    if database == null {
+        return account
+    }
+    statement: *void = null
+    if SqlitePrepareText(database, "select public_id, public_key, private_key, auth_token, server_url from account where id=1", -1, *statement, null) != SQLITE_OK {
+        return account
+    }
+    if SqliteStep(statement) == SQLITE_ROW {
+        StorageColumnText(statement, 0, "", account.keys.public_id[:])
+        StorageColumnText(statement, 1, "", account.keys.public_key_hex[:])
+        StorageColumnText(statement, 2, "", account.keys.private_key_hex[:])
+        StorageColumnText(statement, 3, "", account.auth_token[:])
+        StorageColumnText(statement, 4, "https://api.waozi.xyz", account.server_url[:])
+        account.loaded = ValidateAccountKeys(*account.keys) != 0
+    }
+    unused SqliteFinalize(statement)
+    return account
+}
+
+// Saves valid keys with the bearer token. As before, saving replaces the
+// row, so the server address returns to its default.
+StorageSaveAccount :: (keys: AccountKeys, auth_token: string) -> bool {
+    if database == null {
+        return false
+    }
+    checked := keys
+    if ValidateAccountKeys(*checked) == 0 {
+        return false
+    }
+    statement: *void = null
+    if SqlitePrepareText(database, "insert or replace into account(id, public_id, public_key, private_key, auth_token) values(1, ?, ?, ?, ?)", -1, *statement, null) != SQLITE_OK {
+        return false
+    }
+    unused SqliteBindTextString(statement, 1, TextUntilNul(keys.public_id[:]), -1)
+    unused SqliteBindTextString(statement, 2, TextUntilNul(keys.public_key_hex[:]), -1)
+    unused SqliteBindTextString(statement, 3, TextUntilNul(keys.private_key_hex[:]), -1)
+    unused SqliteBindTextString(statement, 4, auth_token, -1)
+    saved := SqliteStep(statement) == SQLITE_DONE
+    unused SqliteFinalize(statement)
+    return saved
 }

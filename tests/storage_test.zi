@@ -1,5 +1,6 @@
 #import "sqlite/SQLite"
 #import "storage"
+#import "daochi_client/keys"
 #import "ballot"
 #import "process"
 #import "tally"
@@ -103,6 +104,9 @@ main :: () -> s32 {
     }
     if !CheckLocalChanges() {
         return 20
+    }
+    if !CheckAccount() {
+        return 21
     }
     // A duplicate id fails and leaves nothing half-saved.
     proposals := Count("select count(*) from proposals")
@@ -214,4 +218,27 @@ CheckLocalChanges :: () -> bool {
         return false
     }
     return Count("select count(*) from votes where scores = 'local-1=1;srv-9=3'") == 1 && StoragePendingCount("consent-1") == 2
+}
+
+// Keys round-trip through the account row; invalid keys are refused.
+CheckAccount :: () -> bool {
+    // The old database's account row has placeholder keys.
+    if StorageLoadAccount().loaded {
+        return false
+    }
+    keys: AccountKeys
+    if CreateAccountKeys(*keys) == 0 || !StorageSaveAccount(keys, "token-1") {
+        return false
+    }
+    account := StorageLoadAccount()
+    if !account.loaded || !AccountValuesEqual(*keys, *account.keys) || TextUntilNul(account.auth_token[:]) != "token-1" {
+        return false
+    }
+    broken := keys
+    broken.public_id[0] = cast(u8)122
+    if StorageSaveAccount(broken, "") {
+        return false
+    }
+    reloaded := StorageLoadAccount()
+    return TextUntilNul(reloaded.server_url[:]) == "https://api.waozi.xyz"
 }
