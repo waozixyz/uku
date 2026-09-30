@@ -348,11 +348,34 @@ no-vendor-edits:
 clean-text-api-check:
 	python3 $(KRYON_DIR)/scripts/check-clean-text-api.py src
 
+# The Ziran app on Kryon's desktop host, which replaces the C app screen by
+# screen.
+.PHONY: ziran-app ziran-run
+# Without SQLite's pkg-config file, link and run the local build in
+# ~/.local/sqlite3.
+ZIRAN_APP_LIBRARY_PATH := $(if $(shell pkg-config --exists sqlite3 2>/dev/null && echo y),,$(HOME)/.local/sqlite3/lib)
+ziran-app:
+	sh scripts/native_deps.sh
+	LIBRARY_PATH="$(ZIRAN_APP_LIBRARY_PATH)$${LIBRARY_PATH:+:$$LIBRARY_PATH}" \
+		LD_RUN_PATH="$(ZIRAN_APP_LIBRARY_PATH)" \
+		./scripts/ziran.sh tool Kryon build --profile desktop
+ziran-run: ziran-app
+	./build/Uku-desktop
+
+# Draws the first frame on a private display, with a fresh database.
+.PHONY: ziran-smoke
+ziran-smoke: ziran-app
+	rm -rf build/ziran-smoke
+	mkdir -p build/ziran-smoke
+	cd build/ziran-smoke && env -u WAYLAND_DISPLAY KRYON_CAPTURE_PATH="$$PWD/first-frame.png" \
+		xvfb-run -a ../Uku-desktop
+	test -s build/ziran-smoke/first-frame.png
+
 .PHONY: core-test
 core-test:
 	SQLITE_LDLIBS="$(SQLITE_LDLIBS)" sh scripts/core_test.sh
 
-test: clean-text-api-check no-vendor-edits core-test smoke
+test: clean-text-api-check no-vendor-edits core-test smoke ziran-smoke
 
 .PHONY: web web-itch itch itch-push site smoke test clean-text-api-check no-vendor-edits
 

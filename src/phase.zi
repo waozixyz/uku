@@ -94,3 +94,53 @@ FormatProcessTimer :: (at: PhaseAt, phase_label: string, remaining_label: string
     }
     return TextView(output[0:length])
 }
+
+AppendTwoDigits :: (output: []u8, length: s64, value: s64) -> s64 {
+    if value < 10 {
+        length = TextAppend(output, length, "0")
+    }
+    digits: [8]u8
+    return TextAppend(output, length, FormatInteger(value, digits[:]))
+}
+
+// The UTC calendar date of a Unix time, as "2026-09-30".
+FormatDate :: (unix: s64, output: []u8) -> string {
+    if output.count == 0 {
+        return ""
+    }
+    output[0] = cast(u8)0
+    days := unix / 86400
+    if unix % 86400 < 0 {
+        days -= 1
+    }
+    // Howard Hinnant's civil_from_days.
+    shifted := days + 719468
+    era := shifted / 146097
+    if shifted < 0 && shifted % 146097 != 0 {
+        era -= 1
+    }
+    day_of_era := shifted - era * 146097
+    year_of_era := (day_of_era - day_of_era / 1460 + day_of_era / 36524 - day_of_era / 146096) / 365
+    day_of_year := day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100)
+    month_index := (5 * day_of_year + 2) / 153
+    day := day_of_year - (153 * month_index + 2) / 5 + 1
+    month := month_index + 3
+    if month > 12 {
+        month -= 12
+    }
+    year := year_of_era + era * 400
+    if month <= 2 {
+        year += 1
+    }
+    digits: [24]u8
+    length := TextAppend(output, 0, FormatInteger(year, digits[:]))
+    length = TextAppend(output, length, "-")
+    length = AppendTwoDigits(output, length, month)
+    length = TextAppend(output, length, "-")
+    length = AppendTwoDigits(output, length, day)
+    if length < 0 {
+        output[0] = cast(u8)0
+        return ""
+    }
+    return TextView(output[0:length])
+}

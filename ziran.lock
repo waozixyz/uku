@@ -2,6 +2,22 @@
   "format": 1,
   "packages": [
     {
+      "commit": "1c4714bad445fe786dd9874943417feddb3461bb",
+      "dependencies": {"liboqs": "pb34994bf01670ac3"},
+      "id": "p1b5dd8d89e3ab867",
+      "name": "Oqs",
+      "ref": "master",
+      "url": "https://github.com/ziranlang/oqs.git"
+    },
+    {
+      "commit": "084a4c376b218a3f247c164b258c1ddb1fbeab53",
+      "dependencies": {"oqs": "p1b5dd8d89e3ab867"},
+      "id": "p38bbeb3fd7ca5480",
+      "name": "DaochiClient",
+      "ref": "master",
+      "url": "https://github.com/kryonlabs/daochi-client.git"
+    },
+    {
       "commit": "fafa2cea97d0cb379d832086ba45a989fa6f9c8e",
       "dependencies": {},
       "id": "p5a77c9c35110e925",
@@ -19,12 +35,12 @@
       "url": "https://github.com/ziranlang/sqlite.git"
     },
     {
-      "commit": "0429320a615d718f60486ab5b1740fda16fb8d97",
-      "dependencies": {"oqs": "pfbeb8acb0fb12fb8"},
-      "id": "p8b5a2fc0dbf7814a",
-      "name": "DaochiClient",
+      "commit": "d8cae51327a085be12871429ecfea124c7dc7a32",
+      "dependencies": {"raylib": "p5a77c9c35110e925"},
+      "id": "p9f5beab64c38f3d3",
+      "name": "Kryon",
       "ref": "master",
-      "url": "https://github.com/kryonlabs/daochi-client.git"
+      "url": "https://github.com/kryonlabs/kryon.git"
     },
     {
       "commit": "e6b9e783747536f34700aab4bd10718c2fecab3f",
@@ -36,24 +52,16 @@
       "url": "https://github.com/open-quantum-safe/liboqs.git"
     },
     {
-      "commit": "a54be452d87f8a9bc44fe2a0e3767b99e66b6cf5",
-      "dependencies": {"raylib": "p5a77c9c35110e925"},
-      "id": "pf59570b542b63322",
-      "name": "Kryon",
+      "commit": "73caa71cf039c8cec56450a0c27432a70e38daf1",
+      "dependencies": {"kryon": "p9f5beab64c38f3d3"},
+      "id": "pccaf6bd8cbf8c434",
+      "name": "Kss",
       "ref": "master",
-      "url": "https://github.com/kryonlabs/kryon.git"
-    },
-    {
-      "commit": "714f11106347d954e8903e88260d36c3044f9dd1",
-      "dependencies": {"liboqs": "pb34994bf01670ac3"},
-      "id": "pfbeb8acb0fb12fb8",
-      "name": "Oqs",
-      "ref": "master",
-      "url": "https://github.com/ziranlang/oqs.git"
+      "url": "https://github.com/kryonlabs/kss.git"
     }
   ],
   "root": {
-    "dependencies": {"Kryon": "pf59570b542b63322", "daochi_client": "p8b5a2fc0dbf7814a", "sqlite": "p72146cc87fc1bbd6"},
+    "dependencies": {"Kryon": "p9f5beab64c38f3d3", "daochi_client": "p38bbeb3fd7ca5480", "kss": "pccaf6bd8cbf8c434", "sqlite": "p72146cc87fc1bbd6"},
     "name": "Uku"
   },
   "toolchain": {

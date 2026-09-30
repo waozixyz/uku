@@ -43,6 +43,13 @@ PhaseAnswer :: () -> s32 {
     if FormatProcessTimer(running, "Voting", "remaining", small[:]) != "" {
         return 10
     }
+    date: [16]u8
+    if FormatDate(0, date[:]) != "1970-01-01" || FormatDate(1790640000, date[:]) != "2026-09-29" {
+        return 11
+    }
+    if FormatDate(951782400, date[:]) != "2000-02-29" || FormatDate(-86400, date[:]) != "1969-12-31" {
+        return 12
+    }
     return 42
 }
 

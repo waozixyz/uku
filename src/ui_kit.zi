@@ -1,0 +1,190 @@
+// Uku's building blocks over Kryon's widgets: text, buttons, panels, and text
+// fields fed with the frame's keyboard input.
+using UI :: #import "Widgets";
+#import "theme"
+#import "text_buffer"
+
+FIELD_LIMIT :: 32
+
+FieldState :: struct {
+    cursor: s32
+    anchor: s32
+    scroll_x: s32
+}
+
+frame_key: s32;
+frame_modifiers: s32;
+frame_typed: string;
+typed_storage: [256]u8;
+// The field that receives typing, or -1.
+focused_field: s32 = -1;
+field_states: [FIELD_LIMIT]FieldState;
+
+// Reads this frame's key, modifiers, and typed text once for every field.
+UiBeginFrame :: (session: Session) {
+    frame_key = KeyboardTake(session)
+    frame_modifiers = KeyboardModifiers(session)
+    frame_typed = TypedTextTake(session, typed_storage[:])
+}
+
+UiTextProps :: (value: string, bounds: Rectangle, font: s32, wrap: TextWrap) -> TextProps {
+    props: TextProps
+    props.bounds = bounds
+    props.text = value
+    props.font = font
+    props.wrap = wrap
+    return props
+}
+
+// The height text takes when wrapped to width.
+UiTextHeight :: (value: string, width: float32, font: s32) -> float32 {
+    props := UiTextProps(value, Rectangle.{0.0, 0.0, width, 0.0}, font, TextWrap.TextWrapAuto)
+    prepared := PrepareText(props, TextFaceFor(props, DefaultTextFace()))
+    return prepared.bounds.height
+}
+
+// One line of text.
+UiText :: (session: Session, value: string, bounds: Rectangle, font: s32) {
+    Text(session, UiTextProps(value, bounds, font, TextWrap.TextWrapNone))
+}
+
+UiCenteredText :: (session: Session, value: string, bounds: Rectangle, font: s32) {
+    props := UiTextProps(value, bounds, font, TextWrap.TextWrapAuto)
+    props.align = TextAlign.TextAlignCenter
+    Text(session, props)
+}
+
+// Wrapped text at x and y; returns the height it took.
+UiParagraph :: (session: Session, value: string, x: float32, y: float32, width: float32, font: s32) -> float32 {
+    height := UiTextHeight(value, width, font)
+    Text(session, UiTextProps(value, Rectangle.{x, y, width, height}, font, TextWrap.TextWrapAuto))
+    return height
+}
+
+UiButton :: (session: Session, id: s32, label: string, bounds: Rectangle, accent: bool) -> bool {
+    props: ButtonProps
+    props.key = cast(u64)id
+    props.id = id
+    props.bounds = bounds
+    props.label = label
+    props.tone = ButtonTone.ButtonToneNeutral
+    props.emphasis = ButtonEmphasis.ButtonEmphasisSoft
+    if accent {
+        props.tone = ButtonTone.ButtonToneAccent
+        props.emphasis = ButtonEmphasis.ButtonEmphasisFilled
+    }
+    return Button(session, props) == 1
+}
+
+// A click target without its own drawing, laid over a panel.
+UiHitArea :: (session: Session, id: s32, label: string, bounds: Rectangle) -> bool {
+    props: ButtonProps
+    props.key = cast(u64)id
+    props.id = id
+    props.bounds = bounds
+    props.label = label
+    props.invisible = true
+    return Button(session, props) == 1
+}
+
+UiPanel :: (session: Session, key: u64, bounds: Rectangle) {
+    props: BoxProps
+    props.key = key
+    props.bounds = bounds
+    props.fill = ThemeSurface()
+    props.border = ThemeBorder()
+    props.radius = 10.0
+    Box(session, props)
+}
+
+UiRule :: (session: Session, key: u64, x: float32, y: float32, width: float32) {
+    props: BoxProps
+    props.key = key
+    props.bounds = Rectangle.{x, y, width, 1.0}
+    props.fill = ThemeBorder()
+    props.border = ThemeBorder()
+    Box(session, props)
+}
+
+// A small section heading over a hairline; returns the height it took.
+UiSection :: (session: Session, key: u64, label: string, x: float32, y: float32, width: float32) -> float32 {
+    UiText(session, label, Rectangle.{x, y, width, 18.0}, 13)
+    UiRule(session, key, x, y + 24.0, width)
+    return 36.0
+}
+
+// Applies a text field's edit to a NUL-terminated buffer. An edit whose
+// result would not fit is dropped.
+UiApplyEdit :: (buffer: []u8, edit: TextFieldEdit) -> bool {
+    if !edit.changed {
+        return false
+    }
+    length := cast(s32)TextUntilNul(buffer).count
+    if edit.start < 0 || edit.end < edit.start || edit.end > length {
+        return false
+    }
+    inserted := cast(s32)edit.replacement.count
+    new_length := length - (edit.end - edit.start) + inserted
+    if new_length + 1 > cast(s32)buffer.count {
+        return false
+    }
+    tail_from := edit.end
+    tail_to := edit.start + inserted
+    tail_count := length - edit.end
+    if tail_to > tail_from {
+        index := tail_count - 1
+        while index >= 0 {
+            buffer[tail_to + index] = buffer[tail_from + index]
+            index -= 1
+        }
+    } else if tail_to < tail_from {
+        index: s32 = 0
+        while index < tail_count {
+            buffer[tail_to + index] = buffer[tail_from + index]
+            index += 1
+        }
+    }
+    index: s32 = 0
+    while index < inserted {
+        buffer[edit.start + index] = edit.replacement[index]
+        index += 1
+    }
+    buffer[new_length] = cast(u8)0
+    return true
+}
+
+// A one-line text field editing buffer; returns true when Enter commits it.
+UiField :: (session: Session, index: s32, label: string, placeholder: string, buffer: []u8, bounds: Rectangle) -> bool {
+    state := field_states[index]
+    props: TextFieldProps
+    props.key = cast(u64)(1000 + index)
+    props.focus_id = 1000 + index
+    props.bounds = bounds
+    props.label = label
+    props.placeholder = placeholder
+    props.value = TextUntilNul(buffer)
+    props.cursor = state.cursor
+    props.anchor = state.anchor
+    props.scroll_x = state.scroll_x
+    props.focused = focused_field == index
+    props.max_bytes = cast(s32)buffer.count - 1
+    props.max_codepoints = props.max_bytes
+    if props.focused {
+        props.input = TextFieldInputFor(frame_key, frame_modifiers, frame_typed)
+    }
+    result := TextField(session, props)
+    state.cursor = result.cursor
+    state.anchor = result.anchor
+    state.scroll_x = result.scroll_x
+    field_states[index] = state
+    unused UiApplyEdit(buffer, result.edit)
+    if result.focused {
+        focused_field = index
+    } else if focused_field == index {
+        focused_field = -1
+    }
+    if result.escaped && focused_field == index {
+        focused_field = -1
+    }
+    return result.committed
+}

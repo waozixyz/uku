@@ -1,0 +1,67 @@
+// Ukuvota on Kryon: the host calls Frame for every frame.
+using UI :: #import "Widgets";
+#import "app_state"
+#import "home_view"
+#import "locale"
+#import "storage"
+#import "theme"
+#import "ui_kit"
+#import "Kryon/ScrollDevice"
+#import "date_time_linux"
+
+STORAGE_PATH :: "uku.sqlite3"
+
+initialized: bool;
+storage_ready: bool;
+
+Initialize :: () {
+    storage_ready = StorageOpen(STORAGE_PATH)
+    if storage_ready {
+        language: [16]u8
+        unused LocaleSelect(SettingLoadText("locale", "en", language[:]))
+        unused StorageLoadProcesses()
+    }
+}
+
+Background :: (session: Session, viewport: Rectangle) {
+    props: BoxProps
+    props.key = cast(u64)1
+    props.bounds = viewport
+    props.fill = ThemeBackground()
+    props.border = ThemeBackground()
+    Box(session, props)
+}
+
+// Screens not ported yet say so and lead back to the dashboard.
+Placeholder :: (session: Session, viewport: Rectangle, title: string) {
+    UiText(session, title, Rectangle.{viewport.x + 24.0, viewport.y + 24.0, viewport.width - 48.0, 28.0}, 22)
+    if UiButton(session, 90, Tr("back_button"), Rectangle.{viewport.x + 24.0, viewport.y + 70.0, 160.0, 40.0}, false) {
+        screen = Screen.ScreenHome
+    }
+}
+
+#program_export
+Frame :: (session: Session, viewport: Rectangle) -> s32 {
+    if !initialized {
+        Initialize()
+        initialized = true
+    }
+    ThemeFollowSystem()
+    UiBeginFrame(session)
+    pointer := PointerSample(session)
+    BeginScrollFrame(session, Vector2.{pointer.x, pointer.y}, pointer.pressed, pointer.down, pointer.released, PointerWheelTake(session, viewport), 0.0)
+    Background(session, viewport)
+    now := UnixNow()
+    if screen == Screen.ScreenHome {
+        HomeView(session, viewport, now)
+    } else if screen == Screen.ScreenCreate {
+        Placeholder(session, viewport, Tr("create_title"))
+    } else if screen == Screen.ScreenCollect {
+        Placeholder(session, viewport, Tr("collect_title"))
+    } else if screen == Screen.ScreenSettings {
+        Placeholder(session, viewport, Tr("Settings"))
+    } else {
+        Placeholder(session, viewport, Tr("manual_title"))
+    }
+    return 0
+}

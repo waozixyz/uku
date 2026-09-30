@@ -1,6 +1,8 @@
 [package]
 name = "Uku"
+entry = "src/app.zi"
 module_roots = ["src", "tests"]
+bridge_modules = ["app"]
 
 [toolchain]
 git = "https://github.com/ziranlang/ziran.git"
@@ -15,6 +17,9 @@ default_profile = "desktop"
 
 [tool.Kryon.profiles.desktop]
 backend = "desktop"
+library = "sqlite3"
+# scripts/native_deps.sh builds this from the locked liboqs source.
+static_archive = "build/liboqs/lib/liboqs.a"
 
 [tool.Kryon.profiles.canvas]
 backend = "canvas"
@@ -25,4 +30,8 @@ ref = "master"
 
 [dependencies.daochi_client]
 git = "https://github.com/kryonlabs/daochi-client.git"
+ref = "master"
+
+[dependencies.kss]
+git = "https://github.com/kryonlabs/kss.git"
 ref = "master"

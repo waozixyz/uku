@@ -1,0 +1,50 @@
+// Uku follows the desktop's light or dark theme with Kryon's classic style,
+// and keeps the palette for the panels it paints itself.
+using UI :: #import "Widgets";
+SystemStyle :: #import "kss/SystemStyle";
+SystemThemeLinux :: #import "SystemThemeLinux";
+#import "Kryon/system_theme"
+#import "text_append"
+#import "text_buffer"
+
+theme_palette: SystemPalette;
+theme_name: [128]u8;
+theme_installed: bool;
+theme_frames: s32;
+
+// Reads the desktop theme on the first frame, then about every two seconds.
+ThemeFollowSystem :: () {
+    if theme_installed {
+        theme_frames += 1
+        if theme_frames < 120 {
+            return
+        }
+        theme_frames = 0
+    }
+    name := SystemThemeLinux.SystemThemeName()
+    if theme_installed && name == TextUntilNul(theme_name[:]) {
+        return
+    }
+    theme_palette = SystemThemeLinux.SystemPaletteRead()
+    unused SystemStyle.StyleInstallSystem(theme_palette)
+    theme_name[0] = cast(u8)0
+    unused TextAppend(theme_name[:], 0, name)
+    theme_installed = true
+}
+
+ThemeBackground :: () -> Color {
+    return ColorFromPacked(theme_palette.background)
+}
+
+// A panel just off the background, as the classic style's "surface".
+ThemeSurface :: () -> Color {
+    return ColorFromPacked(CssMix(theme_palette.background, theme_palette.text, 0.05))
+}
+
+ThemeBorder :: () -> Color {
+    return ColorFromPacked(CssMix(theme_palette.background, theme_palette.text, 0.16))
+}
+
+ThemeAccent :: () -> Color {
+    return ColorFromPacked(theme_palette.selected)
+}

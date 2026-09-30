@@ -1,0 +1,201 @@
+// The dashboard: processes still running, then finished ones, and the way to
+// start a new process.
+using UI :: #import "Widgets";
+#import "app_state"
+#import "locale"
+#import "phase"
+#import "process"
+#import "storage"
+#import "ui_kit"
+#import "text_append"
+#import "text_buffer"
+
+TOP_BAR_HEIGHT :: 56.0
+CONTENT_WIDTH :: 760.0
+CARD_HEIGHT :: 96.0
+CARD_GAP :: 10.0
+
+home_scroll: s32;
+home_content_height: s32 = 800;
+
+ProcessTypeLabel :: (type: ProcessType) -> string {
+    if type == ProcessType.ProcessRanked {
+        return Tr("Ranked")
+    }
+    if type == ProcessType.ProcessCollection {
+        return Tr("Collection")
+    }
+    return Tr("Consent")
+}
+
+PhaseLabel :: (phase: Phase) -> string {
+    if phase == Phase.PhaseProposal {
+        return Tr("proposal_phase_label")
+    }
+    if phase == Phase.PhaseVoting {
+        return Tr("voting_phase_label")
+    }
+    return Tr("results_phase_label")
+}
+
+RowPhase :: (row: ProcessRow, now: s64) -> PhaseAt {
+    return ProcessPhaseAt(row.created_at, row.proposal_minutes, row.voting_minutes, now)
+}
+
+// A process card; returns true when it is clicked.
+ProcessCard :: (session: Session, index: s32, row: ProcessRow, now: s64, x: float32, y: float32, width: float32) -> bool {
+    bounds := Rectangle.{x, y, width, CARD_HEIGHT}
+    UiPanel(session, cast(u64)(5000 + index), bounds)
+    text_x := x + 18.0
+    text_width := width - 36.0
+    UiText(session, TextUntilNul(row.topic[:]), Rectangle.{text_x, y + 12.0, text_width, 22.0}, 17)
+    timer: [128]u8
+    at := RowPhase(row, now)
+    UiText(session, FormatProcessTimer(at, PhaseLabel(at.phase), Tr("time_remaining_label"), timer[:]), Rectangle.{text_x, y + 40.0, text_width, 18.0}, 13)
+    meta: [96]u8
+    date: [16]u8
+    length := TextAppend(meta[:], 0, ProcessTypeLabel(row.type))
+    length = TextAppend(meta[:], length, "  ·  ")
+    length = TextAppend(meta[:], length, FormatDate(row.created_at, date[:]))
+    UiText(session, TextUntilNul(meta[:]), Rectangle.{text_x, y + 64.0, text_width, 18.0}, 13)
+    return UiHitArea(session, 6000 + index, TextUntilNul(row.topic[:]), bounds)
+}
+
+// The first-run panel with nothing to show yet; returns its height.
+EmptyState :: (session: Session, x: float32, y: float32, width: float32) -> float32 {
+    pad: float32 = 28.0
+    text_width := width - pad * 2.0
+    title_height := UiTextHeight(Tr("dashboard_empty"), text_width, 20)
+    body_height := UiTextHeight(Tr("Start one and share the link with your group."), text_width, 14)
+    height := pad + title_height + 10.0 + body_height + 20.0 + 40.0 + pad
+    UiPanel(session, cast(u64)4100, Rectangle.{x, y, width, height})
+    text_y := y + pad
+    text_y += UiParagraph(session, Tr("dashboard_empty"), x + pad, text_y, text_width, 20) + 10.0
+    text_y += UiParagraph(session, Tr("Start one and share the link with your group."), x + pad, text_y, text_width, 14) + 20.0
+    if UiButton(session, 4101, Tr("start_process_button"), Rectangle.{x + pad, text_y, 240.0, 40.0}, true) {
+        screen = Screen.ScreenCreate
+    }
+    return height
+}
+
+// How Ukuvota decides, shown while there are no processes.
+IntroPanel :: (session: Session, x: float32, y: float32, width: float32) -> float32 {
+    lines: [4]string
+    lines[0] = Tr("Score every option from -3 to +3.")
+    lines[1] = Tr("Negative scores weigh more, so resistance is visible.")
+    lines[2] = Tr("Status quo and Repeat process are always on the ballot.")
+    lines[3] = Tr("The option people can accept wins.")
+    pad: float32 = 28.0
+    text_width := width - pad * 2.0
+    height := pad + 30.0
+    index: s32 = 0
+    while index < 4 {
+        height += UiTextHeight(lines[index], text_width, 14) + 8.0
+        index += 1
+    }
+    height += pad
+    UiPanel(session, cast(u64)4200, Rectangle.{x, y, width, height})
+    UiCenteredText(session, Tr("Decide together"), Rectangle.{x, y + pad - 6.0, width, 26.0}, 20)
+    text_y := y + pad + 30.0
+    index = 0
+    while index < 4 {
+        text_y += UiParagraph(session, lines[index], x + pad, text_y, text_width, 14) + 8.0
+        index += 1
+    }
+    return height
+}
+
+TopBar :: (session: Session, viewport: Rectangle) {
+    UiRule(session, cast(u64)4001, viewport.x, viewport.y + TOP_BAR_HEIGHT - 1.0, viewport.width)
+    UiText(session, Tr("home_title"), Rectangle.{viewport.x + 18.0, viewport.y + 17.0, 240.0, 24.0}, 18)
+    right := viewport.x + viewport.width - 12.0
+    new_width: float32 = 200.0
+    settings_width: float32 = 110.0
+    manual_width: float32 = 100.0
+    if UiButton(session, 4002, Tr("Settings"), Rectangle.{right - settings_width, viewport.y + 10.0, settings_width, 36.0}, false) {
+        screen = Screen.ScreenSettings
+    }
+    right -= settings_width + 8.0
+    if UiButton(session, 4003, Tr("Manual"), Rectangle.{right - manual_width, viewport.y + 10.0, manual_width, 36.0}, false) {
+        screen = Screen.ScreenManual
+    }
+    right -= manual_width + 8.0
+    if UiButton(session, 4004, Tr("start_process_button"), Rectangle.{right - new_width, viewport.y + 10.0, new_width, 36.0}, true) {
+        screen = Screen.ScreenCreate
+    }
+}
+
+HomeView :: (session: Session, viewport: Rectangle, now: s64) {
+    TopBar(session, viewport)
+    width := viewport.width - 32.0
+    if width > CONTENT_WIDTH {
+        width = CONTENT_WIDTH
+    }
+    props: ScrollProps
+    props.key = cast(u64)4010
+    props.bounds = Rectangle.{viewport.x, viewport.y + TOP_BAR_HEIGHT, viewport.width, viewport.height - TOP_BAR_HEIGHT}
+    props.content_height = home_content_height
+    props.scroll_offset = home_scroll
+    props.scale = 1.0
+    scroll := Scroll(session, props)
+    home_scroll = scroll.scroll_offset
+    if !scroll.opened {
+        return
+    }
+    x := scroll.content.x + (scroll.content.width - width) / 2.0
+    top := scroll.content.y + 20.0
+    y := top
+    active: s32 = 0
+    finished: s32 = 0
+    index: s32 = 0
+    while index < process_row_count {
+        if RowPhase(process_rows[index], now).phase == Phase.PhaseResults {
+            finished += 1
+        } else {
+            active += 1
+        }
+        index += 1
+    }
+    if process_row_count == 0 {
+        y += EmptyState(session, x, y, width) + 16.0
+        y += IntroPanel(session, x, y, width) + 16.0
+    } else {
+        y += UiSection(session, cast(u64)4020, Tr("Currently In Progress"), x, y, width)
+        if active == 0 {
+            UiText(session, Tr("No processes currently in progress."), Rectangle.{x, y, width, 20.0}, 14)
+            y += 36.0
+        }
+        index = 0
+        while index < process_row_count {
+            row := process_rows[index]
+            if RowPhase(row, now).phase != Phase.PhaseResults {
+                if ProcessCard(session, index, row, now, x, y, width) {
+                    open_row = index
+                    screen = Screen.ScreenCollect
+                }
+                y += CARD_HEIGHT + CARD_GAP
+            }
+            index += 1
+        }
+        y += 14.0
+        y += UiSection(session, cast(u64)4021, Tr("Completed Processes"), x, y, width)
+        if finished == 0 {
+            UiText(session, Tr("Completed processes will appear here."), Rectangle.{x, y, width, 20.0}, 14)
+            y += 36.0
+        }
+        index = 0
+        while index < process_row_count {
+            row := process_rows[index]
+            if RowPhase(row, now).phase == Phase.PhaseResults {
+                if ProcessCard(session, index, row, now, x, y, width) {
+                    open_row = index
+                    screen = Screen.ScreenCollect
+                }
+                y += CARD_HEIGHT + CARD_GAP
+            }
+            index += 1
+        }
+    }
+    home_content_height = cast(s32)(y - top) + 40
+    End(session)
+}
