@@ -1,0 +1,34 @@
+#import "text_append"
+
+#program_export
+TextFillAnswer :: () -> s32 {
+    output: [64]u8
+    values: [2]string
+    values[0] = "2"
+    values[1] = "5"
+    if TextFill("No quorum yet - %d of %d ballots cast", values[:], output[:]) != "No quorum yet - 2 of 5 ballots cast" {
+        return 1
+    }
+    one: [1]string
+    one[0] = "Soup"
+    if TextFill("Consent reached: %s", one[:], output[:]) != "Consent reached: Soup" {
+        return 2
+    }
+    // Markers without values stay, and text without markers is copied.
+    if TextFill("%s and %s", one[:], output[:]) != "Soup and %s" || TextFill("100%", one[:], output[:]) != "100%" {
+        return 3
+    }
+    small: [8]u8
+    if TextFill("Consent reached: %s", one[:], small[:]) != "" {
+        return 4
+    }
+    return 42
+}
+
+#program_export
+main :: () -> s32 {
+    if TextFillAnswer() == 42 {
+        return 0
+    }
+    return 1
+}

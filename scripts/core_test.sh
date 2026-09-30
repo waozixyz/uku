@@ -8,7 +8,7 @@ cd "$root"
 ziran_root=$("$ziran" pkg path ziran)
 args="--root tests --module-path src --module-path $ziran_root/std"
 python3 scripts/generate_locales.py --check
-for test in tally_test:TallyAnswer ballot_test:BallotAnswer process_test:ProcessAnswer locale_test:LocaleAnswer phase_test:PhaseAnswer; do
+for test in tally_test:TallyAnswer ballot_test:BallotAnswer process_test:ProcessAnswer locale_test:LocaleAnswer phase_test:PhaseAnswer text_fill_test:TextFillAnswer; do
     module=${test%%:*}
     work=build/core-test/$module
     rm -rf "$work"

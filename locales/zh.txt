@@ -399,3 +399,75 @@ Status quo 和“重复流程”始终是可选项。
 [Who can vote]
 谁可以投票
 ---
+[ (proposal)]
+ (提案)
+---
+[ - vetoed]
+ - 被否决
+---
+[Add proposal]
+添加提案
+---
+[Consent reached: %s]
+已达成同意：%s
+---
+[Could not submit proposal.]
+无法提交提案。
+---
+[Could not submit vote.]
+无法提交投票。
+---
+[Every option meets resistance - least resisted prevails: %s]
+每个选项都遭到反对 - 反对最少的选项胜出：%s
+---
+[No account needed - your name keeps votes apart.]
+无需账户，你的名字用于区分投票。
+---
+[No quorum yet - %d of %d ballots cast]
+尚未达到法定人数 - 已投 %d / %d 票
+---
+[Objections outweigh support - %s leads without consent]
+反对超过支持 - %s 领先但未获同意
+---
+[Objections outweigh support - no consent yet]
+反对超过支持 - 尚未达成同意
+---
+[Proposal submitted.]
+提案已提交。
+---
+[Quorum]
+法定人数
+---
+[Repeat process chosen]
+已选择重复流程
+---
+[Status quo prevails]
+维持 Status quo
+---
+[Submit proposal]
+提交提案
+---
+[Submit vote]
+提交投票
+---
+[Type]
+类型
+---
+[Update vote]
+更新投票
+---
+[Vote submitted.]
+投票已提交。
+---
+[Weight]
+权重
+---
+[Your ballot]
+你的选票
+---
+[Your name or persistent alias]
+你的名字或固定别名
+---
+[weighted resistance]
+加权反对
+---

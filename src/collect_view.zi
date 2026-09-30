@@ -1,0 +1,579 @@
+// One process: its question and timer, then what its phase allows (adding
+// proposals, scoring them, or reading the results), its participants, and
+// its proposals. Everything is saved on this device.
+using UI :: #import "Widgets";
+#import "app_state"
+#import "ballot"
+#import "labels"
+#import "locale"
+#import "phase"
+#import "process"
+#import "standing"
+#import "storage"
+#import "tally"
+#import "ui_kit"
+#import "number_text"
+#import "text_append"
+#import "text_buffer"
+
+FIELD_VOTER_NAME :: 10
+FIELD_NEW_PROPOSAL_TITLE :: 11
+FIELD_NEW_PROPOSAL_DESCRIPTION :: 12
+
+// The process_rows index loaded into process, or -1.
+loaded_row: s32 = -1;
+voter_name: [80]u8;
+// This voter's score for each proposal, or SCORE_UNSET.
+ballot_scores: [MAX_PROPOSALS]s32;
+// The voter whose stored ballot filled ballot_scores.
+ballot_voter: [120]u8;
+new_proposal_title: [180]u8;
+new_proposal_description: [420]u8;
+collect_status: [160]u8;
+collect_scroll: s32;
+collect_content_height: s32 = 900;
+
+ClearBallot :: () {
+    index: s32 = 0
+    while index < MAX_PROPOSALS {
+        ballot_scores[index] = SCORE_UNSET
+        index += 1
+    }
+    ballot_voter[0] = cast(u8)0
+}
+
+// Reads the open process from storage into process.
+CollectLoad :: () {
+    if open_row < 0 || open_row >= process_row_count {
+        return
+    }
+    unused StorageLoadProcessDetail(process_rows[open_row], StandingInLanguage())
+    loaded_row = open_row
+}
+
+CollectOpened :: () {
+    if loaded_row != open_row {
+        CollectLoad()
+        ClearBallot()
+        collect_status[0] = cast(u8)0
+        collect_scroll = 0
+    }
+}
+
+SetStatus :: (message: string) {
+    collect_status[0] = cast(u8)0
+    unused TextAppend(collect_status[:], 0, message)
+}
+
+// Who is proposing or voting on this device: the typed name, which keeps
+// people sharing a device apart, else the account, else an anonymous voter
+// of this process.
+VoterId :: (output: []u8) -> string {
+    output[0] = cast(u8)0
+    name := TextUntilNul(voter_name[:])
+    length: s64 = 0
+    if HasText(name) {
+        length = TextAppend(output, 0, "alias:")
+        length = TextAppend(output, length, name)
+    } else {
+        account := StorageLoadAccount()
+        if account.loaded {
+            length = TextAppend(output, 0, TextUntilNul(account.keys.public_id[:]))
+        } else {
+            length = TextAppend(output, 0, "anonymous:")
+            length = TextAppend(output, length, TextUntilNul(process_rows[open_row].id[:]))
+        }
+    }
+    if length < 0 {
+        output[0] = cast(u8)0
+        return ""
+    }
+    return TextUntilNul(output)
+}
+
+VoterName :: () -> string {
+    name := TextUntilNul(voter_name[:])
+    if HasText(name) {
+        return name
+    }
+    return Tr("anonymous")
+}
+
+WeightName :: (weight: s32, output: []u8) -> string {
+    if NegativeWeightIsInfinite(weight) {
+        return Tr("negative_weight_infinity")
+    }
+    return FormatInteger(cast(s64)weight, output)
+}
+
+// total / count rounded half away from zero, as C's roundf.
+RoundedAverage :: (total: s64, count: s32) -> s64 {
+    divisor := cast(s64)count * 2
+    if total < 0 {
+        return -((-total * 2 + cast(s64)count) / divisor)
+    }
+    return (total * 2 + cast(s64)count) / divisor
+}
+
+// A total over a count with one decimal, as "1.5" or "-0.3".
+FormatAverage :: (total: s64, count: s32, output: []u8) -> string {
+    output[0] = cast(u8)0
+    if count <= 0 {
+        unused TextAppend(output, 0, "0.0")
+        return TextUntilNul(output)
+    }
+    tenths := (total * 10) / cast(s64)count
+    remainder := (total * 10) % cast(s64)count
+    if remainder * 2 >= cast(s64)count {
+        tenths += 1
+    } else if remainder * 2 <= -cast(s64)count {
+        tenths -= 1
+    }
+    length: s64 = 0
+    if tenths < 0 {
+        length = TextAppend(output, 0, "-")
+        tenths = -tenths
+    }
+    digits: [24]u8
+    length = TextAppend(output, length, FormatInteger(tenths / 10, digits[:]))
+    length = TextAppend(output, length, ".")
+    length = TextAppend(output, length, FormatInteger(tenths % 10, digits[:]))
+    return TextUntilNul(output)
+}
+
+Header :: (session: Session, row: ProcessRow, now: s64, x: float32, y: float32, width: float32) -> float32 {
+    top := y
+    y += UiParagraph(session, TextUntilNul(row.topic[:]), x, y, width, 20) + 10.0
+    if row.description[0] != cast(u8)0 {
+        y += UiParagraph(session, TextUntilNul(row.description[:]), x, y, width, 14) + 12.0
+    }
+    at := ProcessPhaseAt(row.created_at, row.proposal_minutes, row.voting_minutes, now)
+    timer: [128]u8
+    UiPanel(session, cast(u64)7001, Rectangle.{x, y, width, 44.0})
+    UiText(session, FormatProcessTimer(at, PhaseLabel(at.phase), Tr("time_remaining_label"), timer[:]), Rectangle.{x + 14.0, y + 12.0, width - 28.0, 20.0}, 15)
+    y += 56.0
+    line: [256]u8
+    length := TextAppend(line[:], 0, Tr("Type"))
+    length = TextAppend(line[:], length, " ")
+    length = TextAppend(line[:], length, ProcessTypeLabel(row.type))
+    if ProcessUsesNegativeWeight(row.type) {
+        weight: [32]u8
+        length = TextAppend(line[:], length, " | ")
+        length = TextAppend(line[:], length, Tr("weighted resistance"))
+        length = TextAppend(line[:], length, " | ")
+        length = TextAppend(line[:], length, Tr("Weight"))
+        length = TextAppend(line[:], length, ": ")
+        length = TextAppend(line[:], length, WeightName(row.negative_weight, weight[:]))
+    }
+    if row.quorum_votes > 0 {
+        digits: [16]u8
+        length = TextAppend(line[:], length, " | ")
+        length = TextAppend(line[:], length, Tr("Quorum"))
+        length = TextAppend(line[:], length, ": ")
+        length = TextAppend(line[:], length, FormatInteger(cast(s64)row.quorum_votes, digits[:]))
+    }
+    y += UiParagraph(session, TextUntilNul(line[:]), x, y, width, 13) + 18.0
+    return y - top
+}
+
+NameField :: (session: Session, x: float32, y: float32, width: float32) -> float32 {
+    UiText(session, Tr("Your name or persistent alias"), Rectangle.{x, y, width, 18.0}, 13)
+    unused UiField(session, FIELD_VOTER_NAME, Tr("Your name or persistent alias"), Tr("anonymous"), voter_name[:], Rectangle.{x, y + 24.0, width, 40.0})
+    hint := UiParagraph(session, Tr("No account needed - your name keeps votes apart."), x, y + 70.0, width, 13)
+    return 70.0 + hint + 16.0
+}
+
+ProposalSection :: (session: Session, row: ProcessRow, now: s64, x: float32, y: float32, width: float32) -> float32 {
+    top := y
+    UiText(session, Tr("Add proposal"), Rectangle.{x, y, width, 22.0}, 17)
+    y += 34.0
+    y += NameField(session, x, y, width)
+    UiText(session, Tr("Title"), Rectangle.{x, y, width, 18.0}, 13)
+    unused UiField(session, FIELD_NEW_PROPOSAL_TITLE, Tr("Title"), Tr("Proposal title"), new_proposal_title[:], Rectangle.{x, y + 24.0, width, 40.0})
+    y += 76.0
+    UiText(session, Tr("Description"), Rectangle.{x, y, width, 18.0}, 13)
+    unused UiField(session, FIELD_NEW_PROPOSAL_DESCRIPTION, Tr("Description"), Tr("Optional details"), new_proposal_description[:], Rectangle.{x, y + 24.0, width, 40.0})
+    y += 76.0
+    has_title := HasText(TextUntilNul(new_proposal_title[:]))
+    if HasText(TextUntilNul(new_proposal_description[:])) && !has_title {
+        y += UiParagraph(session, Tr("proposal_title_warning"), x, y, width, 13) + 10.0
+    }
+    if UiButton(session, 7101, Tr("Submit proposal"), Rectangle.{x, y, 220.0, 40.0}, true) && has_title {
+        voter: [120]u8
+        saved := StorageSaveLocalProposal(TextUntilNul(row.id[:]), VoterId(voter[:]), VoterName(), TextUntilNul(new_proposal_title[:]), TextUntilNul(new_proposal_description[:]), now)
+        if saved > 0 {
+            new_proposal_title = .{}
+            new_proposal_description = .{}
+            focused_field = -1
+            CollectLoad()
+            SetStatus(Tr("Proposal submitted."))
+        } else {
+            SetStatus(Tr("Could not submit proposal."))
+        }
+    }
+    y += 56.0
+    return y - top
+}
+
+// Fills the ballot from the voter's stored scores when the voter changes.
+PrefillBallot :: (voter: string) {
+    if TextUntilNul(ballot_voter[:]) == voter {
+        return
+    }
+    ClearBallot()
+    unused TextAppend(ballot_voter[:], 0, voter)
+    participant := ProcessParticipantFind(voter)
+    if participant < 0 || !process.participants[participant].has_ballot {
+        return
+    }
+    index: s32 = 0
+    while index < process.proposal_count {
+        ballot_scores[index] = cast(s32)process.proposal_scores[participant][index]
+        index += 1
+    }
+}
+
+ScoreChoice :: (session: Session, index: s32, x: float32, y: float32, width: float32) {
+    options: [7]SegmentOption
+    labels: [7]string = .{"-3", "-2", "-1", "0", "+1", "+2", "+3"}
+    option: s32 = 0
+    while option < 7 {
+        options[option].key = cast(u64)(7300 + index * 10 + option)
+        options[option].label = labels[option]
+        option += 1
+    }
+    props: SegmentedControlProps
+    props.key = cast(u64)(7200 + index)
+    props.id = 7200 + index
+    props.bounds = Rectangle.{x, y, width, 38.0}
+    props.scale = 1.0
+    score := ballot_scores[index]
+    if ScoreIsValid(score) {
+        props.selected_index = score + 3
+        props.has_selection = true
+    }
+    result := SegmentedControl(session, props, options[:])
+    if result.changed {
+        ballot_scores[index] = result.selected_index - 3
+    }
+}
+
+VotingSection :: (session: Session, row: ProcessRow, now: s64, x: float32, y: float32, width: float32) -> float32 {
+    top := y
+    UiText(session, Tr("Your ballot"), Rectangle.{x, y, width, 22.0}, 17)
+    y += 34.0
+    y += NameField(session, x, y, width)
+    voter: [120]u8
+    voter_id := VoterId(voter[:])
+    PrefillBallot(voter_id)
+    index: s32 = 0
+    while index < process.proposal_count {
+        proposal := process.proposals[index]
+        description := TextUntilNul(proposal.description[:])
+        height: float32 = 96.0
+        if description.count > 0 {
+            height = 120.0
+        }
+        UiPanel(session, cast(u64)(7400 + index), Rectangle.{x, y, width, height})
+        UiText(session, TextUntilNul(proposal.title[:]), Rectangle.{x + 14.0, y + 12.0, width - 28.0, 22.0}, 16)
+        if description.count > 0 {
+            UiText(session, description, Rectangle.{x + 14.0, y + 38.0, width - 28.0, 18.0}, 13)
+        }
+        ScoreChoice(session, index, x + 14.0, y + height - 50.0, width - 28.0)
+        y += height + 10.0
+        index += 1
+    }
+    participant := ProcessParticipantFind(voter_id)
+    voted := participant >= 0 && process.participants[participant].has_ballot
+    label := Tr("Submit vote")
+    if voted {
+        label = Tr("Update vote")
+    }
+    if UiButton(session, 7501, label, Rectangle.{x, y + 4.0, 220.0, 40.0}, true) {
+        ballot: [2048]u8
+        length: s64 = 0
+        index = 0
+        while index < process.proposal_count {
+            if ScoreIsValid(ballot_scores[index]) {
+                length = BallotAppend(ballot[:], length, TextUntilNul(process.proposals[index].id[:]), ballot_scores[index])
+            }
+            index += 1
+        }
+        if length >= 0 && StorageSaveLocalVote(TextUntilNul(row.id[:]), voter_id, VoterName(), TextUntilNul(ballot[:]), now) {
+            CollectLoad()
+            // Read the saved ballot back on the next frame.
+            ballot_voter[0] = cast(u8)0
+            SetStatus(Tr("Vote submitted."))
+        } else {
+            SetStatus(Tr("Could not submit vote."))
+        }
+    }
+    y += 60.0
+    return y - top
+}
+
+VerdictText :: (verdict: VerdictResult, quorum: s32, output: []u8) -> string {
+    cast_digits: [16]u8
+    quorum_digits: [16]u8
+    values: [2]string
+    if verdict.verdict == Verdict.VerdictNoQuorum {
+        values[0] = FormatInteger(cast(s64)ProcessIncludedBallots(), cast_digits[:])
+        values[1] = FormatInteger(cast(s64)quorum, quorum_digits[:])
+        return TextFill(Tr("No quorum yet - %d of %d ballots cast"), values[:], output)
+    }
+    if verdict.winner < 0 {
+        return ""
+    }
+    winner := process.proposals[verdict.winner]
+    winner_id := TextUntilNul(winner.id[:])
+    values[0] = TextUntilNul(winner.title[:])
+    if verdict.verdict == Verdict.VerdictAllResisted {
+        return TextFill(Tr("Every option meets resistance - least resisted prevails: %s"), values[0:1], output)
+    }
+    if verdict.verdict == Verdict.VerdictObjections {
+        if winner_id == "status-quo" {
+            return TextFill(Tr("Objections outweigh support - no consent yet"), values[0:0], output)
+        }
+        return TextFill(Tr("Objections outweigh support - %s leads without consent"), values[0:1], output)
+    }
+    if winner_id == "status-quo" {
+        return TextFill(Tr("Status quo prevails"), values[0:0], output)
+    }
+    if winner_id == "repeat-process" {
+        return TextFill(Tr("Repeat process chosen"), values[0:0], output)
+    }
+    return TextFill(Tr("Consent reached: %s"), values[0:1], output)
+}
+
+ResultRow :: (session: Session, rank: s32, proposal_index: s32, tally: ProposalTally, weight: s32, x: float32, y: float32, width: float32) -> float32 {
+    proposal := process.proposals[proposal_index]
+    resisted := tally.vote_count > 0 && tally.negative_total < 0 && -tally.negative_total >= tally.positive_total
+    height: float32 = 76.0
+    if resisted {
+        height = 96.0
+    }
+    UiPanel(session, cast(u64)(7600 + rank), Rectangle.{x, y, width, height})
+    title: [256]u8
+    digits: [24]u8
+    length := TextAppend(title[:], 0, FormatInteger(cast(s64)rank, digits[:]))
+    length = TextAppend(title[:], length, ". ")
+    length = TextAppend(title[:], length, TextUntilNul(proposal.title[:]))
+    if rank == 1 {
+        length = TextAppend(title[:], length, Tr(" - leading"))
+    }
+    if NegativeWeightIsInfinite(weight) && tally.negative_total <= -cast(s64)NEGATIVE_WEIGHT_INFINITY {
+        length = TextAppend(title[:], length, Tr(" - vetoed"))
+    }
+    UiText(session, TextUntilNul(title[:]), Rectangle.{x + 14.0, y + 12.0, width - 90.0, 22.0}, 16)
+    meta: [256]u8
+    average: [24]u8
+    length = TextAppend(meta[:], 0, Tr("total"))
+    length = TextAppend(meta[:], length, " ")
+    length = TextAppend(meta[:], length, FormatInteger(tally.total, digits[:]))
+    length = TextAppend(meta[:], length, " | ")
+    length = TextAppend(meta[:], length, Tr("support"))
+    length = TextAppend(meta[:], length, " ")
+    length = TextAppend(meta[:], length, FormatInteger(tally.positive_total, digits[:]))
+    length = TextAppend(meta[:], length, " | ")
+    length = TextAppend(meta[:], length, Tr("resistance"))
+    length = TextAppend(meta[:], length, " ")
+    length = TextAppend(meta[:], length, FormatInteger(tally.negative_total, digits[:]))
+    length = TextAppend(meta[:], length, " | ")
+    length = TextAppend(meta[:], length, Tr("votes"))
+    length = TextAppend(meta[:], length, " ")
+    length = TextAppend(meta[:], length, FormatInteger(cast(s64)tally.vote_count, digits[:]))
+    length = TextAppend(meta[:], length, " | ")
+    length = TextAppend(meta[:], length, Tr("avg"))
+    length = TextAppend(meta[:], length, " ")
+    length = TextAppend(meta[:], length, FormatAverage(tally.total, tally.vote_count, average[:]))
+    UiText(session, TextUntilNul(meta[:]), Rectangle.{x + 14.0, y + 42.0, width - 90.0, 18.0}, 13)
+    if resisted {
+        UiText(session, Tr("resistance at least equals support"), Rectangle.{x + 14.0, y + 64.0, width - 90.0, 18.0}, 13)
+    }
+    // The average score, rounded, in a badge at the end of the row.
+    badge: [16]u8
+    badge_text := "-"
+    if tally.vote_count > 0 {
+        whole := RoundedAverage(tally.total, tally.vote_count)
+        if whole > 3 {
+            whole = 3
+        }
+        if whole < -3 {
+            whole = -3
+        }
+        badge_length: s64 = 0
+        if whole > 0 {
+            badge_length = TextAppend(badge[:], 0, "+")
+        }
+        unused TextAppend(badge[:], badge_length, FormatInteger(whole, digits[:]))
+        badge_text = TextUntilNul(badge[:])
+    }
+    badge_bounds := Rectangle.{x + width - 64.0, y + (height - 44.0) / 2.0, 44.0, 44.0}
+    UiPanel(session, cast(u64)(7700 + rank), badge_bounds)
+    UiCenteredText(session, badge_text, Rectangle.{badge_bounds.x, badge_bounds.y + 12.0, badge_bounds.width, 20.0}, 15)
+    return height + 10.0
+}
+
+ResultsSection :: (session: Session, row: ProcessRow, x: float32, y: float32, width: float32) -> float32 {
+    top := y
+    UiText(session, Tr("Results"), Rectangle.{x, y, width, 22.0}, 17)
+    y += 34.0
+    tallies: [MAX_PROPOSALS]ProposalTally
+    index: s32 = 0
+    while index < process.proposal_count {
+        tallies[index] = ProcessProposalTally(index)
+        index += 1
+    }
+    verdict := TallyVerdict(tallies[:], process.proposal_count, ProcessIncludedBallots(), row.quorum_votes, row.negative_weight)
+    if verdict.verdict != Verdict.VerdictPending {
+        text: [320]u8
+        UiPanel(session, cast(u64)7801, Rectangle.{x, y, width, 52.0})
+        UiText(session, VerdictText(verdict, row.quorum_votes, text[:]), Rectangle.{x + 14.0, y + 15.0, width - 28.0, 22.0}, 16)
+        y += 64.0
+    }
+    order: [MAX_PROPOSALS]s32
+    TallySortIndices(tallies[:], order[:], process.proposal_count)
+    index = 0
+    while index < process.proposal_count {
+        y += ResultRow(session, index + 1, order[index], tallies[order[index]], row.negative_weight, x, y, width)
+        index += 1
+    }
+    return y - top + 10.0
+}
+
+ParticipantSection :: (session: Session, results: bool, x: float32, y: float32, width: float32) -> float32 {
+    top := y
+    ballots: s32 = 0
+    index: s32 = 0
+    while index < process.participant_count {
+        if process.participants[index].has_ballot {
+            ballots += 1
+        }
+        index += 1
+    }
+    heading: [96]u8
+    digits: [16]u8
+    length := TextAppend(heading[:], 0, Tr("Participants"))
+    length = TextAppend(heading[:], length, " (")
+    length = TextAppend(heading[:], length, FormatInteger(cast(s64)ProcessIncludedBallots(), digits[:]))
+    length = TextAppend(heading[:], length, "/")
+    length = TextAppend(heading[:], length, FormatInteger(cast(s64)ballots, digits[:]))
+    length = TextAppend(heading[:], length, ")")
+    UiText(session, TextUntilNul(heading[:]), Rectangle.{x, y, width, 22.0}, 17)
+    y += 34.0
+    if ballots == 0 {
+        y += UiParagraph(session, Tr("No votes submitted yet."), x, y, width, 13) + 12.0
+    } else if results {
+        y += UiParagraph(session, Tr("Tap a participant to include or exclude them from the results."), x, y, width, 13) + 10.0
+    }
+    index = 0
+    while index < process.participant_count {
+        participant := process.participants[index]
+        name := TextUntilNul(participant.display_name[:])
+        if name.count == 0 {
+            name = Tr("anonymous")
+        }
+        label: [160]u8
+        label_length := TextAppend(label[:], 0, name)
+        if !participant.has_ballot {
+            label_length = TextAppend(label[:], label_length, Tr(" (proposal)"))
+        }
+        if results && participant.has_ballot {
+            props: CheckboxProps
+            props.key = cast(u64)(7900 + index)
+            props.id = 7900 + index
+            props.label = TextUntilNul(label[:])
+            props.bounds = Rectangle.{x, y, width, 32.0}
+            props.checked = !participant.excluded
+            process.participants[index].excluded = !Checkbox(session, props).checked
+        } else {
+            UiText(session, TextUntilNul(label[:]), Rectangle.{x, y + 6.0, width, 20.0}, 14)
+        }
+        y += 36.0
+        index += 1
+    }
+    return y - top + 12.0
+}
+
+ProposalList :: (session: Session, x: float32, y: float32, width: float32) -> float32 {
+    top := y
+    UiText(session, Tr("Proposals"), Rectangle.{x, y, width, 22.0}, 17)
+    y += 34.0
+    index: s32 = 0
+    while index < process.proposal_count {
+        proposal := process.proposals[index]
+        author := TextUntilNul(proposal.display_name[:])
+        description := TextUntilNul(proposal.description[:])
+        inner := width - 28.0
+        height: float32 = 44.0
+        if author.count > 0 {
+            height += 22.0
+        }
+        description_height: float32 = 0.0
+        if description.count > 0 {
+            description_height = UiTextHeight(description, inner, 13)
+            height += description_height + 8.0
+        }
+        UiPanel(session, cast(u64)(8000 + index), Rectangle.{x, y, width, height})
+        line_y := y + 12.0
+        UiText(session, TextUntilNul(proposal.title[:]), Rectangle.{x + 14.0, line_y, inner, 22.0}, 16)
+        line_y += 26.0
+        if author.count > 0 {
+            UiText(session, author, Rectangle.{x + 14.0, line_y, inner, 18.0}, 13)
+            line_y += 22.0
+        }
+        if description.count > 0 {
+            unused UiParagraph(session, description, x + 14.0, line_y, inner, 13)
+        }
+        y += height + 10.0
+        index += 1
+    }
+    return y - top
+}
+
+CollectView :: (session: Session, viewport: Rectangle, now: s64) {
+    if UiSubPageBar(session, viewport, Tr("collect_title")) {
+        screen = Screen.ScreenHome
+        unused StorageLoadProcesses()
+        loaded_row = -1
+        return
+    }
+    if open_row < 0 || open_row >= process_row_count {
+        screen = Screen.ScreenHome
+        return
+    }
+    CollectOpened()
+    row := process_rows[open_row]
+    props: ScrollProps
+    props.key = cast(u64)7000
+    props.bounds = Rectangle.{viewport.x, viewport.y + SUB_PAGE_BAR_HEIGHT, viewport.width, viewport.height - SUB_PAGE_BAR_HEIGHT}
+    props.content_height = collect_content_height
+    props.scroll_offset = collect_scroll
+    props.scale = 1.0
+    scroll := Scroll(session, props)
+    collect_scroll = scroll.scroll_offset
+    if !scroll.opened {
+        return
+    }
+    column := UiColumn(scroll.content, 640.0)
+    x := column.x
+    width := column.width
+    top := scroll.content.y + 20.0
+    y := top
+    y += Header(session, row, now, x, y, width)
+    phase := ProcessPhaseAt(row.created_at, row.proposal_minutes, row.voting_minutes, now).phase
+    if phase == Phase.PhaseProposal {
+        y += ProposalSection(session, row, now, x, y, width)
+    } else if phase == Phase.PhaseVoting {
+        y += VotingSection(session, row, now, x, y, width)
+    } else {
+        y += ResultsSection(session, row, x, y, width)
+    }
+    if collect_status[0] != cast(u8)0 {
+        y += UiParagraph(session, TextUntilNul(collect_status[:]), x, y, width, 14) + 16.0
+    }
+    y += ParticipantSection(session, phase == Phase.PhaseResults, x, y, width)
+    y += ProposalList(session, x, y, width)
+    collect_content_height = cast(s32)(y - top) + 60
+    End(session)
+}

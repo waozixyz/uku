@@ -15,3 +15,48 @@ TextAppend :: (output: []u8, length: s64, text: string) -> s64 {
     output[length] = cast(u8)0
     return length
 }
+
+// Fills a catalog template's "%d" and "%s" markers, in order, with values.
+// Returns "" when the result does not fit.
+TextFill :: (template: string, values: []string, output: []u8) -> string {
+    if output.count == 0 {
+        return ""
+    }
+    output[0] = cast(u8)0
+    length: s64 = 0
+    next: s64 = 0
+    start: s64 = 0
+    index: s64 = 0
+    while index < cast(s64)template.count {
+        marker := index + 1 < cast(s64)template.count && template[index] == cast(u8)37 &&
+            (template[index + 1] == cast(u8)100 || template[index + 1] == cast(u8)115)
+        if marker && next < cast(s64)values.count {
+            length = TextAppend(output, length, template[start:index])
+            length = TextAppend(output, length, values[next])
+            next += 1
+            index += 2
+            start = index
+        } else {
+            index += 1
+        }
+    }
+    length = TextAppend(output, length, template[start:template.count])
+    if length < 0 {
+        output[0] = cast(u8)0
+        return ""
+    }
+    return TextView(output[0:length])
+}
+
+// Whether text has anything besides spaces, tabs, and line breaks.
+HasText :: (text: string) -> bool {
+    index: s64 = 0
+    while index < cast(s64)text.count {
+        byte := text[index]
+        if byte != cast(u8)32 && byte != cast(u8)9 && byte != cast(u8)10 && byte != cast(u8)13 {
+            return true
+        }
+        index += 1
+    }
+    return false
+}

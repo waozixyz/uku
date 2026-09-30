@@ -369,3 +369,87 @@ Quem pode adicionar propostas
 [Who can vote]
 Quem pode votar
 ---
+[ (proposal)]
+ (proposta)
+---
+[ - leading]
+ - lidera
+---
+[ - vetoed]
+ - vetada
+---
+[Add proposal]
+Adicionar proposta
+---
+[Consent reached: %s]
+Consentimento alcançado: %s
+---
+[Could not submit proposal.]
+Não foi possível enviar a proposta.
+---
+[Could not submit vote.]
+Não foi possível enviar o voto.
+---
+[Every option meets resistance - least resisted prevails: %s]
+Todas as opções encontram resistência - prevalece a menos resistida: %s
+---
+[No account needed - your name keeps votes apart.]
+Não precisa de conta - seu nome separa os votos.
+---
+[No quorum yet - %d of %d ballots cast]
+Ainda sem quórum - %d de %d votos
+---
+[Objections outweigh support - %s leads without consent]
+As objeções superam o apoio - %s lidera sem consentimento
+---
+[Objections outweigh support - no consent yet]
+As objeções superam o apoio - ainda sem consentimento
+---
+[Proposal submitted.]
+Proposta enviada.
+---
+[Quorum]
+Quórum
+---
+[Repeat process chosen]
+Repetir processo escolhido
+---
+[Results]
+Resultados
+---
+[Status quo prevails]
+Prevalece o status quo
+---
+[Submit proposal]
+Enviar proposta
+---
+[Submit vote]
+Enviar voto
+---
+[Type]
+Tipo
+---
+[Update vote]
+Atualizar voto
+---
+[Vote submitted.]
+Voto enviado.
+---
+[Weight]
+Peso
+---
+[Your ballot]
+Sua cédula
+---
+[Your name or persistent alias]
+Seu nome ou apelido fixo
+---
+[total]
+total
+---
+[votes]
+votos
+---
+[weighted resistance]
+resistência ponderada
+---

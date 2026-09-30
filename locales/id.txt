@@ -393,3 +393,78 @@ Siapa yang dapat menambah proposal
 [Who can vote]
 Siapa yang dapat memilih
 ---
+[ (proposal)]
+ (proposal)
+---
+[ - vetoed]
+ - diveto
+---
+[Add proposal]
+Tambah proposal
+---
+[Consent reached: %s]
+Persetujuan tercapai: %s
+---
+[Could not submit proposal.]
+Proposal tidak dapat dikirim.
+---
+[Could not submit vote.]
+Suara tidak dapat dikirim.
+---
+[Every option meets resistance - least resisted prevails: %s]
+Setiap opsi mendapat penolakan - yang paling sedikit ditolak menang: %s
+---
+[No account needed - your name keeps votes apart.]
+Tidak perlu akun - nama Anda membedakan suara.
+---
+[No quorum yet - %d of %d ballots cast]
+Belum kuorum - %d dari %d suara masuk
+---
+[Objections outweigh support - %s leads without consent]
+Keberatan melebihi dukungan - %s unggul tanpa persetujuan
+---
+[Objections outweigh support - no consent yet]
+Keberatan melebihi dukungan - belum ada persetujuan
+---
+[Proposal submitted.]
+Proposal terkirim.
+---
+[Quorum]
+Kuorum
+---
+[Repeat process chosen]
+Ulangi proses dipilih
+---
+[Status quo prevails]
+Status quo bertahan
+---
+[Submit proposal]
+Kirim proposal
+---
+[Submit vote]
+Kirim suara
+---
+[Type]
+Jenis
+---
+[Update vote]
+Perbarui suara
+---
+[Vote submitted.]
+Suara terkirim.
+---
+[Weight]
+Bobot
+---
+[Your ballot]
+Surat suara Anda
+---
+[Your name or persistent alias]
+Nama atau alias tetap Anda
+---
+[total]
+total
+---
+[weighted resistance]
+penolakan berbobot
+---

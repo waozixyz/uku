@@ -399,3 +399,75 @@ Status quo와 프로세스 반복은 항상 선택지에 있습니다.
 [Who can vote]
 투표할 수 있는 사람
 ---
+[ (proposal)]
+ (제안)
+---
+[ - vetoed]
+ - 거부됨
+---
+[Add proposal]
+제안 추가
+---
+[Consent reached: %s]
+동의에 도달했습니다: %s
+---
+[Could not submit proposal.]
+제안을 제출할 수 없습니다.
+---
+[Could not submit vote.]
+투표를 제출할 수 없습니다.
+---
+[Every option meets resistance - least resisted prevails: %s]
+모든 선택지에 반대가 있습니다 - 반대가 가장 적은 선택지가 채택됩니다: %s
+---
+[No account needed - your name keeps votes apart.]
+계정이 필요 없습니다. 이름으로 투표를 구분합니다.
+---
+[No quorum yet - %d of %d ballots cast]
+아직 정족수 미달 - %d / %d 표
+---
+[Objections outweigh support - %s leads without consent]
+반대가 지지를 앞섭니다 - %s이(가) 동의 없이 앞서 있습니다
+---
+[Objections outweigh support - no consent yet]
+반대가 지지를 앞섭니다 - 아직 동의가 없습니다
+---
+[Proposal submitted.]
+제안을 제출했습니다.
+---
+[Quorum]
+정족수
+---
+[Repeat process chosen]
+프로세스 반복이 선택되었습니다
+---
+[Status quo prevails]
+Status quo가 유지됩니다
+---
+[Submit proposal]
+제안 제출
+---
+[Submit vote]
+투표 제출
+---
+[Type]
+유형
+---
+[Update vote]
+투표 수정
+---
+[Vote submitted.]
+투표를 제출했습니다.
+---
+[Weight]
+가중치
+---
+[Your ballot]
+내 투표
+---
+[Your name or persistent alias]
+이름 또는 고정 별칭
+---
+[weighted resistance]
+가중 반대
+---

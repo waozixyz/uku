@@ -1,0 +1,24 @@
+// The names of process types and phases in the chosen language.
+#import "locale"
+#import "phase"
+#import "process"
+
+ProcessTypeLabel :: (type: ProcessType) -> string {
+    if type == ProcessType.ProcessRanked {
+        return Tr("Ranked")
+    }
+    if type == ProcessType.ProcessCollection {
+        return Tr("Collection")
+    }
+    return Tr("Consent")
+}
+
+PhaseLabel :: (phase: Phase) -> string {
+    if phase == Phase.PhaseProposal {
+        return Tr("proposal_phase_label")
+    }
+    if phase == Phase.PhaseVoting {
+        return Tr("voting_phase_label")
+    }
+    return Tr("results_phase_label")
+}

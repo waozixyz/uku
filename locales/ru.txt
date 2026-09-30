@@ -399,3 +399,75 @@ Status quo и «Повторить процесс» всегда есть сре
 [Who can vote]
 Кто может голосовать
 ---
+[ (proposal)]
+ (предложение)
+---
+[ - vetoed]
+ — вето
+---
+[Add proposal]
+Добавить предложение
+---
+[Consent reached: %s]
+Согласие достигнуто: %s
+---
+[Could not submit proposal.]
+Не удалось отправить предложение.
+---
+[Could not submit vote.]
+Не удалось отправить голос.
+---
+[Every option meets resistance - least resisted prevails: %s]
+У каждого варианта есть сопротивление — побеждает наименее отвергнутый: %s
+---
+[No account needed - your name keeps votes apart.]
+Аккаунт не нужен — ваше имя отличает голоса.
+---
+[No quorum yet - %d of %d ballots cast]
+Кворума пока нет — подано %d из %d бюллетеней
+---
+[Objections outweigh support - %s leads without consent]
+Возражения перевешивают поддержку — %s лидирует без согласия
+---
+[Objections outweigh support - no consent yet]
+Возражения перевешивают поддержку — согласия пока нет
+---
+[Proposal submitted.]
+Предложение отправлено.
+---
+[Quorum]
+Кворум
+---
+[Repeat process chosen]
+Выбрано повторить процесс
+---
+[Status quo prevails]
+Остается status quo
+---
+[Submit proposal]
+Отправить предложение
+---
+[Submit vote]
+Отправить голос
+---
+[Type]
+Тип
+---
+[Update vote]
+Обновить голос
+---
+[Vote submitted.]
+Голос отправлен.
+---
+[Weight]
+Вес
+---
+[Your ballot]
+Ваш бюллетень
+---
+[Your name or persistent alias]
+Ваше имя или постоянный псевдоним
+---
+[weighted resistance]
+взвешенное сопротивление
+---

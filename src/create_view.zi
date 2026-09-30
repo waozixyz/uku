@@ -113,18 +113,6 @@ GoToStep :: (step: CreateStep) {
     focused_field = -1
 }
 
-HasText :: (text: string) -> bool {
-    index: s64 = 0
-    while index < cast(s64)text.count {
-        byte := text[index]
-        if byte != cast(u8)32 && byte != cast(u8)9 && byte != cast(u8)10 && byte != cast(u8)13 {
-            return true
-        }
-        index += 1
-    }
-    return false
-}
-
 DurationMinutes :: (days: s32, hours: s32, minutes: s32) -> s32 {
     return days * 24 * 60 + hours * 60 + minutes
 }

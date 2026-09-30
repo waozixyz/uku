@@ -3,6 +3,7 @@
 using UI :: #import "Widgets";
 #import "app_state"
 #import "create_view"
+#import "labels"
 #import "locale"
 #import "phase"
 #import "process"
@@ -18,26 +19,6 @@ CARD_GAP :: 10.0
 
 home_scroll: s32;
 home_content_height: s32 = 800;
-
-ProcessTypeLabel :: (type: ProcessType) -> string {
-    if type == ProcessType.ProcessRanked {
-        return Tr("Ranked")
-    }
-    if type == ProcessType.ProcessCollection {
-        return Tr("Collection")
-    }
-    return Tr("Consent")
-}
-
-PhaseLabel :: (phase: Phase) -> string {
-    if phase == Phase.PhaseProposal {
-        return Tr("proposal_phase_label")
-    }
-    if phase == Phase.PhaseVoting {
-        return Tr("voting_phase_label")
-    }
-    return Tr("results_phase_label")
-}
 
 RowPhase :: (row: ProcessRow, now: s64) -> PhaseAt {
     return ProcessPhaseAt(row.created_at, row.proposal_minutes, row.voting_minutes, now)

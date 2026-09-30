@@ -399,3 +399,75 @@ Kdo může přidávat návrhy
 [Who can vote]
 Kdo může hlasovat
 ---
+[ (proposal)]
+ (návrh)
+---
+[ - vetoed]
+ – vetováno
+---
+[Add proposal]
+Přidat návrh
+---
+[Consent reached: %s]
+Souhlas dosažen: %s
+---
+[Could not submit proposal.]
+Návrh se nepodařilo odeslat.
+---
+[Could not submit vote.]
+Hlas se nepodařilo odeslat.
+---
+[Every option meets resistance - least resisted prevails: %s]
+Každá možnost naráží na odpor – vítězí ta s nejmenším odporem: %s
+---
+[No account needed - your name keeps votes apart.]
+Účet není potřeba – vaše jméno odliší hlasy.
+---
+[No quorum yet - %d of %d ballots cast]
+Kvórum zatím není – odevzdáno %d z %d hlasů
+---
+[Objections outweigh support - %s leads without consent]
+Námitky převažují nad podporou – %s vede bez souhlasu
+---
+[Objections outweigh support - no consent yet]
+Námitky převažují nad podporou – zatím bez souhlasu
+---
+[Proposal submitted.]
+Návrh odeslán.
+---
+[Quorum]
+Kvórum
+---
+[Repeat process chosen]
+Zvoleno opakování procesu
+---
+[Status quo prevails]
+Platí status quo
+---
+[Submit proposal]
+Odeslat návrh
+---
+[Submit vote]
+Odeslat hlas
+---
+[Type]
+Typ
+---
+[Update vote]
+Aktualizovat hlas
+---
+[Vote submitted.]
+Hlas odeslán.
+---
+[Weight]
+Váha
+---
+[Your ballot]
+Váš hlasovací lístek
+---
+[Your name or persistent alias]
+Vaše jméno nebo trvalá přezdívka
+---
+[weighted resistance]
+vážený odpor
+---
