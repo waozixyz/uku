@@ -22,3 +22,11 @@
   explicit control flow, and focused helpers.
 - Format changed source, run `git diff --check`, and inspect the final diff before
   considering a change complete.
+
+## Bend
+
+When using Bend:
+- run `bend guide` to learn it
+- use `LAWS.bend` to keep important rules
+- run `bend PROOF.bend` before committing
+- parallelize the code whenever possible
