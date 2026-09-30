@@ -312,3 +312,90 @@ Status quo 和“重复流程”始终是可选项。
 [Start one and share the link with your group.]
 创建一个流程，并与你的小组分享链接。
 ---
+[0 means no minimum - the result counts with any number of ballots.]
+0 表示没有最低要求，任何票数下结果都有效。
+---
+[Add Proposal]
+添加提案
+---
+[Add at least one proposal.]
+请至少添加一个提案。
+---
+[Add proposals]
+添加提案
+---
+[Continue]
+继续
+---
+[Delete]
+删除
+---
+[Description]
+描述
+---
+[Minimum ballots (quorum)]
+最低票数（法定人数）
+---
+[No proposals found.]
+没有找到提案。
+---
+[Optional details]
+可选详情
+---
+[Private]
+私密
+---
+[Process phases]
+流程阶段
+---
+[Proposal + Voting Phase]
+提案和投票
+---
+[Voting Phase only]
+仅投票
+---
+[Proposal title]
+提案标题
+---
+[Proposal visibility]
+提案可见性
+---
+[Proposals]
+提案
+---
+[Public]
+公开
+---
+[Unlisted]
+不公开列出
+---
+[Quorum (minimum ballots)]
+法定人数（最低票数）
+---
+[Review Process]
+检查流程
+---
+[Rules]
+规则
+---
+[Select the time for proposals and voting]
+选择提案和投票的时间
+---
+[Select the time for voting]
+选择投票时间
+---
+[Setup Process]
+设置流程
+---
+[Title]
+标题
+---
+[Visibility]
+可见性
+---
+[Who can add proposals]
+谁可以添加提案
+---
+[Who can vote]
+谁可以投票
+---

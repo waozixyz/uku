@@ -312,3 +312,90 @@ Status quo и «Повторить процесс» всегда есть сре
 [Start one and share the link with your group.]
 Создайте процесс и поделитесь ссылкой с группой.
 ---
+[0 means no minimum - the result counts with any number of ballots.]
+0 — без минимума: результат засчитывается при любом числе бюллетеней.
+---
+[Add Proposal]
+Добавить предложение
+---
+[Add at least one proposal.]
+Добавьте хотя бы одно предложение.
+---
+[Add proposals]
+Добавьте предложения
+---
+[Continue]
+Продолжить
+---
+[Delete]
+Удалить
+---
+[Description]
+Описание
+---
+[Minimum ballots (quorum)]
+Минимум бюллетеней (кворум)
+---
+[No proposals found.]
+Предложений не найдено.
+---
+[Optional details]
+Дополнительные подробности
+---
+[Private]
+Закрытый
+---
+[Process phases]
+Этапы процесса
+---
+[Proposal + Voting Phase]
+Предложения и голосование
+---
+[Voting Phase only]
+Только голосование
+---
+[Proposal title]
+Название предложения
+---
+[Proposal visibility]
+Видимость предложений
+---
+[Proposals]
+Предложения
+---
+[Public]
+Открытый
+---
+[Unlisted]
+По ссылке
+---
+[Quorum (minimum ballots)]
+Кворум (минимум бюллетеней)
+---
+[Review Process]
+Проверка процесса
+---
+[Rules]
+Правила
+---
+[Select the time for proposals and voting]
+Выберите время для предложений и голосования
+---
+[Select the time for voting]
+Выберите время для голосования
+---
+[Setup Process]
+Настройка процесса
+---
+[Title]
+Название
+---
+[Visibility]
+Видимость
+---
+[Who can add proposals]
+Кто может добавлять предложения
+---
+[Who can vote]
+Кто может голосовать
+---

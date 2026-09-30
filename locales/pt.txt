@@ -276,3 +276,96 @@ Vence a opção que as pessoas conseguem aceitar.
 [Start one and share the link with your group.]
 Crie um e compartilhe o link com seu grupo.
 ---
+[0 means no minimum - the result counts with any number of ballots.]
+0 significa sem mínimo - o resultado vale com qualquer número de votos.
+---
+[Add Proposal]
+Adicionar proposta
+---
+[Add at least one proposal.]
+Adicione pelo menos uma proposta.
+---
+[Add proposals]
+Adicionar propostas
+---
+[Continue]
+Continuar
+---
+[Delete]
+Excluir
+---
+[Description]
+Descrição
+---
+[Minimum ballots (quorum)]
+Votos mínimos (quórum)
+---
+[Mode]
+Modo
+---
+[No proposals found.]
+Nenhuma proposta encontrada.
+---
+[Optional details]
+Detalhes opcionais
+---
+[Participants]
+Participantes
+---
+[Private]
+Privado
+---
+[Process phases]
+Fases do processo
+---
+[Proposal + Voting Phase]
+Propostas e votação
+---
+[Voting Phase only]
+Apenas votação
+---
+[Proposal title]
+Título da proposta
+---
+[Proposal visibility]
+Visibilidade das propostas
+---
+[Proposals]
+Propostas
+---
+[Public]
+Público
+---
+[Unlisted]
+Não listado
+---
+[Quorum (minimum ballots)]
+Quórum (votos mínimos)
+---
+[Review Process]
+Revisar processo
+---
+[Rules]
+Regras
+---
+[Select the time for proposals and voting]
+Escolha o tempo para propostas e votação
+---
+[Select the time for voting]
+Escolha o tempo para a votação
+---
+[Setup Process]
+Configurar processo
+---
+[Title]
+Título
+---
+[Visibility]
+Visibilidade
+---
+[Who can add proposals]
+Quem pode adicionar propostas
+---
+[Who can vote]
+Quem pode votar
+---

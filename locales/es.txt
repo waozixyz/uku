@@ -537,3 +537,57 @@ Clasificación
 [Collection]
 Recopilación
 ---
+[Add Proposal]
+Agregar propuesta
+---
+[Add at least one proposal.]
+Agrega al menos una propuesta.
+---
+[Add proposals]
+Agregar propuestas
+---
+[Continue]
+Continuar
+---
+[Delete]
+Eliminar
+---
+[No proposals found.]
+No se encontraron propuestas.
+---
+[Private]
+Privado
+---
+[Process phases]
+Fases del proceso
+---
+[Proposal + Voting Phase]
+Propuestas y votación
+---
+[Voting Phase only]
+Solo votación
+---
+[Public]
+Público
+---
+[Unlisted]
+No listado
+---
+[Review Process]
+Revisar proceso
+---
+[Rules]
+Reglas
+---
+[Select the time for proposals and voting]
+Elige el tiempo para propuestas y votación
+---
+[Select the time for voting]
+Elige el tiempo para la votación
+---
+[Setup Process]
+Configurar proceso
+---
+[Visibility]
+Visibilidad
+---

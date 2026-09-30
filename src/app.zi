@@ -1,6 +1,7 @@
 // Ukuvota on Kryon: the host calls Frame for every frame.
 using UI :: #import "Widgets";
 #import "app_state"
+#import "create_view"
 #import "home_view"
 #import "manual_view"
 #import "settings_view"
@@ -58,7 +59,7 @@ Frame :: (session: Session, viewport: Rectangle) -> s32 {
     if screen == Screen.ScreenHome {
         HomeView(session, viewport, now)
     } else if screen == Screen.ScreenCreate {
-        Placeholder(session, viewport, Tr("create_title"))
+        CreateView(session, viewport, now)
     } else if screen == Screen.ScreenCollect {
         Placeholder(session, viewport, Tr("collect_title"))
     } else if screen == Screen.ScreenSettings {

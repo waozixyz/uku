@@ -537,3 +537,57 @@ Classement
 [Collection]
 Collecte
 ---
+[Add Proposal]
+Ajouter une proposition
+---
+[Add at least one proposal.]
+Ajoutez au moins une proposition.
+---
+[Add proposals]
+Ajouter des propositions
+---
+[Continue]
+Continuer
+---
+[Delete]
+Supprimer
+---
+[No proposals found.]
+Aucune proposition trouvée.
+---
+[Private]
+Privé
+---
+[Process phases]
+Phases du processus
+---
+[Proposal + Voting Phase]
+Propositions et vote
+---
+[Voting Phase only]
+Vote uniquement
+---
+[Public]
+Public
+---
+[Unlisted]
+Non répertorié
+---
+[Review Process]
+Vérifier le processus
+---
+[Rules]
+Règles
+---
+[Select the time for proposals and voting]
+Choisissez la durée des propositions et du vote
+---
+[Select the time for voting]
+Choisissez la durée du vote
+---
+[Setup Process]
+Configurer le processus
+---
+[Visibility]
+Visibilité
+---

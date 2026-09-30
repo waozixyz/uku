@@ -1,0 +1,541 @@
+// Setting up a new consent process in steps: the question, the rules, the
+// proposals when the process only votes, the phase times, and a review.
+using UI :: #import "Widgets";
+#import "app_state"
+#import "locale"
+#import "process"
+#import "standing"
+#import "storage"
+#import "tally"
+#import "ui_kit"
+#import "number_text"
+#import "text_append"
+#import "text_buffer"
+
+CreateStep :: enum {
+    CreateSetup :: 0
+    CreateRules :: 1
+    CreateProposals :: 2
+    CreateTiming :: 3
+    CreateReview :: 4
+}
+
+DRAFT_PROPOSAL_LIMIT :: 32
+
+FIELD_TOPIC :: 0
+FIELD_DESCRIPTION :: 1
+FIELD_PROPOSAL_TITLE :: 2
+FIELD_PROPOSAL_DESCRIPTION :: 3
+
+DraftProposal :: struct {
+    title: [180]u8
+    description: [420]u8
+}
+
+CreateDraft :: struct {
+    started: bool
+    step: CreateStep
+    topic: [180]u8
+    description: [420]u8
+    voting_only: bool
+    proposal_days: s32
+    proposal_hours: s32
+    proposal_minutes: s32
+    voting_days: s32
+    voting_hours: s32
+    voting_minutes: s32
+    negative_weight: s32
+    quorum_votes: s32
+    // Indexes into the choices below.
+    visibility: s32
+    proposal_visibility: s32
+    proposal_access: s32
+    voting_access: s32
+    proposals: [DRAFT_PROPOSAL_LIMIT]DraftProposal
+    proposal_count: s32
+    proposal_title: [180]u8
+    proposal_description: [420]u8
+    topic_missing: bool
+    proposal_missing: bool
+    save_failed: bool
+}
+
+draft: CreateDraft;
+create_scroll: s32;
+create_content_height: s32 = 800;
+weight_menu: DropdownResult;
+
+VISIBILITY_VALUES: [3]string = .{"public", "private", "unlisted"};
+PROPOSAL_VISIBILITY_VALUES: [3]string = .{"public", "participants", "owner"};
+ACCESS_VALUES: [3]string = .{"public", "logged_in", "participants"};
+
+VisibilityLabels :: () -> [3]string {
+    labels: [3]string
+    labels[0] = Tr("Public")
+    labels[1] = Tr("Private")
+    labels[2] = Tr("Unlisted")
+    return labels
+}
+
+ProposalVisibilityLabels :: () -> [3]string {
+    labels: [3]string
+    labels[0] = Tr("Public")
+    labels[1] = Tr("Participants")
+    labels[2] = Tr("Owner only")
+    return labels
+}
+
+AccessLabels :: () -> [3]string {
+    labels: [3]string
+    labels[0] = Tr("Public")
+    labels[1] = Tr("Logged in")
+    labels[2] = Tr("Participants")
+    return labels
+}
+
+// Opens the create screen, starting a new draft unless one is in progress.
+CreateStart :: () {
+    if !draft.started {
+        draft = CreateDraft.{}
+        draft.started = true
+        draft.proposal_hours = 1
+        draft.voting_hours = 1
+        draft.negative_weight = 3
+        create_scroll = 0
+    }
+    focused_field = -1
+    screen = Screen.ScreenCreate
+}
+
+GoToStep :: (step: CreateStep) {
+    draft.step = step
+    create_scroll = 0
+    focused_field = -1
+}
+
+HasText :: (text: string) -> bool {
+    index: s64 = 0
+    while index < cast(s64)text.count {
+        byte := text[index]
+        if byte != cast(u8)32 && byte != cast(u8)9 && byte != cast(u8)10 && byte != cast(u8)13 {
+            return true
+        }
+        index += 1
+    }
+    return false
+}
+
+DurationMinutes :: (days: s32, hours: s32, minutes: s32) -> s32 {
+    return days * 24 * 60 + hours * 60 + minutes
+}
+
+// "1d 2h 3m", as the C review showed durations.
+FormatDays :: (days: s32, hours: s32, minutes: s32, output: []u8) -> string {
+    digits: [16]u8
+    length := TextAppend(output, 0, FormatInteger(cast(s64)days, digits[:]))
+    length = TextAppend(output, length, "d ")
+    length = TextAppend(output, length, FormatInteger(cast(s64)hours, digits[:]))
+    length = TextAppend(output, length, "h ")
+    length = TextAppend(output, length, FormatInteger(cast(s64)minutes, digits[:]))
+    length = TextAppend(output, length, "m")
+    if length < 0 {
+        output[0] = cast(u8)0
+        return ""
+    }
+    return TextUntilNul(output)
+}
+
+WeightLabel :: (index: s32) -> string {
+    if index == 0 {
+        return Tr("negative_weight_infinity")
+    }
+    names: [10]string = .{"", "negative_weight_1", "negative_weight_2", "negative_weight_3", "negative_weight_4", "negative_weight_5", "negative_weight_6", "negative_weight_7", "negative_weight_8", "negative_weight_9"}
+    return Tr(names[index])
+}
+
+StepTitle :: (session: Session, title: string, x: float32, y: float32, width: float32) -> float32 {
+    UiCenteredText(session, title, Rectangle.{x, y, width, 28.0}, 20)
+    return 48.0
+}
+
+// Back and Continue at the foot of a step; returns 1 for Continue, -1 for
+// Back, and 0 otherwise.
+StepButtons :: (session: Session, continue_label: string, show_back: bool, x: float32, y: float32, width: float32) -> s32 {
+    if show_back && UiButton(session, 2101, Tr("back_button"), Rectangle.{x, y, 130.0, 40.0}, false) {
+        return -1
+    }
+    if UiButton(session, 2102, continue_label, Rectangle.{x + width - 190.0, y, 190.0, 40.0}, true) {
+        return 1
+    }
+    return 0
+}
+
+SetupStep :: (session: Session, x: float32, y: float32, width: float32) -> float32 {
+    y += StepTitle(session, Tr("Setup Process"), x, y, width)
+    UiText(session, Tr("Process phases"), Rectangle.{x, y, width, 18.0}, 13)
+    modes: [2]string
+    modes[0] = Tr("Proposal + Voting Phase")
+    modes[1] = Tr("Voting Phase only")
+    selected: s32 = 0
+    if draft.voting_only {
+        selected = 1
+    }
+    chosen := UiChoice(session, 2201, modes[:], selected, Rectangle.{x, y + 24.0, width, 38.0})
+    if chosen != selected {
+        draft.voting_only = chosen == 1
+        if draft.voting_only {
+            draft.proposal_days = 0
+            draft.proposal_hours = 0
+            draft.proposal_minutes = 0
+        } else if DurationMinutes(draft.proposal_days, draft.proposal_hours, draft.proposal_minutes) == 0 {
+            draft.proposal_hours = 1
+        }
+    }
+    y += 80.0
+    UiText(session, Tr("topic_question_label"), Rectangle.{x, y, width, 18.0}, 13)
+    unused UiField(session, FIELD_TOPIC, Tr("topic_question_label"), Tr("topic_question_placeholder"), draft.topic[:], Rectangle.{x, y + 24.0, width, 40.0})
+    y += 76.0
+    if draft.topic_missing {
+        y += UiParagraph(session, Tr("topic_error"), x, y, width, 13) + 12.0
+    }
+    UiText(session, Tr("description_label"), Rectangle.{x, y, width, 18.0}, 13)
+    unused UiField(session, FIELD_DESCRIPTION, Tr("description_label"), Tr("description_placeholder"), draft.description[:], Rectangle.{x, y + 24.0, width, 40.0})
+    y += 88.0
+    if StepButtons(session, Tr("Continue"), false, x, y, width) == 1 {
+        draft.topic_missing = !HasText(TextUntilNul(draft.topic[:]))
+        if !draft.topic_missing {
+            GoToStep(CreateStep.CreateRules)
+        }
+    }
+    return y + 56.0
+}
+
+WeightChoice :: (session: Session, x: float32, y: float32, width: float32) {
+    options: [10]DropdownOption
+    index: s32 = 0
+    while index < 10 {
+        options[index].key = cast(u64)(2300 + index)
+        options[index].label = WeightLabel(index)
+        index += 1
+    }
+    props: DropdownProps
+    props.key = cast(u64)2301
+    props.id = 2301
+    props.bounds = Rectangle.{x, y, width, 38.0}
+    props.selected_index = NegativeWeightToIndex(draft.negative_weight)
+    props.open = weight_menu.open
+    props.highlight_index = weight_menu.highlight_index
+    props.scroll_offset = weight_menu.scroll_offset
+    props.scale = 1.0
+    weight_menu = Dropdown(session, props, options[:])
+    if weight_menu.changed {
+        draft.negative_weight = NegativeWeightFromIndex(weight_menu.selected_index)
+    }
+}
+
+RulesStep :: (session: Session, x: float32, y: float32, width: float32) -> float32 {
+    y += StepTitle(session, Tr("Rules"), x, y, width)
+    weight_y := y
+    y += 88.0
+    draft.quorum_votes = UiStepper(session, 2401, Tr("Minimum ballots (quorum)"), draft.quorum_votes, 0, 64, x, y, 200.0)
+    y += 70.0
+    if draft.quorum_votes == 0 {
+        y += UiParagraph(session, Tr("0 means no minimum - the result counts with any number of ballots."), x, y, width, 13) + 12.0
+    }
+    y += 8.0
+    visibility_labels := VisibilityLabels()
+    proposal_visibility_labels := ProposalVisibilityLabels()
+    access_labels := AccessLabels()
+    UiText(session, Tr("Visibility"), Rectangle.{x, y, width, 18.0}, 13)
+    draft.visibility = UiChoice(session, 2402, visibility_labels[:], draft.visibility, Rectangle.{x, y + 24.0, width, 38.0})
+    y += 80.0
+    UiText(session, Tr("Proposal visibility"), Rectangle.{x, y, width, 18.0}, 13)
+    draft.proposal_visibility = UiChoice(session, 2403, proposal_visibility_labels[:], draft.proposal_visibility, Rectangle.{x, y + 24.0, width, 38.0})
+    y += 80.0
+    UiText(session, Tr("Who can add proposals"), Rectangle.{x, y, width, 18.0}, 13)
+    draft.proposal_access = UiChoice(session, 2404, access_labels[:], draft.proposal_access, Rectangle.{x, y + 24.0, width, 38.0})
+    y += 80.0
+    UiText(session, Tr("Who can vote"), Rectangle.{x, y, width, 18.0}, 13)
+    draft.voting_access = UiChoice(session, 2405, access_labels[:], draft.voting_access, Rectangle.{x, y + 24.0, width, 38.0})
+    y += 88.0
+    pressed := StepButtons(session, Tr("Continue"), true, x, y, width)
+    if pressed == -1 {
+        GoToStep(CreateStep.CreateSetup)
+    } else if pressed == 1 {
+        if draft.voting_only {
+            GoToStep(CreateStep.CreateProposals)
+        } else {
+            GoToStep(CreateStep.CreateTiming)
+        }
+    }
+    // The open weight menu covers the rules below it, so it comes last.
+    UiText(session, Tr("negative_weight_label"), Rectangle.{x, weight_y, width, 18.0}, 13)
+    WeightChoice(session, x, weight_y + 24.0, width)
+    return y + 56.0
+}
+
+AddDraftProposal :: () -> bool {
+    if draft.proposal_count >= DRAFT_PROPOSAL_LIMIT || !HasText(TextUntilNul(draft.proposal_title[:])) {
+        return false
+    }
+    draft.proposals[draft.proposal_count].title = draft.proposal_title
+    draft.proposals[draft.proposal_count].description = draft.proposal_description
+    draft.proposal_count += 1
+    draft.proposal_title = .{}
+    draft.proposal_description = .{}
+    return true
+}
+
+RemoveDraftProposal :: (index: s32) {
+    while index + 1 < draft.proposal_count {
+        draft.proposals[index] = draft.proposals[index + 1]
+        index += 1
+    }
+    draft.proposal_count -= 1
+    draft.proposals[draft.proposal_count] = DraftProposal.{}
+}
+
+ProposalsStep :: (session: Session, x: float32, y: float32, width: float32) -> float32 {
+    y += StepTitle(session, Tr("Add proposals"), x, y, width)
+    UiText(session, Tr("Title"), Rectangle.{x, y, width, 18.0}, 13)
+    unused UiField(session, FIELD_PROPOSAL_TITLE, Tr("Title"), Tr("Proposal title"), draft.proposal_title[:], Rectangle.{x, y + 24.0, width, 40.0})
+    y += 76.0
+    UiText(session, Tr("Description"), Rectangle.{x, y, width, 18.0}, 13)
+    unused UiField(session, FIELD_PROPOSAL_DESCRIPTION, Tr("Description"), Tr("Optional details"), draft.proposal_description[:], Rectangle.{x, y + 24.0, width, 40.0})
+    y += 76.0
+    untitled := HasText(TextUntilNul(draft.proposal_description[:])) && !HasText(TextUntilNul(draft.proposal_title[:]))
+    if untitled {
+        y += UiParagraph(session, Tr("proposal_title_warning"), x, y, width, 13) + 10.0
+    }
+    if UiButton(session, 2501, Tr("Add Proposal"), Rectangle.{x, y, 200.0, 40.0}, true) {
+        if AddDraftProposal() {
+            draft.proposal_missing = false
+            focused_field = FIELD_PROPOSAL_TITLE
+        }
+    }
+    y += 64.0
+    UiText(session, Tr("Proposals"), Rectangle.{x, y, width, 20.0}, 15)
+    y += 30.0
+    if draft.proposal_count == 0 {
+        y += UiParagraph(session, Tr("No proposals found."), x, y, width, 13) + 12.0
+    }
+    index: s32 = 0
+    while index < draft.proposal_count {
+        proposal := draft.proposals[index]
+        has_description := proposal.description[0] != cast(u8)0
+        height: float32 = 52.0
+        if has_description {
+            height = 76.0
+        }
+        UiPanel(session, cast(u64)(2600 + index), Rectangle.{x, y, width, height})
+        UiText(session, TextUntilNul(proposal.title[:]), Rectangle.{x + 14.0, y + 14.0, width - 140.0, 22.0}, 16)
+        if has_description {
+            UiText(session, TextUntilNul(proposal.description[:]), Rectangle.{x + 14.0, y + 42.0, width - 140.0, 18.0}, 13)
+        }
+        if UiButton(session, 2700 + index, Tr("Delete"), Rectangle.{x + width - 110.0, y + 8.0, 100.0, 36.0}, false) {
+            RemoveDraftProposal(index)
+        } else {
+            index += 1
+        }
+        y += height + 8.0
+    }
+    if draft.proposal_missing {
+        y += UiParagraph(session, Tr("Add at least one proposal."), x, y + 4.0, width, 13) + 12.0
+    }
+    y += 12.0
+    pressed := StepButtons(session, Tr("Continue"), true, x, y, width)
+    if pressed == -1 {
+        GoToStep(CreateStep.CreateRules)
+    } else if pressed == 1 {
+        draft.proposal_missing = draft.proposal_count == 0
+        if !draft.proposal_missing {
+            GoToStep(CreateStep.CreateTiming)
+        }
+    }
+    return y + 56.0
+}
+
+// Days, hours, and minutes side by side; returns the height it took.
+DurationGroup :: (session: Session, id: s32, title: string, days: *s32, hours: *s32, minutes: *s32, x: float32, y: float32, width: float32) -> float32 {
+    UiText(session, title, Rectangle.{x, y, width, 20.0}, 15)
+    gap: float32 = 12.0
+    column := (width - gap * 2.0) / 3.0
+    days.* = UiStepper(session, id, Tr("days_label"), days.*, 0, 30, x, y + 30.0, column)
+    hours.* = UiStepper(session, id + 1, Tr("hours_label"), hours.*, 0, 23, x + column + gap, y + 30.0, column)
+    minutes.* = UiStepper(session, id + 2, Tr("minutes_label"), minutes.*, 0, 59, x + (column + gap) * 2.0, y + 30.0, column)
+    return 104.0
+}
+
+TimingStep :: (session: Session, x: float32, y: float32, width: float32) -> float32 {
+    if draft.voting_only {
+        y += StepTitle(session, Tr("Select the time for voting"), x, y, width)
+    } else {
+        y += StepTitle(session, Tr("Select the time for proposals and voting"), x, y, width)
+        y += DurationGroup(session, 2801, Tr("proposal_time_label"), *draft.proposal_days, *draft.proposal_hours, *draft.proposal_minutes, x, y, width) + 16.0
+    }
+    y += DurationGroup(session, 2811, Tr("voting_time_label"), *draft.voting_days, *draft.voting_hours, *draft.voting_minutes, x, y, width) + 24.0
+    pressed := StepButtons(session, Tr("Continue"), true, x, y, width)
+    if pressed == -1 {
+        if draft.voting_only {
+            GoToStep(CreateStep.CreateProposals)
+        } else {
+            GoToStep(CreateStep.CreateRules)
+        }
+    } else if pressed == 1 {
+        GoToStep(CreateStep.CreateReview)
+    }
+    return y + 56.0
+}
+
+// Saves the draft as a new process and opens it; false when saving fails.
+SaveDraft :: (now: s64) -> bool {
+    row: ProcessRow
+    id: [40]u8
+    if StorageNewProcessId(now, id[:]).count == 0 {
+        return false
+    }
+    row.id = id
+    owner: [96]u8
+    if StorageProcessOwner(TextUntilNul(id[:]), owner[:]).count == 0 {
+        return false
+    }
+    SetText(row.owner[:], TextUntilNul(owner[:]))
+    row.topic = draft.topic
+    row.description = draft.description
+    row.type = ProcessType.ProcessConsent
+    if !draft.voting_only {
+        row.proposal_minutes = DurationMinutes(draft.proposal_days, draft.proposal_hours, draft.proposal_minutes)
+    }
+    row.voting_minutes = DurationMinutes(draft.voting_days, draft.voting_hours, draft.voting_minutes)
+    row.negative_weight = draft.negative_weight
+    row.quorum_votes = draft.quorum_votes
+    SetText(row.visibility[:], VISIBILITY_VALUES[draft.visibility])
+    SetText(row.proposal_visibility[:], PROPOSAL_VISIBILITY_VALUES[draft.proposal_visibility])
+    SetText(row.proposal_access[:], ACCESS_VALUES[draft.proposal_access])
+    SetText(row.voting_access[:], ACCESS_VALUES[draft.voting_access])
+    row.created_at = now
+    ProcessClear()
+    if draft.voting_only {
+        index: s32 = 0
+        while index < draft.proposal_count {
+            proposal := draft.proposals[index]
+            unused StorageAddProposal("", TextUntilNul(proposal.title[:]), TextUntilNul(proposal.description[:]))
+            index += 1
+        }
+    }
+    if !StorageSaveNewProcess(row, Tr("anonymous"), StandingInLanguage()) {
+        return false
+    }
+    unused StorageLoadProcesses()
+    open_row = -1
+    index: s32 = 0
+    while index < process_row_count {
+        if TextUntilNul(process_rows[index].id[:]) == TextUntilNul(row.id[:]) {
+            open_row = index
+        }
+        index += 1
+    }
+    return true
+}
+
+ReviewLine :: (session: Session, label: string, value: string, x: float32, y: float32, width: float32) -> float32 {
+    line: [256]u8
+    length := TextAppend(line[:], 0, label)
+    length = TextAppend(line[:], length, ": ")
+    length = TextAppend(line[:], length, value)
+    UiText(session, TextUntilNul(line[:]), Rectangle.{x, y, width, 20.0}, 15)
+    return 30.0
+}
+
+ReviewStep :: (session: Session, x: float32, y: float32, width: float32, now: s64) -> float32 {
+    y += StepTitle(session, Tr("Review Process"), x, y, width)
+    y += UiLabeledText(session, Tr("topic_question_label"), TextUntilNul(draft.topic[:]), x, y, width) + 16.0
+    if draft.description[0] != cast(u8)0 {
+        y += UiLabeledText(session, Tr("description_label"), TextUntilNul(draft.description[:]), x, y, width) + 16.0
+    }
+    mode := Tr("Proposal + Voting Phase")
+    if draft.voting_only {
+        mode = Tr("Voting Phase only")
+    }
+    visibility_labels := VisibilityLabels()
+    proposal_visibility_labels := ProposalVisibilityLabels()
+    access_labels := AccessLabels()
+    y += ReviewLine(session, Tr("Mode"), mode, x, y, width)
+    y += ReviewLine(session, Tr("Visibility"), visibility_labels[draft.visibility], x, y, width)
+    y += ReviewLine(session, Tr("Proposal visibility"), proposal_visibility_labels[draft.proposal_visibility], x, y, width)
+    y += ReviewLine(session, Tr("Who can add proposals"), access_labels[draft.proposal_access], x, y, width)
+    y += ReviewLine(session, Tr("Who can vote"), access_labels[draft.voting_access], x, y, width)
+    y += ReviewLine(session, Tr("negative_weight_label"), WeightLabel(NegativeWeightToIndex(draft.negative_weight)), x, y, width)
+    if draft.quorum_votes > 0 {
+        digits: [16]u8
+        y += ReviewLine(session, Tr("Quorum (minimum ballots)"), FormatInteger(cast(s64)draft.quorum_votes, digits[:]), x, y, width)
+    }
+    duration: [48]u8
+    if !draft.voting_only {
+        y += ReviewLine(session, Tr("proposal_time_label"), FormatDays(draft.proposal_days, draft.proposal_hours, draft.proposal_minutes, duration[:]), x, y, width)
+    }
+    y += ReviewLine(session, Tr("voting_time_label"), FormatDays(draft.voting_days, draft.voting_hours, draft.voting_minutes, duration[:]), x, y, width)
+    if draft.voting_only {
+        y += 10.0
+        UiText(session, Tr("Proposals"), Rectangle.{x, y, width, 20.0}, 15)
+        y += 30.0
+        index: s32 = 0
+        while index < draft.proposal_count {
+            UiText(session, TextUntilNul(draft.proposals[index].title[:]), Rectangle.{x, y, width, 20.0}, 15)
+            y += 28.0
+            index += 1
+        }
+    }
+    if draft.save_failed {
+        y += 8.0
+        y += UiParagraph(session, Tr("db_error"), x, y, width, 13) + 8.0
+    }
+    y += 20.0
+    pressed := StepButtons(session, Tr("create_process_button"), true, x, y, width)
+    if pressed == -1 {
+        GoToStep(CreateStep.CreateTiming)
+    } else if pressed == 1 {
+        draft.save_failed = !SaveDraft(now)
+        if !draft.save_failed {
+            draft = CreateDraft.{}
+            focused_field = -1
+            screen = Screen.ScreenCollect
+        }
+    }
+    return y + 56.0
+}
+
+CreateView :: (session: Session, viewport: Rectangle, now: s64) {
+    // Going back keeps the draft for the next visit.
+    if UiSubPageBar(session, viewport, Tr("create_title")) {
+        screen = Screen.ScreenHome
+        return
+    }
+    props: ScrollProps
+    props.key = cast(u64)2001 + cast(u64)draft.step
+    props.bounds = Rectangle.{viewport.x, viewport.y + SUB_PAGE_BAR_HEIGHT, viewport.width, viewport.height - SUB_PAGE_BAR_HEIGHT}
+    props.content_height = create_content_height
+    props.scroll_offset = create_scroll
+    props.scale = 1.0
+    scroll := Scroll(session, props)
+    create_scroll = scroll.scroll_offset
+    if !scroll.opened {
+        return
+    }
+    column := UiColumn(scroll.content, 600.0)
+    top := scroll.content.y + 20.0
+    bottom := top
+    if draft.step == CreateStep.CreateSetup {
+        bottom = SetupStep(session, column.x, top, column.width)
+    } else if draft.step == CreateStep.CreateRules {
+        bottom = RulesStep(session, column.x, top, column.width)
+    } else if draft.step == CreateStep.CreateProposals {
+        bottom = ProposalsStep(session, column.x, top, column.width)
+    } else if draft.step == CreateStep.CreateTiming {
+        bottom = TimingStep(session, column.x, top, column.width)
+    } else {
+        bottom = ReviewStep(session, column.x, top, column.width, now)
+    }
+    create_content_height = cast(s32)(bottom - top) + 60
+    End(session)
+}

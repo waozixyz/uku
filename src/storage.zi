@@ -733,3 +733,85 @@ StorageSaveAccount :: (keys: AccountKeys, auth_token: string) -> bool {
     unused SqliteFinalize(statement)
     return saved
 }
+
+// The settings key of one field of a process's guest key pair, as the C
+// client named it: "guest.<process id>.<field>".
+GuestSettingKey :: (process_id: string, field: string, output: []u8) -> string {
+    output[0] = cast(u8)0
+    length := TextAppend(output, 0, "guest.")
+    length = TextAppend(output, length, process_id)
+    length = TextAppend(output, length, ".")
+    length = TextAppend(output, length, field)
+    if length < 0 {
+        output[0] = cast(u8)0
+        return ""
+    }
+    return TextUntilNul(output)
+}
+
+// The public id that owns a new process: the account's, or else a key pair
+// made for this process alone and kept in settings, as the C client did.
+// Returns "" when no key pair can be made or saved.
+StorageProcessOwner :: (process_id: string, output: []u8) -> string {
+    output[0] = cast(u8)0
+    account := StorageLoadAccount()
+    if account.loaded {
+        unused TextAppend(output, 0, TextUntilNul(account.keys.public_id[:]))
+        return TextUntilNul(output)
+    }
+    key: [96]u8
+    existing := SettingLoadText(GuestSettingKey(process_id, "public_id", key[:]), "", output)
+    if existing.count > 0 {
+        return existing
+    }
+    keys: AccountKeys
+    if CreateAccountKeys(*keys) == 0 {
+        return ""
+    }
+    saved := SettingSaveText(GuestSettingKey(process_id, "public_key", key[:]), TextUntilNul(keys.public_key_hex[:]))
+    saved = saved && SettingSaveText(GuestSettingKey(process_id, "private_key", key[:]), TextUntilNul(keys.private_key_hex[:]))
+    saved = saved && SettingSaveText(GuestSettingKey(process_id, "token", key[:]), "")
+    saved = saved && SettingSaveText(GuestSettingKey(process_id, "public_id", key[:]), TextUntilNul(keys.public_id[:]))
+    if !saved {
+        return ""
+    }
+    unused TextAppend(output, 0, TextUntilNul(keys.public_id[:]))
+    return TextUntilNul(output)
+}
+
+AppendHex32 :: (output: []u8, length: s64, value: u32) -> s64 {
+    digits: [9]u8
+    shift: s32 = 28
+    index: s32 = 0
+    while index < 8 {
+        nibble := (value >> cast(u32)shift) & cast(u32)15
+        if nibble < cast(u32)10 {
+            digits[index] = cast(u8)(48 + cast(s32)nibble)
+        } else {
+            digits[index] = cast(u8)(87 + cast(s32)nibble)
+        }
+        shift -= 4
+        index += 1
+    }
+    return TextAppend(output, length, TextView(digits[0:8]))
+}
+
+// A new process id as the C client made them: the creation time and a random
+// number, each as eight hex digits ("66f9a2b1-3c0d9e7f").
+StorageNewProcessId :: (now: s64, output: []u8) -> string {
+    output[0] = cast(u8)0
+    random: [4]u8
+    if SecureRandom(*random[0], 4) == 0 {
+        return ""
+    }
+    value := (cast(u32)random[0] << cast(u32)24) | (cast(u32)random[1] << cast(u32)16) | (cast(u32)random[2] << cast(u32)8) | cast(u32)random[3]
+    value = value & cast(u32)0x7fffffff
+    length := AppendHex32(output, 0, cast(u32)now)
+    length = TextAppend(output, length, "-")
+    length = AppendHex32(output, length, value)
+    if length < 0 {
+        output[0] = cast(u8)0
+        return ""
+    }
+    return TextUntilNul(output)
+}

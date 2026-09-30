@@ -4,6 +4,7 @@ using UI :: #import "Widgets";
 #import "theme"
 #import "locale"
 #import "text_buffer"
+#import "number_text"
 
 FIELD_LIMIT :: 32
 
@@ -210,4 +211,54 @@ UiColumn :: (viewport: Rectangle, max_width: float32) -> Rectangle {
         width = max_width
     }
     return Rectangle.{viewport.x + (viewport.width - width) / 2.0, viewport.y, width, viewport.height}
+}
+
+// A row of mutually exclusive choices; returns the chosen index.
+UiChoice :: (session: Session, id: s32, labels: []string, selected: s32, bounds: Rectangle) -> s32 {
+    options: [8]SegmentOption
+    count := cast(s32)labels.count
+    if count > 8 {
+        count = 8
+    }
+    index: s32 = 0
+    while index < count {
+        options[index].key = cast(u64)(id * 10 + index)
+        options[index].label = labels[index]
+        index += 1
+    }
+    props: SegmentedControlProps
+    props.key = cast(u64)id
+    props.id = id
+    props.bounds = bounds
+    props.selected_index = selected
+    props.has_selection = true
+    props.scale = 1.0
+    result := SegmentedControl(session, props, options[0:count])
+    if result.changed {
+        return result.selected_index
+    }
+    return selected
+}
+
+// A labelled number with minus and plus buttons; returns the new value.
+UiStepper :: (session: Session, id: s32, label: string, value: s32, low: s32, high: s32, x: float32, y: float32, width: float32) -> s32 {
+    UiText(session, label, Rectangle.{x, y, width, 18.0}, 13)
+    digits: [16]u8
+    props: SpinboxProps
+    props.key = cast(u64)id
+    props.id = id
+    props.label = label
+    props.bounds = Rectangle.{x, y + 24.0, width, 38.0}
+    props.value = value
+    props.min = low
+    props.max = high
+    props.step = 1
+    props.value_text = FormatInteger(cast(s64)value, digits[:])
+    return Spinbox(session, props).value
+}
+
+// A label over a line of text; returns the height it took.
+UiLabeledText :: (session: Session, label: string, value: string, x: float32, y: float32, width: float32) -> float32 {
+    UiText(session, label, Rectangle.{x, y, width, 18.0}, 13)
+    return 24.0 + UiParagraph(session, value, x, y + 24.0, width, 16)
 }

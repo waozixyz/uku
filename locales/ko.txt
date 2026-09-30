@@ -312,3 +312,90 @@ Status quo와 프로세스 반복은 항상 선택지에 있습니다.
 [Start one and share the link with your group.]
 하나를 시작하고 그룹과 링크를 공유하세요.
 ---
+[0 means no minimum - the result counts with any number of ballots.]
+0은 최소 기준이 없다는 뜻으로, 투표 수와 관계없이 결과가 유효합니다.
+---
+[Add Proposal]
+제안 추가
+---
+[Add at least one proposal.]
+제안을 하나 이상 추가하세요.
+---
+[Add proposals]
+제안 추가
+---
+[Continue]
+계속
+---
+[Delete]
+삭제
+---
+[Description]
+설명
+---
+[Minimum ballots (quorum)]
+최소 투표 수(정족수)
+---
+[No proposals found.]
+제안이 없습니다.
+---
+[Optional details]
+세부 정보(선택)
+---
+[Private]
+비공개
+---
+[Process phases]
+프로세스 단계
+---
+[Proposal + Voting Phase]
+제안 및 투표
+---
+[Voting Phase only]
+투표만
+---
+[Proposal title]
+제안 제목
+---
+[Proposal visibility]
+제안 공개 범위
+---
+[Proposals]
+제안
+---
+[Public]
+공개
+---
+[Unlisted]
+링크 공개
+---
+[Quorum (minimum ballots)]
+정족수(최소 투표 수)
+---
+[Review Process]
+프로세스 검토
+---
+[Rules]
+규칙
+---
+[Select the time for proposals and voting]
+제안과 투표 기간 선택
+---
+[Select the time for voting]
+투표 기간 선택
+---
+[Setup Process]
+프로세스 설정
+---
+[Title]
+제목
+---
+[Visibility]
+공개 범위
+---
+[Who can add proposals]
+제안을 추가할 수 있는 사람
+---
+[Who can vote]
+투표할 수 있는 사람
+---

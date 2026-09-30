@@ -108,6 +108,9 @@ main :: () -> s32 {
     if !CheckAccount() {
         return 21
     }
+    if !CheckOwnerAndId() {
+        return 22
+    }
     // A duplicate id fails and leaves nothing half-saved.
     proposals := Count("select count(*) from proposals")
     if SaveConsent("consent-1", 300) || Count("select count(*) from processes") != 2 || Count("select count(*) from proposals") != proposals {
@@ -241,4 +244,21 @@ CheckAccount :: () -> bool {
     }
     reloaded := StorageLoadAccount()
     return TextUntilNul(reloaded.server_url[:]) == "https://api.waozi.xyz"
+}
+
+// A process gets the account as its owner, and new ids look like the C
+// client's.
+CheckOwnerAndId :: () -> bool {
+    owner: [96]u8
+    account := StorageLoadAccount()
+    if StorageProcessOwner("p-owner", owner[:]) != TextUntilNul(account.keys.public_id[:]) {
+        return false
+    }
+    id: [40]u8
+    made := StorageNewProcessId(0x66f9a2b1, id[:])
+    if made.count != 17 || made[8] != cast(u8)45 || made[0:8] != "66f9a2b1" {
+        return false
+    }
+    other: [40]u8
+    return StorageNewProcessId(0x66f9a2b1, other[:]) != made
 }

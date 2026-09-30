@@ -312,3 +312,90 @@ Vyhrává možnost, kterou lidé dokážou přijmout.
 [Start one and share the link with your group.]
 Založte ho a sdílejte odkaz se svou skupinou.
 ---
+[0 means no minimum - the result counts with any number of ballots.]
+0 znamená bez minima – výsledek platí při jakémkoli počtu hlasů.
+---
+[Add Proposal]
+Přidat návrh
+---
+[Add at least one proposal.]
+Přidejte alespoň jeden návrh.
+---
+[Add proposals]
+Přidat návrhy
+---
+[Continue]
+Pokračovat
+---
+[Delete]
+Smazat
+---
+[Description]
+Popis
+---
+[Minimum ballots (quorum)]
+Minimální počet hlasů (kvórum)
+---
+[No proposals found.]
+Nebyly nalezeny žádné návrhy.
+---
+[Optional details]
+Volitelné podrobnosti
+---
+[Private]
+Soukromý
+---
+[Process phases]
+Fáze procesu
+---
+[Proposal + Voting Phase]
+Návrhy a hlasování
+---
+[Voting Phase only]
+Pouze hlasování
+---
+[Proposal title]
+Název návrhu
+---
+[Proposal visibility]
+Viditelnost návrhů
+---
+[Proposals]
+Návrhy
+---
+[Public]
+Veřejný
+---
+[Unlisted]
+Neuvedený
+---
+[Quorum (minimum ballots)]
+Kvórum (minimální počet hlasů)
+---
+[Review Process]
+Kontrola procesu
+---
+[Rules]
+Pravidla
+---
+[Select the time for proposals and voting]
+Zvolte čas pro návrhy a hlasování
+---
+[Select the time for voting]
+Zvolte čas pro hlasování
+---
+[Setup Process]
+Nastavení procesu
+---
+[Title]
+Název
+---
+[Visibility]
+Viditelnost
+---
+[Who can add proposals]
+Kdo může přidávat návrhy
+---
+[Who can vote]
+Kdo může hlasovat
+---

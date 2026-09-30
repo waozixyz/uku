@@ -537,3 +537,57 @@ Rangfolge
 [Collection]
 Sammlung
 ---
+[Add Proposal]
+Vorschlag hinzufügen
+---
+[Add at least one proposal.]
+Füge mindestens einen Vorschlag hinzu.
+---
+[Add proposals]
+Vorschläge hinzufügen
+---
+[Continue]
+Weiter
+---
+[Delete]
+Löschen
+---
+[No proposals found.]
+Keine Vorschläge gefunden.
+---
+[Private]
+Privat
+---
+[Process phases]
+Prozessphasen
+---
+[Proposal + Voting Phase]
+Vorschläge und Abstimmung
+---
+[Voting Phase only]
+Nur Abstimmung
+---
+[Public]
+Öffentlich
+---
+[Unlisted]
+Nicht gelistet
+---
+[Review Process]
+Prozess prüfen
+---
+[Rules]
+Regeln
+---
+[Select the time for proposals and voting]
+Wähle die Zeit für Vorschläge und Abstimmung
+---
+[Select the time for voting]
+Wähle die Zeit für die Abstimmung
+---
+[Setup Process]
+Prozess einrichten
+---
+[Visibility]
+Sichtbarkeit
+---

@@ -1,0 +1,13 @@
+// The two proposals every consent process starts with, in the chosen
+// language.
+#import "locale"
+#import "storage"
+
+StandingInLanguage :: () -> StandingProposals {
+    standing: StandingProposals
+    standing.status_quo_title = Tr("status_quo_title")
+    standing.status_quo_description = Tr("status_quo_description")
+    standing.repeat_title = Tr("repeat_process_title")
+    standing.repeat_description = Tr("repeat_process_description")
+    return standing
+}

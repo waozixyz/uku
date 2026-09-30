@@ -312,3 +312,90 @@ Status quo と「プロセスを繰り返す」は常に選択肢にあります
 [Start one and share the link with your group.]
 プロセスを始めて、リンクをグループと共有しましょう。
 ---
+[0 means no minimum - the result counts with any number of ballots.]
+0 は最低数なしを意味し、投票数にかかわらず結果が有効になります。
+---
+[Add Proposal]
+提案を追加
+---
+[Add at least one proposal.]
+提案を1つ以上追加してください。
+---
+[Add proposals]
+提案を追加
+---
+[Continue]
+次へ
+---
+[Delete]
+削除
+---
+[Description]
+説明
+---
+[Minimum ballots (quorum)]
+最低投票数（定足数）
+---
+[No proposals found.]
+提案がありません。
+---
+[Optional details]
+詳細（任意）
+---
+[Private]
+非公開
+---
+[Process phases]
+プロセスの段階
+---
+[Proposal + Voting Phase]
+提案と投票
+---
+[Voting Phase only]
+投票のみ
+---
+[Proposal title]
+提案のタイトル
+---
+[Proposal visibility]
+提案の公開範囲
+---
+[Proposals]
+提案
+---
+[Public]
+公開
+---
+[Unlisted]
+限定公開
+---
+[Quorum (minimum ballots)]
+定足数（最低投票数）
+---
+[Review Process]
+プロセスの確認
+---
+[Rules]
+ルール
+---
+[Select the time for proposals and voting]
+提案と投票の期間を選択
+---
+[Select the time for voting]
+投票の期間を選択
+---
+[Setup Process]
+プロセスの設定
+---
+[Title]
+タイトル
+---
+[Visibility]
+公開範囲
+---
+[Who can add proposals]
+提案を追加できる人
+---
+[Who can vote]
+投票できる人
+---

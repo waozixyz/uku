@@ -306,3 +306,90 @@ Opsi yang dapat diterima orang-orang yang menang.
 [Start one and share the link with your group.]
 Mulai satu dan bagikan tautannya dengan kelompok Anda.
 ---
+[0 means no minimum - the result counts with any number of ballots.]
+0 berarti tanpa batas minimum - hasil berlaku berapa pun jumlah suaranya.
+---
+[Add Proposal]
+Tambah proposal
+---
+[Add at least one proposal.]
+Tambahkan setidaknya satu proposal.
+---
+[Add proposals]
+Tambah proposal
+---
+[Continue]
+Lanjutkan
+---
+[Delete]
+Hapus
+---
+[Description]
+Deskripsi
+---
+[Minimum ballots (quorum)]
+Suara minimum (kuorum)
+---
+[No proposals found.]
+Tidak ada proposal.
+---
+[Optional details]
+Detail opsional
+---
+[Private]
+Pribadi
+---
+[Process phases]
+Fase proses
+---
+[Proposal + Voting Phase]
+Proposal dan pemungutan suara
+---
+[Voting Phase only]
+Hanya pemungutan suara
+---
+[Proposal title]
+Judul proposal
+---
+[Proposal visibility]
+Visibilitas proposal
+---
+[Proposals]
+Proposal
+---
+[Public]
+Publik
+---
+[Unlisted]
+Tidak terdaftar
+---
+[Quorum (minimum ballots)]
+Kuorum (suara minimum)
+---
+[Review Process]
+Tinjau proses
+---
+[Rules]
+Aturan
+---
+[Select the time for proposals and voting]
+Pilih waktu untuk proposal dan pemungutan suara
+---
+[Select the time for voting]
+Pilih waktu untuk pemungutan suara
+---
+[Setup Process]
+Atur proses
+---
+[Title]
+Judul
+---
+[Visibility]
+Visibilitas
+---
+[Who can add proposals]
+Siapa yang dapat menambah proposal
+---
+[Who can vote]
+Siapa yang dapat memilih
+---
