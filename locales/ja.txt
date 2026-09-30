@@ -279,3 +279,36 @@ Uku
 [Owner only]
 所有者のみ
 ---
+[Settings]
+設定
+---
+[Appearance]
+外観
+---
+[Consent]
+同意
+---
+[Ranked]
+ランキング
+---
+[Collection]
+収集
+---
+[Decide together]
+一緒に決めよう
+---
+[Score every option from -3 to +3.]
+すべての選択肢を -3 から +3 で評価します。
+---
+[Negative scores weigh more, so resistance is visible.]
+マイナスの評価は重く数えられるため、抵抗が見えます。
+---
+[Status quo and Repeat process are always on the ballot.]
+Status quo と「プロセスを繰り返す」は常に選択肢にあります。
+---
+[The option people can accept wins.]
+人々が受け入れられる選択肢が選ばれます。
+---
+[Start one and share the link with your group.]
+プロセスを始めて、リンクをグループと共有しましょう。
+---

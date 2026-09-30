@@ -273,3 +273,36 @@ Masuk
 [Owner only]
 Hanya pemilik
 ---
+[Settings]
+Pengaturan
+---
+[Appearance]
+Tampilan
+---
+[Consent]
+Persetujuan
+---
+[Ranked]
+Peringkat
+---
+[Collection]
+Pengumpulan
+---
+[Decide together]
+Putuskan bersama
+---
+[Score every option from -3 to +3.]
+Beri nilai setiap opsi dari -3 sampai +3.
+---
+[Negative scores weigh more, so resistance is visible.]
+Nilai negatif berbobot lebih besar, sehingga penolakan terlihat.
+---
+[Status quo and Repeat process are always on the ballot.]
+Status quo dan Ulangi proses selalu ada di surat suara.
+---
+[The option people can accept wins.]
+Opsi yang dapat diterima orang-orang yang menang.
+---
+[Start one and share the link with your group.]
+Mulai satu dan bagikan tautannya dengan kelompok Anda.
+---

@@ -279,3 +279,36 @@ Přihlášení
 [Owner only]
 Pouze vlastník
 ---
+[Settings]
+Nastavení
+---
+[Appearance]
+Vzhled
+---
+[Consent]
+Souhlas
+---
+[Ranked]
+Pořadí
+---
+[Collection]
+Sběr
+---
+[Decide together]
+Rozhodujte společně
+---
+[Score every option from -3 to +3.]
+Ohodnoťte každou možnost od -3 do +3.
+---
+[Negative scores weigh more, so resistance is visible.]
+Záporné body mají větší váhu, takže je odpor vidět.
+---
+[Status quo and Repeat process are always on the ballot.]
+Status quo a Opakovat proces jsou vždy mezi možnostmi.
+---
+[The option people can accept wins.]
+Vyhrává možnost, kterou lidé dokážou přijmout.
+---
+[Start one and share the link with your group.]
+Založte ho a sdílejte odkaz se svou skupinou.
+---

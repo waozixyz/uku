@@ -282,6 +282,11 @@ LocaleFill_es :: () {
     LocaleAdd("You do not have permission to add proposals to this process.", "No tienes permiso para agregar propuestas a este proceso.")
     LocaleAdd("You do not have permission to vote in this process.", "No tienes permiso para votar en este proceso.")
     LocaleAdd("You do not have permission to view proposals in this process.", "No tienes permiso para ver las propuestas de este proceso.")
+    LocaleAdd("Settings", "Ajustes")
+    LocaleAdd("Appearance", "Apariencia")
+    LocaleAdd("Consent", "Consentimiento")
+    LocaleAdd("Ranked", "Clasificación")
+    LocaleAdd("Collection", "Recopilación")
 }
 
 LocaleFill_cs :: () {
@@ -376,6 +381,17 @@ LocaleFill_cs :: () {
     LocaleAdd("Get started", "Začít")
     LocaleAdd("Logged in", "Přihlášení")
     LocaleAdd("Owner only", "Pouze vlastník")
+    LocaleAdd("Settings", "Nastavení")
+    LocaleAdd("Appearance", "Vzhled")
+    LocaleAdd("Consent", "Souhlas")
+    LocaleAdd("Ranked", "Pořadí")
+    LocaleAdd("Collection", "Sběr")
+    LocaleAdd("Decide together", "Rozhodujte společně")
+    LocaleAdd("Score every option from -3 to +3.", "Ohodnoťte každou možnost od -3 do +3.")
+    LocaleAdd("Negative scores weigh more, so resistance is visible.", "Záporné body mají větší váhu, takže je odpor vidět.")
+    LocaleAdd("Status quo and Repeat process are always on the ballot.", "Status quo a Opakovat proces jsou vždy mezi možnostmi.")
+    LocaleAdd("The option people can accept wins.", "Vyhrává možnost, kterou lidé dokážou přijmout.")
+    LocaleAdd("Start one and share the link with your group.", "Založte ho a sdílejte odkaz se svou skupinou.")
 }
 
 LocaleFill_de :: () {
@@ -551,6 +567,11 @@ LocaleFill_de :: () {
     LocaleAdd("You do not have permission to add proposals to this process.", "Du hast keine Berechtigung, in diesem Prozess Vorschläge hinzuzufügen.")
     LocaleAdd("You do not have permission to vote in this process.", "Du hast keine Berechtigung, in diesem Prozess abzustimmen.")
     LocaleAdd("You do not have permission to view proposals in this process.", "Du hast keine Berechtigung, die Vorschläge in diesem Prozess zu sehen.")
+    LocaleAdd("Settings", "Einstellungen")
+    LocaleAdd("Appearance", "Darstellung")
+    LocaleAdd("Consent", "Konsent")
+    LocaleAdd("Ranked", "Rangfolge")
+    LocaleAdd("Collection", "Sammlung")
 }
 
 LocaleFill_fr :: () {
@@ -726,6 +747,11 @@ LocaleFill_fr :: () {
     LocaleAdd("You do not have permission to add proposals to this process.", "Vous n’avez pas l’autorisation d’ajouter des propositions à ce processus.")
     LocaleAdd("You do not have permission to vote in this process.", "Vous n’avez pas l’autorisation de voter dans ce processus.")
     LocaleAdd("You do not have permission to view proposals in this process.", "Vous n’avez pas l’autorisation de voir les propositions de ce processus.")
+    LocaleAdd("Settings", "Paramètres")
+    LocaleAdd("Appearance", "Apparence")
+    LocaleAdd("Consent", "Consentement")
+    LocaleAdd("Ranked", "Classement")
+    LocaleAdd("Collection", "Collecte")
 }
 
 LocaleFill_id :: () {
@@ -818,6 +844,17 @@ LocaleFill_id :: () {
     LocaleAdd("Get started", "Mulai")
     LocaleAdd("Logged in", "Masuk")
     LocaleAdd("Owner only", "Hanya pemilik")
+    LocaleAdd("Settings", "Pengaturan")
+    LocaleAdd("Appearance", "Tampilan")
+    LocaleAdd("Consent", "Persetujuan")
+    LocaleAdd("Ranked", "Peringkat")
+    LocaleAdd("Collection", "Pengumpulan")
+    LocaleAdd("Decide together", "Putuskan bersama")
+    LocaleAdd("Score every option from -3 to +3.", "Beri nilai setiap opsi dari -3 sampai +3.")
+    LocaleAdd("Negative scores weigh more, so resistance is visible.", "Nilai negatif berbobot lebih besar, sehingga penolakan terlihat.")
+    LocaleAdd("Status quo and Repeat process are always on the ballot.", "Status quo dan Ulangi proses selalu ada di surat suara.")
+    LocaleAdd("The option people can accept wins.", "Opsi yang dapat diterima orang-orang yang menang.")
+    LocaleAdd("Start one and share the link with your group.", "Mulai satu dan bagikan tautannya dengan kelompok Anda.")
 }
 
 LocaleFill_it :: () {
@@ -908,6 +945,18 @@ LocaleFill_it :: () {
     LocaleAdd("Get started", "Inizia")
     LocaleAdd("Logged in", "Con accesso")
     LocaleAdd("Owner only", "Solo proprietario")
+    LocaleAdd("Settings", "Impostazioni")
+    LocaleAdd("Appearance", "Aspetto")
+    LocaleAdd("System", "Sistema")
+    LocaleAdd("Consent", "Consenso")
+    LocaleAdd("Ranked", "Classifica")
+    LocaleAdd("Collection", "Raccolta")
+    LocaleAdd("Decide together", "Decidete insieme")
+    LocaleAdd("Score every option from -3 to +3.", "Valuta ogni opzione da -3 a +3.")
+    LocaleAdd("Negative scores weigh more, so resistance is visible.", "I punteggi negativi pesano di più, così la resistenza è visibile.")
+    LocaleAdd("Status quo and Repeat process are always on the ballot.", "Status quo e Ripeti processo sono sempre tra le opzioni.")
+    LocaleAdd("The option people can accept wins.", "Vince l'opzione che le persone possono accettare.")
+    LocaleAdd("Start one and share the link with your group.", "Avviane uno e condividi il link con il tuo gruppo.")
 }
 
 LocaleFill_pt :: () {
@@ -987,6 +1036,20 @@ LocaleFill_pt :: () {
     LocaleAdd("Get started", "Começar")
     LocaleAdd("Logged in", "Com sessão iniciada")
     LocaleAdd("Owner only", "Somente proprietário")
+    LocaleAdd("Settings", "Configurações")
+    LocaleAdd("Appearance", "Aparência")
+    LocaleAdd("System", "Sistema")
+    LocaleAdd("Light", "Claro")
+    LocaleAdd("Language", "Idioma")
+    LocaleAdd("Consent", "Consentimento")
+    LocaleAdd("Ranked", "Classificação")
+    LocaleAdd("Collection", "Coleta")
+    LocaleAdd("Decide together", "Decidam juntos")
+    LocaleAdd("Score every option from -3 to +3.", "Avalie cada opção de -3 a +3.")
+    LocaleAdd("Negative scores weigh more, so resistance is visible.", "Notas negativas pesam mais, então a resistência fica visível.")
+    LocaleAdd("Status quo and Repeat process are always on the ballot.", "Status quo e Repetir processo estão sempre na votação.")
+    LocaleAdd("The option people can accept wins.", "Vence a opção que as pessoas conseguem aceitar.")
+    LocaleAdd("Start one and share the link with your group.", "Crie um e compartilhe o link com seu grupo.")
 }
 
 LocaleFill_ru :: () {
@@ -1081,6 +1144,17 @@ LocaleFill_ru :: () {
     LocaleAdd("Get started", "Начать")
     LocaleAdd("Logged in", "Вошедшие")
     LocaleAdd("Owner only", "Только владелец")
+    LocaleAdd("Settings", "Настройки")
+    LocaleAdd("Appearance", "Оформление")
+    LocaleAdd("Consent", "Согласие")
+    LocaleAdd("Ranked", "Рейтинг")
+    LocaleAdd("Collection", "Сбор")
+    LocaleAdd("Decide together", "Решайте вместе")
+    LocaleAdd("Score every option from -3 to +3.", "Оцените каждый вариант от -3 до +3.")
+    LocaleAdd("Negative scores weigh more, so resistance is visible.", "Отрицательные оценки весят больше, поэтому сопротивление видно.")
+    LocaleAdd("Status quo and Repeat process are always on the ballot.", "Status quo и «Повторить процесс» всегда есть среди вариантов.")
+    LocaleAdd("The option people can accept wins.", "Побеждает вариант, который люди могут принять.")
+    LocaleAdd("Start one and share the link with your group.", "Создайте процесс и поделитесь ссылкой с группой.")
 }
 
 LocaleFill_ja :: () {
@@ -1175,6 +1249,17 @@ LocaleFill_ja :: () {
     LocaleAdd("Get started", "開始")
     LocaleAdd("Logged in", "ログイン済み")
     LocaleAdd("Owner only", "所有者のみ")
+    LocaleAdd("Settings", "設定")
+    LocaleAdd("Appearance", "外観")
+    LocaleAdd("Consent", "同意")
+    LocaleAdd("Ranked", "ランキング")
+    LocaleAdd("Collection", "収集")
+    LocaleAdd("Decide together", "一緒に決めよう")
+    LocaleAdd("Score every option from -3 to +3.", "すべての選択肢を -3 から +3 で評価します。")
+    LocaleAdd("Negative scores weigh more, so resistance is visible.", "マイナスの評価は重く数えられるため、抵抗が見えます。")
+    LocaleAdd("Status quo and Repeat process are always on the ballot.", "Status quo と「プロセスを繰り返す」は常に選択肢にあります。")
+    LocaleAdd("The option people can accept wins.", "人々が受け入れられる選択肢が選ばれます。")
+    LocaleAdd("Start one and share the link with your group.", "プロセスを始めて、リンクをグループと共有しましょう。")
 }
 
 LocaleFill_ko :: () {
@@ -1269,6 +1354,17 @@ LocaleFill_ko :: () {
     LocaleAdd("Get started", "시작하기")
     LocaleAdd("Logged in", "로그인됨")
     LocaleAdd("Owner only", "소유자만")
+    LocaleAdd("Settings", "설정")
+    LocaleAdd("Appearance", "모양")
+    LocaleAdd("Consent", "동의")
+    LocaleAdd("Ranked", "순위")
+    LocaleAdd("Collection", "수집")
+    LocaleAdd("Decide together", "함께 결정하세요")
+    LocaleAdd("Score every option from -3 to +3.", "모든 선택지를 -3부터 +3까지 평가하세요.")
+    LocaleAdd("Negative scores weigh more, so resistance is visible.", "부정적인 점수는 더 크게 반영되어 반대가 드러납니다.")
+    LocaleAdd("Status quo and Repeat process are always on the ballot.", "Status quo와 프로세스 반복은 항상 선택지에 있습니다.")
+    LocaleAdd("The option people can accept wins.", "사람들이 받아들일 수 있는 선택지가 이깁니다.")
+    LocaleAdd("Start one and share the link with your group.", "하나를 시작하고 그룹과 링크를 공유하세요.")
 }
 
 LocaleFill_zh :: () {
@@ -1363,6 +1459,17 @@ LocaleFill_zh :: () {
     LocaleAdd("Get started", "开始")
     LocaleAdd("Logged in", "已登录")
     LocaleAdd("Owner only", "仅所有者")
+    LocaleAdd("Settings", "设置")
+    LocaleAdd("Appearance", "外观")
+    LocaleAdd("Consent", "同意")
+    LocaleAdd("Ranked", "排序")
+    LocaleAdd("Collection", "收集")
+    LocaleAdd("Decide together", "共同决定")
+    LocaleAdd("Score every option from -3 to +3.", "为每个选项打分，从 -3 到 +3。")
+    LocaleAdd("Negative scores weigh more, so resistance is visible.", "负分权重更高，因此反对意见清晰可见。")
+    LocaleAdd("Status quo and Repeat process are always on the ballot.", "Status quo 和“重复流程”始终是可选项。")
+    LocaleAdd("The option people can accept wins.", "大家都能接受的选项胜出。")
+    LocaleAdd("Start one and share the link with your group.", "创建一个流程，并与你的小组分享链接。")
 }
 
 // Fills locale_filling for a language code; false for an unknown code.

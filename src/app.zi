@@ -2,6 +2,8 @@
 using UI :: #import "Widgets";
 #import "app_state"
 #import "home_view"
+#import "manual_view"
+#import "settings_view"
 #import "locale"
 #import "storage"
 #import "theme"
@@ -20,6 +22,7 @@ Initialize :: () {
         language: [16]u8
         unused LocaleSelect(SettingLoadText("locale", "en", language[:]))
         unused StorageLoadProcesses()
+        ThemeSetMode(SettingLoadInt("theme_mode", 0))
     }
 }
 
@@ -46,7 +49,7 @@ Frame :: (session: Session, viewport: Rectangle) -> s32 {
         Initialize()
         initialized = true
     }
-    ThemeFollowSystem()
+    ThemeUpdate()
     UiBeginFrame(session)
     pointer := PointerSample(session)
     BeginScrollFrame(session, Vector2.{pointer.x, pointer.y}, pointer.pressed, pointer.down, pointer.released, PointerWheelTake(session, viewport), 0.0)
@@ -59,9 +62,9 @@ Frame :: (session: Session, viewport: Rectangle) -> s32 {
     } else if screen == Screen.ScreenCollect {
         Placeholder(session, viewport, Tr("collect_title"))
     } else if screen == Screen.ScreenSettings {
-        Placeholder(session, viewport, Tr("Settings"))
+        SettingsView(session, viewport)
     } else {
-        Placeholder(session, viewport, Tr("manual_title"))
+        ManualView(session, viewport)
     }
     return 0
 }

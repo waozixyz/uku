@@ -267,3 +267,39 @@ Con accesso
 [Owner only]
 Solo proprietario
 ---
+[Settings]
+Impostazioni
+---
+[Appearance]
+Aspetto
+---
+[System]
+Sistema
+---
+[Consent]
+Consenso
+---
+[Ranked]
+Classifica
+---
+[Collection]
+Raccolta
+---
+[Decide together]
+Decidete insieme
+---
+[Score every option from -3 to +3.]
+Valuta ogni opzione da -3 a +3.
+---
+[Negative scores weigh more, so resistance is visible.]
+I punteggi negativi pesano di più, così la resistenza è visibile.
+---
+[Status quo and Repeat process are always on the ballot.]
+Status quo e Ripeti processo sono sempre tra le opzioni.
+---
+[The option people can accept wins.]
+Vince l'opzione che le persone possono accettare.
+---
+[Start one and share the link with your group.]
+Avviane uno e condividi il link con il tuo gruppo.
+---

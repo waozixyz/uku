@@ -279,3 +279,36 @@ Uku
 [Owner only]
 Только владелец
 ---
+[Settings]
+Настройки
+---
+[Appearance]
+Оформление
+---
+[Consent]
+Согласие
+---
+[Ranked]
+Рейтинг
+---
+[Collection]
+Сбор
+---
+[Decide together]
+Решайте вместе
+---
+[Score every option from -3 to +3.]
+Оцените каждый вариант от -3 до +3.
+---
+[Negative scores weigh more, so resistance is visible.]
+Отрицательные оценки весят больше, поэтому сопротивление видно.
+---
+[Status quo and Repeat process are always on the ballot.]
+Status quo и «Повторить процесс» всегда есть среди вариантов.
+---
+[The option people can accept wins.]
+Побеждает вариант, который люди могут принять.
+---
+[Start one and share the link with your group.]
+Создайте процесс и поделитесь ссылкой с группой.
+---

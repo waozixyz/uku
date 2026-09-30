@@ -234,3 +234,45 @@ Com sessão iniciada
 [Owner only]
 Somente proprietário
 ---
+[Settings]
+Configurações
+---
+[Appearance]
+Aparência
+---
+[System]
+Sistema
+---
+[Light]
+Claro
+---
+[Language]
+Idioma
+---
+[Consent]
+Consentimento
+---
+[Ranked]
+Classificação
+---
+[Collection]
+Coleta
+---
+[Decide together]
+Decidam juntos
+---
+[Score every option from -3 to +3.]
+Avalie cada opção de -3 a +3.
+---
+[Negative scores weigh more, so resistance is visible.]
+Notas negativas pesam mais, então a resistência fica visível.
+---
+[Status quo and Repeat process are always on the ballot.]
+Status quo e Repetir processo estão sempre na votação.
+---
+[The option people can accept wins.]
+Vence a opção que as pessoas conseguem aceitar.
+---
+[Start one and share the link with your group.]
+Crie um e compartilhe o link com seu grupo.
+---

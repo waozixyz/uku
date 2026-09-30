@@ -522,3 +522,18 @@ No tienes permiso para votar en este proceso.
 [You do not have permission to view proposals in this process.]
 No tienes permiso para ver las propuestas de este proceso.
 ---
+[Settings]
+Ajustes
+---
+[Appearance]
+Apariencia
+---
+[Consent]
+Consentimiento
+---
+[Ranked]
+Clasificación
+---
+[Collection]
+Recopilación
+---

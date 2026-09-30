@@ -2,6 +2,7 @@
 // fields fed with the frame's keyboard input.
 using UI :: #import "Widgets";
 #import "theme"
+#import "locale"
 #import "text_buffer"
 
 FIELD_LIMIT :: 32
@@ -187,4 +188,26 @@ UiField :: (session: Session, index: s32, label: string, placeholder: string, bu
         focused_field = -1
     }
     return result.committed
+}
+
+SUB_PAGE_BAR_HEIGHT :: 56.0
+
+// A screen's title bar with a back button; returns true when back is clicked.
+UiSubPageBar :: (session: Session, viewport: Rectangle, title: string) -> bool {
+    UiRule(session, cast(u64)4501, viewport.x, viewport.y + SUB_PAGE_BAR_HEIGHT - 1.0, viewport.width)
+    back := UiButton(session, 4502, Tr("back_button"), Rectangle.{viewport.x + 12.0, viewport.y + 10.0, 110.0, 36.0}, false)
+    UiText(session, title, Rectangle.{viewport.x + 136.0, viewport.y + 17.0, viewport.width - 150.0, 24.0}, 18)
+    if back {
+        focused_field = -1
+    }
+    return back
+}
+
+// A centered column at most max_width wide inside the viewport.
+UiColumn :: (viewport: Rectangle, max_width: float32) -> Rectangle {
+    width := viewport.width - 32.0
+    if width > max_width {
+        width = max_width
+    }
+    return Rectangle.{viewport.x + (viewport.width - width) / 2.0, viewport.y, width, viewport.height}
 }

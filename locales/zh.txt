@@ -279,3 +279,36 @@ Uku
 [Owner only]
 仅所有者
 ---
+[Settings]
+设置
+---
+[Appearance]
+外观
+---
+[Consent]
+同意
+---
+[Ranked]
+排序
+---
+[Collection]
+收集
+---
+[Decide together]
+共同决定
+---
+[Score every option from -3 to +3.]
+为每个选项打分，从 -3 到 +3。
+---
+[Negative scores weigh more, so resistance is visible.]
+负分权重更高，因此反对意见清晰可见。
+---
+[Status quo and Repeat process are always on the ballot.]
+Status quo 和“重复流程”始终是可选项。
+---
+[The option people can accept wins.]
+大家都能接受的选项胜出。
+---
+[Start one and share the link with your group.]
+创建一个流程，并与你的小组分享链接。
+---

@@ -1,0 +1,72 @@
+// Settings: the interface language and the light or dark appearance.
+using UI :: #import "Widgets";
+#import "app_state"
+#import "locale"
+#import "storage"
+#import "theme"
+#import "ui_kit"
+
+settings_language_menu: DropdownResult;
+
+AppearanceChoice :: (session: Session, x: float32, y: float32, width: float32) {
+    options: [3]SegmentOption
+    options[0].label = Tr("System")
+    options[1].label = Tr("Light")
+    options[2].label = Tr("Dark")
+    props: SegmentedControlProps
+    props.key = cast(u64)3101
+    props.id = 3101
+    props.bounds = Rectangle.{x, y, width, 38.0}
+    props.selected_index = theme_mode
+    props.has_selection = true
+    props.scale = 1.0
+    result := SegmentedControl(session, props, options[:])
+    if result.changed {
+        ThemeSetMode(result.selected_index)
+        unused SettingSaveInt("theme_mode", result.selected_index)
+    }
+}
+
+LanguageChoice :: (session: Session, x: float32, y: float32, width: float32) {
+    options: [LOCALE_LIMIT]DropdownOption
+    count := LocaleCount()
+    index: s32 = 0
+    while index < count {
+        options[index].key = cast(u64)(3200 + index)
+        options[index].label = LocaleOptionAt(index).label
+        index += 1
+    }
+    props: DropdownProps
+    props.key = cast(u64)3001
+    props.id = 3001
+    props.bounds = Rectangle.{x, y, width, 38.0}
+    props.selected_index = LocaleActive()
+    props.open = settings_language_menu.open
+    props.highlight_index = settings_language_menu.highlight_index
+    props.scroll_offset = settings_language_menu.scroll_offset
+    props.placeholder = Tr("Language")
+    props.scale = 1.0
+    settings_language_menu = Dropdown(session, props, options[0:count])
+    if settings_language_menu.changed {
+        code := LocaleOptionAt(settings_language_menu.selected_index).code
+        if LocaleSelect(code) {
+            unused SettingSaveText("locale", code)
+        }
+    }
+}
+
+SettingsView :: (session: Session, viewport: Rectangle) {
+    if UiSubPageBar(session, viewport, Tr("Settings")) {
+        screen = Screen.ScreenHome
+        return
+    }
+    column := UiColumn(viewport, 520.0)
+    y := viewport.y + SUB_PAGE_BAR_HEIGHT + 28.0
+    UiText(session, Tr("Language"), Rectangle.{column.x, y, column.width, 18.0}, 13)
+    language_y := y + 26.0
+    y = language_y + 38.0 + 28.0
+    UiText(session, Tr("Appearance"), Rectangle.{column.x, y, column.width, 18.0}, 13)
+    AppearanceChoice(session, column.x, y + 26.0, column.width)
+    // The open language menu covers the controls below it, so it comes last.
+    LanguageChoice(session, column.x, language_y, column.width)
+}

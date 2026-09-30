@@ -1,0 +1,30 @@
+// The manual: how a Ukuvota process runs.
+using UI :: #import "Widgets";
+#import "app_state"
+#import "locale"
+#import "ui_kit"
+
+manual_scroll: s32;
+manual_content_height: s32 = 600;
+
+ManualView :: (session: Session, viewport: Rectangle) {
+    if UiSubPageBar(session, viewport, Tr("manual_title")) {
+        screen = Screen.ScreenHome
+        return
+    }
+    props: ScrollProps
+    props.key = cast(u64)3501
+    props.bounds = Rectangle.{viewport.x, viewport.y + SUB_PAGE_BAR_HEIGHT, viewport.width, viewport.height - SUB_PAGE_BAR_HEIGHT}
+    props.content_height = manual_content_height
+    props.scroll_offset = manual_scroll
+    props.scale = 1.0
+    scroll := Scroll(session, props)
+    manual_scroll = scroll.scroll_offset
+    if !scroll.opened {
+        return
+    }
+    column := UiColumn(scroll.content, 640.0)
+    height := UiParagraph(session, Tr("manual_body"), column.x, scroll.content.y + 24.0, column.width, 16)
+    manual_content_height = cast(s32)height + 64
+    End(session)
+}

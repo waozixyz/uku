@@ -522,3 +522,18 @@ Du hast keine Berechtigung, in diesem Prozess abzustimmen.
 [You do not have permission to view proposals in this process.]
 Du hast keine Berechtigung, die Vorschläge in diesem Prozess zu sehen.
 ---
+[Settings]
+Einstellungen
+---
+[Appearance]
+Darstellung
+---
+[Consent]
+Konsent
+---
+[Ranked]
+Rangfolge
+---
+[Collection]
+Sammlung
+---
