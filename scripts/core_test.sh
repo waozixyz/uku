@@ -18,4 +18,11 @@ for test in tally_test:TallyAnswer ballot_test:BallotAnswer process_test:Process
     "$ziran" bundle $args --entry "$test" -o "$work/portable.zib" "tests/$module.zi"
     test "$("$ziran" run "$work/portable.zib")" = 42
 done
-echo 'Ukuvota counting, ballots, and processes: native and portable tests pass'
+# Storage calls into SQLite's C library, so it runs natively only.
+work=build/core-test/storage_test
+rm -rf "$work" build/core-test/storage.sqlite3
+mkdir -p "$work"
+"$ziran" build --project --target=c --entry storage_test:main -o "$work/c" tests/storage_test.zi
+${CC:-cc} -std=c99 -O2 -I"$ziran_root/include" -I"$work/c" "$work"/c/*.c ${SQLITE_LDLIBS:--lsqlite3} -o "$work/native"
+env -u DISPLAY -u WAYLAND_DISPLAY "$work/native"
+echo 'Ukuvota counting, ballots, processes, and storage: tests pass'

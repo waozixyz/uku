@@ -350,7 +350,7 @@ clean-text-api-check:
 
 .PHONY: core-test
 core-test:
-	sh scripts/core_test.sh
+	SQLITE_LDLIBS="$(SQLITE_LDLIBS)" sh scripts/core_test.sh
 
 test: clean-text-api-check no-vendor-edits core-test smoke
 

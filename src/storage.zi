@@ -1,0 +1,216 @@
+#import "sqlite/SQLite"
+#import "byte_text_linux"
+#import "c_string"
+#import "number_text"
+#import "text_buffer"
+
+// Uku's local database on the desktop and Android: processes with their
+// proposals and options, ballots, the sync account, and settings. Opening
+// an older database upgrades it in place and keeps its data, except that a
+// processes table from before process types existed is replaced, as the C
+// client did.
+
+STORAGE_SCHEMA :: "create table if not exists processes (id text primary key, type text not null, phase text not null, topic text not null, description text not null, proposal_minutes integer not null, voting_minutes integer not null, negative_weight integer not null, quorum_votes integer not null default 0, visibility text not null default 'public', proposal_visibility text not null default 'public', proposal_access text not null default 'public', voting_access text not null default 'public', local_address text not null, created_at integer not null, synced integer not null default 0); create table if not exists options (id text primary key, process_id text not null, label text not null, description text not null, position integer not null, foreign key(process_id) references processes(id)); create table if not exists proposals (id integer primary key autoincrement, process_id text not null, author_user_id text not null default '', remote_id text not null default '', display_name text not null default '', title text not null, description text not null, created_at integer not null, synced integer not null default 0, foreign key(process_id) references processes(id)); create table if not exists votes (process_id text not null, voter_user_id text not null, display_name text not null, reason text not null, scores text not null, updated_at integer not null, synced integer not null default 0, primary key(process_id, voter_user_id), foreign key(process_id) references processes(id)); create table if not exists results (process_id text primary key, result_json text not null, computed_at integer not null, foreign key(process_id) references processes(id)); create table if not exists account (id integer primary key check(id = 1), public_id text not null, public_key text not null, private_key text not null); create table if not exists settings (key text primary key, value text not null);"
+
+StorageColumn :: struct {
+    table: string
+    column: string
+    definition: string
+}
+
+database: *void;
+
+StorageOpened :: () -> bool {
+    return database != null
+}
+
+StorageClose :: () {
+    if database != null {
+        unused SqliteClose(database)
+        database = null
+    }
+}
+
+StorageTableExists :: (name: string) -> bool {
+    statement: *void = null
+    if SqlitePrepareText(database, "select 1 from sqlite_master where type='table' and name=?1", -1, *statement, null) != SQLITE_OK {
+        return false
+    }
+    unused SqliteBindTextString(statement, 1, name, -1)
+    exists := SqliteStep(statement) == SQLITE_ROW
+    unused SqliteFinalize(statement)
+    return exists
+}
+
+// Table names come from this file, never from data, so they are part of
+// the statement.
+StorageTableHasColumn :: (table: string, column: string) -> bool {
+    sql: [128]u8
+    if !CopyCString("pragma table_info(", sql[:]) {
+        return false
+    }
+    length := StorageAppend(sql[:], 18, table)
+    length = StorageAppend(sql[:], length, ")")
+    if length < 0 {
+        return false
+    }
+    statement: *void = null
+    if SqlitePrepareText(database, TextUntilNul(sql[:]), -1, *statement, null) != SQLITE_OK {
+        return false
+    }
+    found := false
+    while !found && SqliteStep(statement) == SQLITE_ROW {
+        name := SqliteColumnText(statement, 1)
+        if name != null && TextFromCString(name) == column {
+            found = true
+        }
+    }
+    unused SqliteFinalize(statement)
+    return found
+}
+
+StorageAppend :: (output: []u8, length: s64, text: string) -> s64 {
+    if length < 0 || length + text.count + 1 > output.count {
+        return -1
+    }
+    index: s64 = 0
+    while index < text.count {
+        output[length + index] = text[index]
+        index += 1
+    }
+    output[length + text.count] = cast(u8)0
+    return length + text.count
+}
+
+// Processes from before process types cannot be read; the C client dropped
+// them and their proposals, votes, options, and results.
+StorageResetOldProcessSchema :: () {
+    if !StorageTableExists("processes") || StorageTableHasColumn("processes", "type") {
+        return
+    }
+    unused SqliteExecText(database, "drop table if exists processes")
+    unused SqliteExecText(database, "drop table if exists proposals")
+    unused SqliteExecText(database, "drop table if exists votes")
+    unused SqliteExecText(database, "drop table if exists options")
+    unused SqliteExecText(database, "drop table if exists results")
+}
+
+// Columns added after the first releases, as ALTER TABLE statements that
+// older databases need.
+StorageAddMissingColumns :: () {
+    columns: [8]StorageColumn = .{
+        StorageColumn.{"account", "auth_token", "alter table account add column auth_token text not null default ''"},
+        StorageColumn.{"account", "server_url", "alter table account add column server_url text not null default 'https://api.waozi.xyz'"},
+        StorageColumn.{"processes", "quorum_votes", "alter table processes add column quorum_votes integer not null default 0"},
+        StorageColumn.{"processes", "owner_user_id", "alter table processes add column owner_user_id text not null default ''"},
+        StorageColumn.{"processes", "proposal_visibility", "alter table processes add column proposal_visibility text not null default 'public'"},
+        StorageColumn.{"processes", "proposal_access", "alter table processes add column proposal_access text not null default 'public'"},
+        StorageColumn.{"processes", "voting_access", "alter table processes add column voting_access text not null default 'public'"},
+        StorageColumn.{"proposals", "display_name", "alter table proposals add column display_name text not null default ''"}
+    }
+    index: s64 = 0
+    while index < columns.count {
+        if !StorageTableHasColumn(columns[index].table, columns[index].column) {
+            unused SqliteExecText(database, columns[index].definition)
+        }
+        index += 1
+    }
+}
+
+// Opens (or creates) the database at `path` and brings its schema up to
+// date. Returns false, with nothing open, when it cannot.
+StorageOpen :: (path: string) -> bool {
+    StorageClose()
+    bytes: [1024]u8
+    if !CopyCString(path, bytes[:]) {
+        return false
+    }
+    flags: s32 = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE
+    if SqliteOpen(*bytes[0], *database, flags) != SQLITE_OK {
+        StorageClose()
+        return false
+    }
+    StorageResetOldProcessSchema()
+    if SqliteExecText(database, STORAGE_SCHEMA) != SQLITE_OK {
+        StorageClose()
+        return false
+    }
+    StorageAddMissingColumns()
+    return true
+}
+
+// The setting's value, copied into output, or fallback when it is unset.
+SettingLoadText :: (key: string, fallback: string, output: []u8) -> string {
+    unused CopyCString(fallback, output)
+    if database == null {
+        return TextUntilNul(output)
+    }
+    statement: *void = null
+    if SqlitePrepareText(database, "select value from settings where key=?", -1, *statement, null) != SQLITE_OK {
+        return TextUntilNul(output)
+    }
+    unused SqliteBindTextString(statement, 1, key, -1)
+    if SqliteStep(statement) == SQLITE_ROW {
+        value := SqliteColumnText(statement, 0)
+        if value != null {
+            unused CopyCString(TextFromCString(value), output)
+        }
+    }
+    unused SqliteFinalize(statement)
+    return TextUntilNul(output)
+}
+
+SettingSaveText :: (key: string, value: string) -> bool {
+    if database == null {
+        return false
+    }
+    statement: *void = null
+    if SqlitePrepareText(database, "insert or replace into settings(key, value) values(?, ?)", -1, *statement, null) != SQLITE_OK {
+        return false
+    }
+    unused SqliteBindTextString(statement, 1, key, -1)
+    unused SqliteBindTextString(statement, 2, value, -1)
+    saved := SqliteStep(statement) == SQLITE_DONE
+    unused SqliteFinalize(statement)
+    return saved
+}
+
+// Reads a whole number the way the C client's atoi did: an optional sign,
+// then digits; anything else ends it, and no digits read as 0.
+StorageReadInt :: (text: string) -> s32 {
+    index: s64 = 0
+    negative := false
+    if index < text.count && (text[index] == cast(u8)45 || text[index] == cast(u8)43) {
+        negative = text[index] == cast(u8)45
+        index += 1
+    }
+    value: s64 = 0
+    while index < text.count && text[index] >= cast(u8)48 && text[index] <= cast(u8)57 {
+        if value < 2147483648 {
+            value = value * 10 + cast(s64)(text[index] - cast(u8)48)
+        }
+        index += 1
+    }
+    if negative {
+        value = -value
+    }
+    if value > 2147483647 {
+        return 2147483647
+    }
+    if value < -2147483648 {
+        return -2147483648
+    }
+    return cast(s32)value
+}
+
+SettingLoadInt :: (key: string, fallback: s32) -> s32 {
+    fallback_text: [24]u8
+    value: [32]u8
+    text := SettingLoadText(key, FormatInteger(cast(s64)fallback, fallback_text[:]), value[:])
+    return StorageReadInt(text)
+}
+
+SettingSaveInt :: (key: string, value: s32) -> bool {
+    text: [24]u8
+    return SettingSaveText(key, FormatInteger(cast(s64)value, text[:]))
+}

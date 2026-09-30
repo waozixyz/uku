@@ -1,8 +1,6 @@
 [package]
 name = "Uku"
-entry = "src/app.zi"
-module_roots = ["src"]
-bridge_modules = ["app"]
+module_roots = ["src", "tests"]
 
 [toolchain]
 git = "https://github.com/ziranlang/ziran.git"
@@ -20,3 +18,7 @@ backend = "desktop"
 
 [tool.Kryon.profiles.canvas]
 backend = "canvas"
+
+[dependencies.sqlite]
+git = "https://github.com/ziranlang/sqlite.git"
+ref = "master"

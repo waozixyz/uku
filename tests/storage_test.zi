@@ -1,0 +1,80 @@
+#import "sqlite/SQLite"
+#import "storage"
+#import "c_string"
+#import "text_buffer"
+
+STORAGE_TEST_PATH :: "build/core-test/storage.sqlite3"
+
+// A database as the first releases wrote it: processes without a type,
+// and an account without a sync token.
+WriteOldDatabase :: () -> bool {
+    path: [128]u8
+    if !CopyCString(STORAGE_TEST_PATH, path[:]) {
+        return false
+    }
+    old: *void = null
+    flags: s32 = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE
+    if SqliteOpen(*path[0], *old, flags) != SQLITE_OK {
+        return false
+    }
+    ok := SqliteExecText(old, "create table processes (id text primary key, topic text not null); insert into processes values ('p1', 'Lunch'); create table proposals (id integer primary key, process_id text not null, title text not null); insert into proposals values (1, 'p1', 'Soup'); create table account (id integer primary key check(id = 1), public_id text not null, public_key text not null, private_key text not null); insert into account values (1, 'me', 'pub', 'priv'); create table settings (key text primary key, value text not null); insert into settings values ('locale', 'de');") == SQLITE_OK
+    unused SqliteClose(old)
+    return ok
+}
+
+Count :: (sql: string) -> s32 {
+    statement: *void = null
+    if SqlitePrepareText(database, sql, -1, *statement, null) != SQLITE_OK {
+        return -1
+    }
+    count: s32 = -1
+    if SqliteStep(statement) == SQLITE_ROW {
+        count = SqliteColumnInt(statement, 0)
+    }
+    unused SqliteFinalize(statement)
+    return count
+}
+
+#program_export
+main :: () -> s32 {
+    if !WriteOldDatabase() {
+        return 1
+    }
+    if !StorageOpen(STORAGE_TEST_PATH) {
+        return 2
+    }
+    // Typeless processes and their proposals are replaced; the account and
+    // settings stay, with the new columns added.
+    if !StorageTableHasColumn("processes", "type") || !StorageTableHasColumn("processes", "voting_access") {
+        return 3
+    }
+    if Count("select count(*) from processes") != 0 || Count("select count(*) from proposals") != 0 {
+        return 4
+    }
+    if Count("select count(*) from account where public_id = 'me' and auth_token = '' and server_url = 'https://api.waozi.xyz'") != 1 {
+        return 5
+    }
+    value: [32]u8
+    if SettingLoadText("locale", "en", value[:]) != "de" || SettingLoadText("missing", "fallback", value[:]) != "fallback" {
+        return 6
+    }
+    if !SettingSaveText("locale", "ja") || !SettingSaveInt("zoom", -120) {
+        return 7
+    }
+    // Opening again keeps the data and adds nothing twice.
+    StorageClose()
+    if !StorageOpen(STORAGE_TEST_PATH) {
+        return 8
+    }
+    if SettingLoadText("locale", "en", value[:]) != "ja" || SettingLoadInt("zoom", 0) != -120 || SettingLoadInt("missing", 7) != 7 {
+        return 9
+    }
+    if StorageReadInt("+12x") != 12 || StorageReadInt("junk") != 0 || StorageReadInt("99999999999") != 2147483647 {
+        return 10
+    }
+    StorageClose()
+    if SettingSaveText("closed", "x") {
+        return 11
+    }
+    return 0
+}
