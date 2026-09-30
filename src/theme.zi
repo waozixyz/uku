@@ -4,7 +4,7 @@
 using UI :: #import "Widgets";
 SystemStyle :: #import "kss/SystemStyle";
 SystemThemeLinux :: #import "SystemThemeLinux";
-#import "Kryon/system_theme"
+#import "kryon/system_theme"
 #import "text_append"
 #import "text_buffer"
 

@@ -10,7 +10,7 @@ using UI :: #import "Widgets";
 #import "storage"
 #import "theme"
 #import "ui_kit"
-#import "Kryon/ScrollDevice"
+#import "kryon/ScrollDevice"
 #import "date_time_linux"
 
 STORAGE_PATH :: "uku.sqlite3"

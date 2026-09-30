@@ -1,4 +1,5 @@
 .DEFAULT_GOAL := run
+ZIRAN ?= ziran
 
 APP_NAME := uku
 APP_TITLE := Ukuvota
@@ -355,10 +356,10 @@ clean-text-api-check:
 # ~/.local/sqlite3.
 ZIRAN_APP_LIBRARY_PATH := $(if $(shell pkg-config --exists sqlite3 2>/dev/null && echo y),,$(HOME)/.local/sqlite3/lib)
 ziran-app:
-	sh scripts/native_deps.sh
+	sh scripts/native_deps.sh "$(ZIRAN)"
 	LIBRARY_PATH="$(ZIRAN_APP_LIBRARY_PATH)$${LIBRARY_PATH:+:$$LIBRARY_PATH}" \
 		LD_RUN_PATH="$(ZIRAN_APP_LIBRARY_PATH)" \
-		./scripts/ziran.sh tool Kryon build --profile desktop
+		$(ZIRAN) build --profile desktop
 ziran-run: ziran-app
 	./build/Uku-desktop
 
