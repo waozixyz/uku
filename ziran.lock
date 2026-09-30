@@ -11,9 +11,9 @@
       "url": "https://github.com/raysan5/raylib.git"
     },
     {
-      "commit": "e3054f3d7726a812e6a85d1d31d269a79166c314",
+      "commit": "bdbe65f3485d79a177a208e55b38db58a0a965cb",
       "dependencies": {},
-      "id": "pa47921fb3c89c4c0",
+      "id": "p72146cc87fc1bbd6",
       "name": "SQLite",
       "ref": "master",
       "url": "https://github.com/ziranlang/sqlite.git"
@@ -28,7 +28,7 @@
     }
   ],
   "root": {
-    "dependencies": {"Kryon": "pf59570b542b63322", "sqlite": "pa47921fb3c89c4c0"},
+    "dependencies": {"Kryon": "pf59570b542b63322", "sqlite": "p72146cc87fc1bbd6"},
     "name": "Uku"
   },
   "toolchain": {

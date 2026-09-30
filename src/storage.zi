@@ -1,4 +1,6 @@
 #import "sqlite/SQLite"
+#import "process"
+#import "tally"
 #import "byte_text_linux"
 #import "c_string"
 #import "number_text"
@@ -213,4 +215,205 @@ SettingLoadInt :: (key: string, fallback: s32) -> s32 {
 SettingSaveInt :: (key: string, value: s32) -> bool {
     text: [24]u8
     return SettingSaveText(key, FormatInteger(cast(s64)value, text[:]))
+}
+
+MAX_PROCESSES :: 128
+
+// A process as the dashboard lists it.
+ProcessRow :: struct {
+    id: [40]u8
+    local_address: [512]u8
+    owner: [65]u8
+    topic: [180]u8
+    description: [420]u8
+    type: ProcessType
+    proposal_minutes: s32
+    voting_minutes: s32
+    negative_weight: s32
+    quorum_votes: s32
+    visibility: [16]u8
+    proposal_visibility: [16]u8
+    proposal_access: [16]u8
+    voting_access: [16]u8
+    created_at: s64
+}
+
+process_rows: [MAX_PROCESSES]ProcessRow;
+process_row_count: s32;
+
+// Copies a text column into output, or fallback when it is NULL or empty.
+StorageColumnText :: (statement: *void, column: s32, fallback: string, output: []u8) {
+    value := SqliteColumnText(statement, column)
+    if value == null || value[0] == cast(u8)0 {
+        unused CopyCString(fallback, output)
+        return
+    }
+    unused CopyCString(TextFromCString(value), output)
+}
+
+// Loads the newest processes, up to MAX_PROCESSES, into process_rows.
+StorageLoadProcesses :: () -> s32 {
+    process_row_count = 0
+    if database == null {
+        return 0
+    }
+    statement: *void = null
+    if SqlitePrepareText(database, "select id, type, topic, description, proposal_minutes, voting_minutes, negative_weight, visibility, local_address, created_at, quorum_votes, owner_user_id, proposal_visibility, proposal_access, voting_access from processes order by created_at desc limit ?", -1, *statement, null) != SQLITE_OK {
+        return 0
+    }
+    unused SqliteBindInt(statement, 1, MAX_PROCESSES)
+    while process_row_count < MAX_PROCESSES && SqliteStep(statement) == SQLITE_ROW {
+        row: ProcessRow
+        type_key: [40]u8
+        StorageColumnText(statement, 0, "", row.id[:])
+        StorageColumnText(statement, 1, "consent", type_key[:])
+        row.type = ProcessTypeFromKey(TextUntilNul(type_key[:]))
+        StorageColumnText(statement, 2, "", row.topic[:])
+        StorageColumnText(statement, 3, "", row.description[:])
+        row.proposal_minutes = SqliteColumnInt(statement, 4)
+        row.voting_minutes = SqliteColumnInt(statement, 5)
+        row.negative_weight = SqliteColumnInt(statement, 6)
+        if ProcessUsesNegativeWeight(row.type) {
+            row.negative_weight = NegativeWeightNormalize(row.negative_weight)
+        }
+        StorageColumnText(statement, 7, "public", row.visibility[:])
+        StorageColumnText(statement, 8, "", row.local_address[:])
+        row.created_at = SqliteColumnInt64(statement, 9)
+        row.quorum_votes = SqliteColumnInt(statement, 10)
+        StorageColumnText(statement, 11, "", row.owner[:])
+        StorageColumnText(statement, 12, "public", row.proposal_visibility[:])
+        StorageColumnText(statement, 13, "public", row.proposal_access[:])
+        StorageColumnText(statement, 14, "public", row.voting_access[:])
+        process_rows[process_row_count] = row
+        process_row_count += 1
+    }
+    unused SqliteFinalize(statement)
+    return process_row_count
+}
+
+// Inserts a proposal and returns its local rowid, or -1.
+StorageInsertProposal :: (process_id: string, author: string, display_name: string, title: string, description: string, created_at: s64, synced: bool) -> s64 {
+    statement: *void = null
+    if SqlitePrepareText(database, "insert into proposals(process_id, author_user_id, display_name, title, description, created_at, synced) values(?, ?, ?, ?, ?, ?, ?)", -1, *statement, null) != SQLITE_OK {
+        return -1
+    }
+    unused SqliteBindTextString(statement, 1, process_id, -1)
+    unused SqliteBindTextString(statement, 2, author, -1)
+    unused SqliteBindTextString(statement, 3, display_name, -1)
+    unused SqliteBindTextString(statement, 4, title, -1)
+    unused SqliteBindTextString(statement, 5, description, -1)
+    unused SqliteBindInt64(statement, 6, created_at)
+    unused SqliteBindInt(statement, 7, ifx synced then 1 else 0)
+    inserted := SqliteStep(statement) == SQLITE_DONE
+    unused SqliteFinalize(statement)
+    if !inserted {
+        return -1
+    }
+    return SqliteLastInsertRowid(database)
+}
+
+StorageHasText :: (text: string) -> bool {
+    index: s64 = 0
+    while index < text.count {
+        byte := text[index]
+        if byte != cast(u8)32 && byte != cast(u8)9 && byte != cast(u8)10 && byte != cast(u8)13 {
+            return true
+        }
+        index += 1
+    }
+    return false
+}
+
+// Inserts a ranked-process option; an option without a label is skipped.
+StorageInsertOption :: (process_id: string, option: Option, position: s32) -> bool {
+    if !StorageHasText(TextUntilNul(option.label[:])) {
+        return true
+    }
+    statement: *void = null
+    if SqlitePrepareText(database, "insert into options(id, process_id, label, description, position) values(?, ?, ?, ?, ?)", -1, *statement, null) != SQLITE_OK {
+        return false
+    }
+    unused SqliteBindTextString(statement, 1, TextUntilNul(option.id[:]), -1)
+    unused SqliteBindTextString(statement, 2, process_id, -1)
+    unused SqliteBindTextString(statement, 3, TextUntilNul(option.label[:]), -1)
+    unused SqliteBindTextString(statement, 4, TextUntilNul(option.description[:]), -1)
+    unused SqliteBindInt(statement, 5, position)
+    inserted := SqliteStep(statement) == SQLITE_DONE
+    unused SqliteFinalize(statement)
+    return inserted
+}
+
+// The standing proposals of a new consent process that has none of its own.
+StandingProposals :: struct {
+    status_quo_title: string
+    status_quo_description: string
+    repeat_title: string
+    repeat_description: string
+}
+
+StorageInsertProcessRow :: (row: ProcessRow) -> bool {
+    statement: *void = null
+    if SqlitePrepareText(database, "insert into processes(id, type, phase, topic, description, proposal_minutes, voting_minutes, negative_weight, quorum_votes, visibility, proposal_visibility, proposal_access, voting_access, local_address, created_at, synced, owner_user_id) values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)", -1, *statement, null) != SQLITE_OK {
+        return false
+    }
+    unused SqliteBindTextString(statement, 1, TextUntilNul(row.id[:]), -1)
+    unused SqliteBindTextString(statement, 2, ProcessTypeKey(row.type), -1)
+    unused SqliteBindTextString(statement, 3, "published", -1)
+    unused SqliteBindTextString(statement, 4, TextUntilNul(row.topic[:]), -1)
+    unused SqliteBindTextString(statement, 5, TextUntilNul(row.description[:]), -1)
+    unused SqliteBindInt(statement, 6, row.proposal_minutes)
+    unused SqliteBindInt(statement, 7, row.voting_minutes)
+    unused SqliteBindInt(statement, 8, row.negative_weight)
+    unused SqliteBindInt(statement, 9, row.quorum_votes)
+    unused SqliteBindTextString(statement, 10, TextUntilNul(row.visibility[:]), -1)
+    unused SqliteBindTextString(statement, 11, TextUntilNul(row.proposal_visibility[:]), -1)
+    unused SqliteBindTextString(statement, 12, TextUntilNul(row.proposal_access[:]), -1)
+    unused SqliteBindTextString(statement, 13, TextUntilNul(row.voting_access[:]), -1)
+    unused SqliteBindTextString(statement, 14, TextUntilNul(row.local_address[:]), -1)
+    unused SqliteBindInt64(statement, 15, row.created_at)
+    unused SqliteBindTextString(statement, 16, TextUntilNul(row.owner[:]), -1)
+    inserted := SqliteStep(statement) == SQLITE_DONE
+    unused SqliteFinalize(statement)
+    return inserted
+}
+
+// Saves a newly created process in one transaction: the process, then its
+// options (ranked) or proposals (consent), all as the owner's. A consent
+// process without proposals starts with the two standing ones.
+StorageSaveNewProcess :: (row: ProcessRow, owner_name: string, standing: StandingProposals) -> bool {
+    if database == null || SqliteExecText(database, "begin immediate") != SQLITE_OK {
+        return false
+    }
+    process_id := TextUntilNul(row.id[:])
+    owner := TextUntilNul(row.owner[:])
+    saved := StorageInsertProcessRow(row)
+    if saved && ProcessHasOptions(row.type) {
+        index: s32 = 0
+        while saved && index < process.option_count {
+            saved = StorageInsertOption(process_id, process.options[index], index)
+            index += 1
+        }
+    }
+    if saved && row.type == ProcessType.ProcessConsent {
+        if process.proposal_count > 0 {
+            index: s32 = 0
+            while saved && index < process.proposal_count {
+                proposal := process.proposals[index]
+                saved = StorageInsertProposal(process_id, owner, owner_name, TextUntilNul(proposal.title[:]), TextUntilNul(proposal.description[:]), row.created_at, true) >= 0
+                index += 1
+            }
+        } else {
+            saved = StorageInsertProposal(process_id, owner, "", standing.status_quo_title, standing.status_quo_description, row.created_at, true) >= 0
+            if saved {
+                saved = StorageInsertProposal(process_id, owner, "", standing.repeat_title, standing.repeat_description, row.created_at, true) >= 0
+            }
+        }
+    }
+    if saved {
+        saved = SqliteExecText(database, "commit") == SQLITE_OK
+    }
+    if !saved {
+        unused SqliteExecText(database, "rollback")
+    }
+    return saved
 }

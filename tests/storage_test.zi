@@ -1,5 +1,7 @@
 #import "sqlite/SQLite"
 #import "storage"
+#import "process"
+#import "tally"
 #import "c_string"
 #import "text_buffer"
 
@@ -72,9 +74,77 @@ main :: () -> s32 {
     if StorageReadInt("+12x") != 12 || StorageReadInt("junk") != 0 || StorageReadInt("99999999999") != 2147483647 {
         return 10
     }
+    if !SaveProcesses() {
+        return 12
+    }
+    if StorageLoadProcesses() != 2 {
+        return 13
+    }
+    // Newest first; a consent weight of 0 reads as Infinity.
+    newest := process_rows[0]
+    oldest := process_rows[1]
+    if TextUntilNul(newest.id[:]) != "ranked-1" || newest.type != ProcessType.ProcessRanked || newest.created_at != 200 {
+        return 14
+    }
+    if TextUntilNul(oldest.topic[:]) != "Café night" || oldest.negative_weight != NEGATIVE_WEIGHT_INFINITY || TextUntilNul(oldest.voting_access[:]) != "public" {
+        return 15
+    }
+    // The consent process got the two standing proposals; the ranked one
+    // kept its labelled option and skipped the blank one.
+    if Count("select count(*) from proposals where process_id = 'consent-1' and author_user_id = 'owner' and synced = 1") != 2 {
+        return 16
+    }
+    if Count("select count(*) from options where process_id = 'ranked-1'") != 1 {
+        return 17
+    }
+    // A duplicate id fails and leaves nothing half-saved.
+    if SaveConsent("consent-1", 300) || Count("select count(*) from processes") != 2 || Count("select count(*) from proposals") != 2 {
+        return 18
+    }
     StorageClose()
     if SettingSaveText("closed", "x") {
         return 11
     }
     return 0
+}
+
+Standing :: () -> StandingProposals {
+    standing: StandingProposals
+    standing.status_quo_title = "Status quo"
+    standing.status_quo_description = "Keep things as they are."
+    standing.repeat_title = "Repeat process"
+    standing.repeat_description = "Decide again later."
+    return standing
+}
+
+SaveConsent :: (id: string, created_at: s64) -> bool {
+    ProcessClear()
+    row: ProcessRow
+    SetText(row.id[:], id)
+    SetText(row.owner[:], "owner")
+    SetText(row.topic[:], "Café night")
+    SetText(row.visibility[:], "public")
+    row.type = ProcessType.ProcessConsent
+    row.negative_weight = 0
+    row.created_at = created_at
+    return StorageSaveNewProcess(row, "Owner", Standing())
+}
+
+SaveProcesses :: () -> bool {
+    if !SaveConsent("consent-1", 100) {
+        return false
+    }
+    ProcessClear()
+    process.option_count = 2
+    SetText(process.options[0].id[:], "o1")
+    SetText(process.options[0].label[:], "Pizza")
+    SetText(process.options[1].id[:], "o2")
+    SetText(process.options[1].label[:], "   ")
+    row: ProcessRow
+    SetText(row.id[:], "ranked-1")
+    SetText(row.owner[:], "owner")
+    SetText(row.topic[:], "Dinner")
+    row.type = ProcessType.ProcessRanked
+    row.created_at = 200
+    return StorageSaveNewProcess(row, "Owner", Standing())
 }
