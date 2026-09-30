@@ -1,4 +1,5 @@
 #import "json_scan"
+#import "ballot"
 #import "tally"
 #import "text_buffer"
 
@@ -55,6 +56,9 @@ Participant :: struct {
     display_name: [80]u8
     updated_at: [64]u8
     has_ballot: bool
+    // Left out of the results by whoever reads them; every ballot counts
+    // by default.
+    excluded: bool
 }
 
 ProcessDetail :: struct {
@@ -380,4 +384,101 @@ ParseProcessDetail :: (json: string) -> bool {
         index += 1
     }
     return true
+}
+
+ProcessBallotCounts :: (index: s32) -> bool {
+    return process.participants[index].has_ballot && !process.participants[index].excluded
+}
+
+// The ballots that count toward the results.
+ProcessIncludedBallots :: () -> s32 {
+    count: s32 = 0
+    index: s32 = 0
+    while index < process.participant_count {
+        if ProcessBallotCounts(index) {
+            count += 1
+        }
+        index += 1
+    }
+    return count
+}
+
+// True when a ballot is left out, so the results show a subset.
+ProcessSubsetActive :: () -> bool {
+    index: s32 = 0
+    while index < process.participant_count {
+        if process.participants[index].has_ballot && process.participants[index].excluded {
+            return true
+        }
+        index += 1
+    }
+    return false
+}
+
+// Totals per proposal from the counted ballots, in proposal order.
+ProcessProposalTally :: (proposal: s32) -> ProposalTally {
+    tally: ProposalTally
+    voter: s32 = 0
+    while voter < process.participant_count {
+        if ProcessBallotCounts(voter) {
+            tally = TallyWithScore(tally, cast(s32)process.proposal_scores[voter][proposal], process.settings.negative_weight)
+        }
+        voter += 1
+    }
+    return tally
+}
+
+ProcessOptionTally :: (option: s32) -> OptionTally {
+    tally: OptionTally
+    voter: s32 = 0
+    while voter < process.participant_count {
+        if ProcessBallotCounts(voter) {
+            tally = OptionTallyWithScore(tally, cast(s32)process.option_scores[voter][option])
+        }
+        voter += 1
+    }
+    return tally
+}
+
+// Copies text[start:end] into output; false when it does not fit.
+CopyRange :: (text: string, start: s64, end: s64, output: []u8) -> bool {
+    length := end - start
+    if length < 0 || length + 1 > output.count {
+        return false
+    }
+    index: s64 = 0
+    while index < length {
+        output[index] = text[start + index]
+        index += 1
+    }
+    output[length] = cast(u8)0
+    return true
+}
+
+// Fills the participant's scores from a stored ballot ("id=score;..."),
+// by proposal or option id. Unknown ids and invalid scores are ignored.
+ProcessApplyBallot :: (participant: s32, ballot: string) {
+    options := ProcessHasOptions(process.settings.type)
+    id: [40]u8
+    at: s64 = 0
+    while at < ballot.count {
+        entry := BallotEntryAt(ballot, at)
+        if !entry.valid {
+            return
+        }
+        if ScoreIsValid(entry.score) && CopyRange(ballot, entry.id_start, entry.id_end, id[:]) {
+            if options {
+                index := ProcessOptionFind(TextUntilNul(id[:]))
+                if index >= 0 {
+                    process.option_scores[participant][index] = cast(s8)entry.score
+                }
+            } else {
+                index := ProcessProposalFind(TextUntilNul(id[:]))
+                if index >= 0 {
+                    process.proposal_scores[participant][index] = cast(s8)entry.score
+                }
+            }
+        }
+        at = entry.next
+    }
 }

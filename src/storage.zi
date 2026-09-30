@@ -417,3 +417,128 @@ StorageSaveNewProcess :: (row: ProcessRow, owner_name: string, standing: Standin
     }
     return saved
 }
+
+// The settings a stored process row carries.
+ProcessSettingsFromRow :: (row: ProcessRow) -> ProcessSettings {
+    settings: ProcessSettings
+    settings.id = row.id
+    settings.owner = row.owner
+    settings.type = row.type
+    settings.topic = row.topic
+    settings.description = row.description
+    settings.visibility = row.visibility
+    settings.proposal_visibility = row.proposal_visibility
+    settings.proposal_access = row.proposal_access
+    settings.voting_access = row.voting_access
+    settings.proposal_minutes = row.proposal_minutes
+    settings.voting_minutes = row.voting_minutes
+    settings.negative_weight = row.negative_weight
+    settings.quorum_votes = row.quorum_votes
+    return settings
+}
+
+StorageAddProposal :: (id: string, title: string, description: string) -> s32 {
+    if process.proposal_count >= MAX_PROPOSALS {
+        return -1
+    }
+    index := process.proposal_count
+    process.proposals[index] = Proposal.{}
+    SetText(process.proposals[index].id[:], id)
+    SetText(process.proposals[index].title[:], title)
+    SetText(process.proposals[index].description[:], description)
+    process.proposal_count += 1
+    return index
+}
+
+StorageLoadOptions :: (process_id: string) {
+    statement: *void = null
+    if SqlitePrepareText(database, "select id, label, description from options where process_id=? order by position, id", -1, *statement, null) != SQLITE_OK {
+        return
+    }
+    unused SqliteBindTextString(statement, 1, process_id, -1)
+    while process.option_count < MAX_OPTIONS && SqliteStep(statement) == SQLITE_ROW {
+        option: Option
+        StorageColumnText(statement, 0, "", option.id[:])
+        StorageColumnText(statement, 1, "", option.label[:])
+        StorageColumnText(statement, 2, "", option.description[:])
+        process.options[process.option_count] = option
+        process.option_count += 1
+    }
+    unused SqliteFinalize(statement)
+}
+
+// A proposal keeps the server's id once synced, and "local-<rowid>" before.
+StorageLoadProposals :: (process_id: string) {
+    statement: *void = null
+    if SqlitePrepareText(database, "select id, author_user_id, remote_id, title, description, display_name from proposals where process_id=? order by created_at, id", -1, *statement, null) != SQLITE_OK {
+        return
+    }
+    unused SqliteBindTextString(statement, 1, process_id, -1)
+    while process.proposal_count < MAX_PROPOSALS && SqliteStep(statement) == SQLITE_ROW {
+        proposal: Proposal
+        StorageColumnText(statement, 2, "", proposal.id[:])
+        if proposal.id[0] == cast(u8)0 {
+            local: [24]u8
+            number: [24]u8
+            length := StorageAppend(local[:], 0, "local-")
+            unused StorageAppend(local[:], length, FormatInteger(SqliteColumnInt64(statement, 0), number[:]))
+            unused CopyCString(TextUntilNul(local[:]), proposal.id[:])
+        }
+        StorageColumnText(statement, 1, "", proposal.author[:])
+        StorageColumnText(statement, 3, "", proposal.title[:])
+        StorageColumnText(statement, 4, "", proposal.description[:])
+        StorageColumnText(statement, 5, "", proposal.display_name[:])
+        process.proposals[process.proposal_count] = proposal
+        process.proposal_count += 1
+    }
+    unused SqliteFinalize(statement)
+}
+
+StorageLoadVotes :: (process_id: string) {
+    statement: *void = null
+    if SqlitePrepareText(database, "select voter_user_id, display_name, scores, updated_at from votes where process_id=? order by updated_at", -1, *statement, null) != SQLITE_OK {
+        return
+    }
+    unused SqliteBindTextString(statement, 1, process_id, -1)
+    while SqliteStep(statement) == SQLITE_ROW {
+        voter: [65]u8
+        display_name: [80]u8
+        StorageColumnText(statement, 0, "", voter[:])
+        StorageColumnText(statement, 1, "", display_name[:])
+        participant := ProcessParticipantAdd(TextUntilNul(voter[:]), TextUntilNul(display_name[:]), true)
+        if participant >= 0 {
+            number: [24]u8
+            SetText(process.participants[participant].updated_at[:], FormatInteger(SqliteColumnInt64(statement, 3), number[:]))
+            ballot := SqliteColumnText(statement, 2)
+            if ballot != null {
+                ProcessApplyBallot(participant, TextFromCString(ballot))
+            }
+        }
+    }
+    unused SqliteFinalize(statement)
+}
+
+// Loads a stored process with its options, proposals, and ballots into
+// `process`. A consent process without stored proposals shows the two
+// standing ones. Proposal authors take part before they vote.
+StorageLoadProcessDetail :: (row: ProcessRow, standing: StandingProposals) -> bool {
+    ProcessClear()
+    if database == null || row.id[0] == cast(u8)0 {
+        return false
+    }
+    process.settings = ProcessSettingsFromRow(row)
+    process_id := TextUntilNul(row.id[:])
+    StorageLoadOptions(process_id)
+    StorageLoadProposals(process_id)
+    if row.type == ProcessType.ProcessConsent && process.proposal_count == 0 {
+        unused StorageAddProposal("status-quo", standing.status_quo_title, standing.status_quo_description)
+        unused StorageAddProposal("repeat-process", standing.repeat_title, standing.repeat_description)
+    }
+    StorageLoadVotes(process_id)
+    index: s32 = 0
+    while index < process.proposal_count {
+        unused ProcessParticipantAdd(TextUntilNul(process.proposals[index].author[:]), TextUntilNul(process.proposals[index].display_name[:]), false)
+        index += 1
+    }
+    return true
+}
