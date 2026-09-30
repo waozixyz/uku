@@ -348,11 +348,11 @@ no-vendor-edits:
 clean-text-api-check:
 	python3 $(KRYON_DIR)/scripts/check-clean-text-api.py src
 
-.PHONY: tally-test
-tally-test:
-	sh scripts/tally_test.sh
+.PHONY: core-test
+core-test:
+	sh scripts/core_test.sh
 
-test: clean-text-api-check no-vendor-edits tally-test smoke
+test: clean-text-api-check no-vendor-edits core-test smoke
 
 .PHONY: web web-itch itch itch-push site smoke test clean-text-api-check no-vendor-edits
 

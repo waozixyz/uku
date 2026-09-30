@@ -1,0 +1,73 @@
+#import "ballot"
+#import "tally"
+
+Same :: (output: []u8, length: s64, expected: string) -> bool {
+    if length != expected.count {
+        return false
+    }
+    index: s64 = 0
+    while index < length {
+        if output[index] != expected[index] {
+            return false
+        }
+        index += 1
+    }
+    return output[length] == cast(u8)0
+}
+
+#program_export
+BallotAnswer :: () -> s32 {
+    ballot := "status-quo=-2;p1=3; p2=+1;repeat-process=0"
+    if BallotScore(ballot, "status-quo") != -2 {
+        return 1
+    }
+    if BallotScore(ballot, "p1") != 3 {
+        return 2
+    }
+    // Spaces after ';' and a '+' sign read as the C client read them.
+    if BallotScore(ballot, "p2") != 1 {
+        return 3
+    }
+    if BallotScore(ballot, "repeat-process") != 0 {
+        return 4
+    }
+    if BallotScore(ballot, "p") != SCORE_UNSET {
+        return 5
+    }
+    // An entry without '=' ends the ballot.
+    if BallotScore("a=1;broken;b=2", "b") != SCORE_UNSET {
+        return 6
+    }
+    if BallotScore("", "a") != SCORE_UNSET {
+        return 7
+    }
+
+    output: [64]u8
+    length: s64 = 0
+    length = BallotAppend(output[:], length, "a", -3)
+    length = BallotAppend(output[:], length, "b", 12)
+    length = BallotAppend(output[:], length, "c", 0)
+    if !Same(output[:], length, "a=-3;b=12;c=0") {
+        return 8
+    }
+    small: [4]u8
+    if BallotAppend(small[:], 0, "long", 1) != -1 {
+        return 9
+    }
+
+    renamed: [64]u8
+    length = BallotReplaceId("draft-1=2;p1=-1;draft-10=3", "draft-1", "srv-9", renamed[:])
+    // Only the whole id is renamed, never a longer id that starts with it.
+    if !Same(renamed[:], length, "srv-9=2;p1=-1;draft-10=3") {
+        return 10
+    }
+    return 42
+}
+
+#program_export
+main :: () -> s32 {
+    if BallotAnswer() == 42 {
+        return 0
+    }
+    return 1
+}

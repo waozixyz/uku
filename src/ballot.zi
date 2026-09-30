@@ -1,0 +1,201 @@
+#import "tally"
+
+// A ballot as Uku stores it locally: "id=score;id=score", one entry per
+// proposal (or per option in a ranked process), with scores from -3 to +3.
+
+BallotEntry :: struct {
+    // The entry's id is text[id_start:id_end].
+    id_start: s64
+    id_end: s64
+    score: s32
+    // Where the next entry starts; text.count at the end.
+    next: s64
+    valid: bool
+}
+
+BALLOT_SEPARATOR :: 59
+BALLOT_EQUALS :: 61
+BALLOT_SPACE :: 32
+BALLOT_MINUS :: 45
+BALLOT_PLUS :: 43
+BALLOT_ZERO :: 48
+BALLOT_NINE :: 57
+
+// Reads a whole number the way the C client's atoi did: an optional sign,
+// then digits; anything else ends it.
+BallotReadScore :: (text: string, start: s64, end: s64) -> s32 {
+    at := start
+    negative := false
+    if at < end && (text[at] == cast(u8)BALLOT_MINUS || text[at] == cast(u8)BALLOT_PLUS) {
+        negative = text[at] == cast(u8)BALLOT_MINUS
+        at += 1
+    }
+    value: s32 = 0
+    while at < end && text[at] >= cast(u8)BALLOT_ZERO && text[at] <= cast(u8)BALLOT_NINE {
+        if value < 100000 {
+            value = value * 10 + cast(s32)(text[at] - cast(u8)BALLOT_ZERO)
+        }
+        at += 1
+    }
+    if negative {
+        return -value
+    }
+    return value
+}
+
+// The entry starting at `at`. An entry without '=' ends the ballot.
+BallotEntryAt :: (text: string, at: s64) -> BallotEntry {
+    entry: BallotEntry
+    entry.next = text.count
+    while at < text.count && (text[at] == cast(u8)BALLOT_SEPARATOR || text[at] == cast(u8)BALLOT_SPACE) {
+        at += 1
+    }
+    entry.id_start = at
+    while at < text.count && text[at] != cast(u8)BALLOT_EQUALS && text[at] != cast(u8)BALLOT_SEPARATOR {
+        at += 1
+    }
+    entry.id_end = at
+    if at >= text.count || text[at] != cast(u8)BALLOT_EQUALS || entry.id_end == entry.id_start {
+        return entry
+    }
+    at += 1
+    value_start := at
+    while at < text.count && text[at] != cast(u8)BALLOT_SEPARATOR {
+        at += 1
+    }
+    entry.score = BallotReadScore(text, value_start, at)
+    if at < text.count {
+        at += 1
+    }
+    entry.next = at
+    entry.valid = true
+    return entry
+}
+
+// True when text[start:end] is `id`.
+BallotIdIs :: (text: string, start: s64, end: s64, id: string) -> bool {
+    if end - start != id.count {
+        return false
+    }
+    index: s64 = 0
+    while index < id.count {
+        if text[start + index] != id[index] {
+            return false
+        }
+        index += 1
+    }
+    return true
+}
+
+// The score for `id`, or SCORE_UNSET when the ballot has none.
+BallotScore :: (text: string, id: string) -> s32 {
+    at: s64 = 0
+    while at < text.count {
+        entry := BallotEntryAt(text, at)
+        if !entry.valid {
+            return SCORE_UNSET
+        }
+        if BallotIdIs(text, entry.id_start, entry.id_end, id) {
+            return entry.score
+        }
+        at = entry.next
+    }
+    return SCORE_UNSET
+}
+
+BallotAppendText :: (output: []u8, length: s64, text: string) -> s64 {
+    if length < 0 || length + text.count + 1 > output.count {
+        return -1
+    }
+    index: s64 = 0
+    while index < text.count {
+        output[length + index] = text[index]
+        index += 1
+    }
+    length += text.count
+    output[length] = cast(u8)0
+    return length
+}
+
+BallotAppendScore :: (output: []u8, length: s64, score: s32) -> s64 {
+    digits: [12]u8
+    count: s64 = 0
+    value := score
+    if value < 0 {
+        value = -value
+    }
+    while value >= 10 && count < 11 {
+        digits[count] = cast(u8)(BALLOT_ZERO + value % 10)
+        value = value / 10
+        count += 1
+    }
+    digits[count] = cast(u8)(BALLOT_ZERO + value)
+    count += 1
+    if length < 0 || length + count + 2 > output.count {
+        return -1
+    }
+    if score < 0 {
+        output[length] = cast(u8)BALLOT_MINUS
+        length += 1
+    }
+    while count > 0 {
+        count -= 1
+        output[length] = digits[count]
+        length += 1
+    }
+    output[length] = cast(u8)0
+    return length
+}
+
+// Appends "id=score", after a ';' unless it is the first entry. Returns the
+// new length, or -1 when output is too small.
+BallotAppend :: (output: []u8, length: s64, id: string, score: s32) -> s64 {
+    if length > 0 {
+        length = BallotAppendText(output, length, ";")
+    }
+    length = BallotAppendText(output, length, id)
+    length = BallotAppendText(output, length, "=")
+    return BallotAppendScore(output, length, score)
+}
+
+// The ballot with every entry for `old_id` renamed to `new_id`, as when a
+// locally drafted proposal receives its server id.
+BallotReplaceId :: (text: string, old_id: string, new_id: string, output: []u8) -> s64 {
+    if output.count == 0 {
+        return -1
+    }
+    output[0] = cast(u8)0
+    length: s64 = 0
+    at: s64 = 0
+    while at < text.count && length >= 0 {
+        entry := BallotEntryAt(text, at)
+        if !entry.valid {
+            break
+        }
+        if BallotIdIs(text, entry.id_start, entry.id_end, old_id) {
+            length = BallotAppend(output, length, new_id, entry.score)
+        } else {
+            length = BallotAppendRange(output, length, text, entry.id_start, entry.id_end, entry.score)
+        }
+        at = entry.next
+    }
+    return length
+}
+
+BallotAppendRange :: (output: []u8, length: s64, text: string, start: s64, end: s64, score: s32) -> s64 {
+    if length > 0 {
+        length = BallotAppendText(output, length, ";")
+    }
+    if length < 0 || length + (end - start) + 1 > output.count {
+        return -1
+    }
+    index := start
+    while index < end {
+        output[length] = text[index]
+        length += 1
+        index += 1
+    }
+    output[length] = cast(u8)0
+    length = BallotAppendText(output, length, "=")
+    return BallotAppendScore(output, length, score)
+}
