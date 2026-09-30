@@ -7,6 +7,7 @@
 #import "c_string"
 #import "number_text"
 #import "text_buffer"
+#import "text_append"
 
 // Uku's local database on the desktop and Android: processes with their
 // proposals and options, ballots, the sync account, and settings. Opening
@@ -53,8 +54,8 @@ StorageTableHasColumn :: (table: string, column: string) -> bool {
     if !CopyCString("pragma table_info(", sql[:]) {
         return false
     }
-    length := StorageAppend(sql[:], 18, table)
-    length = StorageAppend(sql[:], length, ")")
+    length := TextAppend(sql[:], 18, table)
+    length = TextAppend(sql[:], length, ")")
     if length < 0 {
         return false
     }
@@ -71,19 +72,6 @@ StorageTableHasColumn :: (table: string, column: string) -> bool {
     }
     unused SqliteFinalize(statement)
     return found
-}
-
-StorageAppend :: (output: []u8, length: s64, text: string) -> s64 {
-    if length < 0 || length + text.count + 1 > output.count {
-        return -1
-    }
-    index: s64 = 0
-    while index < text.count {
-        output[length + index] = text[index]
-        index += 1
-    }
-    output[length + text.count] = cast(u8)0
-    return length + text.count
 }
 
 // Processes from before process types cannot be read; the C client dropped
@@ -482,8 +470,8 @@ StorageLoadProposals :: (process_id: string) {
         if proposal.id[0] == cast(u8)0 {
             local: [24]u8
             number: [24]u8
-            length := StorageAppend(local[:], 0, "local-")
-            unused StorageAppend(local[:], length, FormatInteger(SqliteColumnInt64(statement, 0), number[:]))
+            length := TextAppend(local[:], 0, "local-")
+            unused TextAppend(local[:], length, FormatInteger(SqliteColumnInt64(statement, 0), number[:]))
             unused CopyCString(TextUntilNul(local[:]), proposal.id[:])
         }
         StorageColumnText(statement, 1, "", proposal.author[:])
@@ -548,8 +536,8 @@ StorageLoadProcessDetail :: (row: ProcessRow, standing: StandingProposals) -> bo
 // The id a proposal has before the server gives it one.
 StorageLocalProposalId :: (rowid: s64, output: []u8) -> string {
     number: [24]u8
-    length := StorageAppend(output, 0, "local-")
-    unused StorageAppend(output, length, FormatInteger(rowid, number[:]))
+    length := TextAppend(output, 0, "local-")
+    unused TextAppend(output, length, FormatInteger(rowid, number[:]))
     return TextUntilNul(output)
 }
 

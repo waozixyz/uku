@@ -1,0 +1,96 @@
+// A process moves from collecting proposals to voting to results as its
+// proposal and voting minutes pass after it was created.
+#import "number_text"
+#import "text_append"
+
+Phase :: enum {
+    PhaseProposal :: 0
+    PhaseVoting :: 1
+    PhaseResults :: 2
+}
+
+PhaseAt :: struct {
+    phase: Phase
+    remaining_seconds: s64
+}
+
+ProcessPhaseAt :: (created_at: s64, proposal_minutes: s32, voting_minutes: s32, now: s64) -> PhaseAt {
+    result: PhaseAt
+    proposal_end := created_at + cast(s64)proposal_minutes * 60
+    voting_end := proposal_end + cast(s64)voting_minutes * 60
+    if now < proposal_end {
+        result.phase = Phase.PhaseProposal
+        result.remaining_seconds = proposal_end - now
+        return result
+    }
+    if now < voting_end {
+        result.phase = Phase.PhaseVoting
+        result.remaining_seconds = voting_end - now
+        return result
+    }
+    result.phase = Phase.PhaseResults
+    result.remaining_seconds = 0
+    return result
+}
+
+AppendNumber :: (output: []u8, length: s64, value: s64, unit: string) -> s64 {
+    digits: [24]u8
+    length = TextAppend(output, length, FormatInteger(value, digits[:]))
+    return TextAppend(output, length, unit)
+}
+
+// The two largest units of a duration: "2d 3h", "4h 5m", "6m 7s", or "8s".
+FormatDurationCompact :: (seconds: s64, output: []u8) -> string {
+    if output.count == 0 {
+        return ""
+    }
+    output[0] = cast(u8)0
+    if seconds < 0 {
+        seconds = 0
+    }
+    days := seconds / 86400
+    seconds = seconds % 86400
+    hours := seconds / 3600
+    seconds = seconds % 3600
+    minutes := seconds / 60
+    seconds = seconds % 60
+    length: s64 = 0
+    if days > 0 {
+        length = AppendNumber(output, length, days, "d ")
+        length = AppendNumber(output, length, hours, "h")
+    } else if hours > 0 {
+        length = AppendNumber(output, length, hours, "h ")
+        length = AppendNumber(output, length, minutes, "m")
+    } else if minutes > 0 {
+        length = AppendNumber(output, length, minutes, "m ")
+        length = AppendNumber(output, length, seconds, "s")
+    } else {
+        length = AppendNumber(output, length, seconds, "s")
+    }
+    if length < 0 {
+        output[0] = cast(u8)0
+        return ""
+    }
+    return TextView(output[0:length])
+}
+
+// The phase label, and while the process runs, "label | 2d 3h remaining".
+FormatProcessTimer :: (at: PhaseAt, phase_label: string, remaining_label: string, output: []u8) -> string {
+    if output.count == 0 {
+        return ""
+    }
+    output[0] = cast(u8)0
+    length := TextAppend(output, 0, phase_label)
+    if at.phase != Phase.PhaseResults {
+        duration: [48]u8
+        length = TextAppend(output, length, " | ")
+        length = TextAppend(output, length, FormatDurationCompact(at.remaining_seconds, duration[:]))
+        length = TextAppend(output, length, " ")
+        length = TextAppend(output, length, remaining_label)
+    }
+    if length < 0 {
+        output[0] = cast(u8)0
+        return ""
+    }
+    return TextView(output[0:length])
+}

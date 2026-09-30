@@ -1,0 +1,17 @@
+// Appends text to a NUL-terminated buffer holding length bytes, and returns
+// the new length. It returns -1, and leaves the buffer unchanged, when the text
+// and its NUL do not fit or length is already -1, so a chain of appends
+// reports the first failure.
+TextAppend :: (output: []u8, length: s64, text: string) -> s64 {
+    if length < 0 || length + text.count + 1 > output.count {
+        return -1
+    }
+    index: s64 = 0
+    while index < text.count {
+        output[length + index] = text[index]
+        index += 1
+    }
+    length += text.count
+    output[length] = cast(u8)0
+    return length
+}

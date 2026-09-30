@@ -1,0 +1,52 @@
+#import "locale"
+
+#program_export
+LocaleAnswer :: () -> s32 {
+    if LocaleCount() != 12 || LocaleOptionAt(0).code != "en" {
+        return 1
+    }
+    if LocaleOptionAt(3).label != "Deutsch" || LocaleOptionAt(99).code != "" {
+        return 2
+    }
+    if Tr("home_title") != "Dashboard" || Tr("create_title") != "Decision Setup" {
+        return 3
+    }
+    // Keys that are English text translate, and unknown keys read as themselves.
+    if Tr("Currently In Progress") != "Currently In Progress" || Tr("no such key") != "no such key" {
+        return 4
+    }
+    if !LocaleSelect("de") || LocaleActive() != 3 {
+        return 5
+    }
+    if Tr("Currently In Progress") != "Aktuell in Bearbeitung" {
+        return 6
+    }
+    // A value keeps its blank lines between paragraphs.
+    manual := Tr("manual_body")
+    blank := false
+    index: s64 = 1
+    while index < cast(s64)manual.count {
+        if manual[index] == cast(u8)10 && manual[index - 1] == cast(u8)10 {
+            blank = true
+        }
+        index += 1
+    }
+    if !blank || manual[manual.count - 1] == cast(u8)10 {
+        return 7
+    }
+    if LocaleSelect("xx") || LocaleActive() != 3 {
+        return 8
+    }
+    if !LocaleSelect("ja") || Tr("home_title").count == 0 {
+        return 9
+    }
+    return 42
+}
+
+#program_export
+main :: () -> s32 {
+    if LocaleAnswer() == 42 {
+        return 0
+    }
+    return 1
+}

@@ -1,0 +1,26 @@
+// A language's interface text as key and value pairs. The generated catalogs
+// fill locale_filling, which the locale module then copies.
+LOCALE_ENTRY_LIMIT :: 256
+
+LocaleEntry :: struct {
+    key: string
+    value: string
+}
+
+LocaleCatalog :: struct {
+    entries: [LOCALE_ENTRY_LIMIT]LocaleEntry
+    count: s32
+}
+
+locale_filling: LocaleCatalog;
+
+LocaleAdd :: (key: string, value: string) {
+    if locale_filling.count >= LOCALE_ENTRY_LIMIT {
+        return
+    }
+    entry: LocaleEntry
+    entry.key = key
+    entry.value = value
+    locale_filling.entries[locale_filling.count] = entry
+    locale_filling.count += 1
+}

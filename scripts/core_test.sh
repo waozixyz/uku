@@ -7,7 +7,8 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 ziran_root=$("$ziran" pkg path ziran)
 args="--root tests --module-path src --module-path $ziran_root/std"
-for test in tally_test:TallyAnswer ballot_test:BallotAnswer process_test:ProcessAnswer; do
+python3 scripts/generate_locales.py --check
+for test in tally_test:TallyAnswer ballot_test:BallotAnswer process_test:ProcessAnswer locale_test:LocaleAnswer phase_test:PhaseAnswer; do
     module=${test%%:*}
     work=build/core-test/$module
     rm -rf "$work"
@@ -35,4 +36,4 @@ if [ ! -f "$liboqs_build/lib/liboqs.a" ]; then
 fi
 ${CC:-cc} -std=c99 -O2 -I"$ziran_root/include" -I"$work/c" "$work"/c/*.c "$liboqs_build/lib/liboqs.a" ${SQLITE_LDLIBS:--lsqlite3} -o "$work/native"
 env -u DISPLAY -u WAYLAND_DISPLAY "$work/native"
-echo 'Ukuvota counting, ballots, processes, and storage: tests pass'
+echo 'Ukuvota counting, ballots, processes, text, phases, and storage: tests pass'

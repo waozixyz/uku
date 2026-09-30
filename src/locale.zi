@@ -1,0 +1,130 @@
+// Uku's interface text, from the catalogs in locales/. A key missing from the
+// chosen language falls back to English, then to the key itself, which is the
+// English text for most keys.
+#import "locale_catalogs"
+
+#import "locale_entries"
+
+LOCALE_LIMIT :: 16
+
+LocaleOption :: struct {
+    code: string
+    label: string
+}
+
+locale_options: [LOCALE_LIMIT]LocaleOption;
+locale_option_count: s32;
+english_catalog: LocaleCatalog;
+active_catalog: LocaleCatalog;
+active_locale: s32;
+locale_ready: bool;
+
+LineEnd :: (text: string, at: s64) -> s64 {
+    end := at
+    while end < cast(s64)text.count && text[end] != cast(u8)10 {
+        end += 1
+    }
+    return end
+}
+
+// The index of key in the chosen language (active) or in English, or -1.
+LocaleFind :: (active: bool, key: string) -> s32 {
+    count := english_catalog.count
+    if active {
+        count = active_catalog.count
+    }
+    index: s32 = 0
+    while index < count {
+        entry := english_catalog.entries[index]
+        if active {
+            entry = active_catalog.entries[index]
+        }
+        if entry.key == key {
+            return index
+        }
+        index += 1
+    }
+    return -1
+}
+
+LocaleLoadOptions :: () {
+    index := LocaleIndexText()
+    locale_option_count = 0
+    at: s64 = 0
+    while at < cast(s64)index.count && locale_option_count < LOCALE_LIMIT {
+        end := LineEnd(index, at)
+        line := index[at:end]
+        bar: s64 = 0
+        while bar < cast(s64)line.count && line[bar] != cast(u8)124 {
+            bar += 1
+        }
+        if bar > 0 && bar < cast(s64)line.count {
+            option: LocaleOption
+            option.code = line[0:bar]
+            option.label = line[bar + 1:line.count]
+            locale_options[locale_option_count] = option
+            locale_option_count += 1
+        }
+        at = end + 1
+    }
+}
+
+LocaleEnsure :: () {
+    if locale_ready {
+        return
+    }
+    locale_ready = true
+    LocaleLoadOptions()
+    LocaleCatalogFill("en")
+    english_catalog = locale_filling
+    active_catalog = locale_filling
+    active_locale = 0
+}
+
+LocaleCount :: () -> s32 {
+    LocaleEnsure()
+    return locale_option_count
+}
+
+LocaleOptionAt :: (index: s32) -> LocaleOption {
+    LocaleEnsure()
+    option: LocaleOption
+    if index >= 0 && index < locale_option_count {
+        option = locale_options[index]
+    }
+    return option
+}
+
+LocaleActive :: () -> s32 {
+    LocaleEnsure()
+    return active_locale
+}
+
+// Chooses the language by its code; an unknown code keeps the current one.
+LocaleSelect :: (code: string) -> bool {
+    LocaleEnsure()
+    index: s32 = 0
+    while index < locale_option_count {
+        if locale_options[index].code == code {
+            LocaleCatalogFill(code)
+            active_catalog = locale_filling
+            active_locale = index
+            return true
+        }
+        index += 1
+    }
+    return false
+}
+
+Tr :: (key: string) -> string {
+    LocaleEnsure()
+    found := LocaleFind(true, key)
+    if found >= 0 {
+        return active_catalog.entries[found].value
+    }
+    found = LocaleFind(false, key)
+    if found >= 0 {
+        return english_catalog.entries[found].value
+    }
+    return key
+}

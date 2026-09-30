@@ -1,3 +1,4 @@
+#import "text_append"
 #import "tally"
 
 // A ballot as Uku stores it locally: "id=score;id=score", one entry per
@@ -103,20 +104,6 @@ BallotScore :: (text: string, id: string) -> s32 {
     return SCORE_UNSET
 }
 
-BallotAppendText :: (output: []u8, length: s64, text: string) -> s64 {
-    if length < 0 || length + text.count + 1 > output.count {
-        return -1
-    }
-    index: s64 = 0
-    while index < text.count {
-        output[length + index] = text[index]
-        index += 1
-    }
-    length += text.count
-    output[length] = cast(u8)0
-    return length
-}
-
 BallotAppendScore :: (output: []u8, length: s64, score: s32) -> s64 {
     digits: [12]u8
     count: s64 = 0
@@ -151,10 +138,10 @@ BallotAppendScore :: (output: []u8, length: s64, score: s32) -> s64 {
 // new length, or -1 when output is too small.
 BallotAppend :: (output: []u8, length: s64, id: string, score: s32) -> s64 {
     if length > 0 {
-        length = BallotAppendText(output, length, ";")
+        length = TextAppend(output, length, ";")
     }
-    length = BallotAppendText(output, length, id)
-    length = BallotAppendText(output, length, "=")
+    length = TextAppend(output, length, id)
+    length = TextAppend(output, length, "=")
     return BallotAppendScore(output, length, score)
 }
 
@@ -184,7 +171,7 @@ BallotReplaceId :: (text: string, old_id: string, new_id: string, output: []u8) 
 
 BallotAppendRange :: (output: []u8, length: s64, text: string, start: s64, end: s64, score: s32) -> s64 {
     if length > 0 {
-        length = BallotAppendText(output, length, ";")
+        length = TextAppend(output, length, ";")
     }
     if length < 0 || length + (end - start) + 1 > output.count {
         return -1
@@ -196,6 +183,6 @@ BallotAppendRange :: (output: []u8, length: s64, text: string, start: s64, end: 
         index += 1
     }
     output[length] = cast(u8)0
-    length = BallotAppendText(output, length, "=")
+    length = TextAppend(output, length, "=")
     return BallotAppendScore(output, length, score)
 }

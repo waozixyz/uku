@@ -1,0 +1,55 @@
+#import "phase"
+
+#program_export
+PhaseAnswer :: () -> s32 {
+    // One hour of proposals, then two of voting, from time 1000.
+    at := ProcessPhaseAt(1000, 60, 120, 1000)
+    if at.phase != Phase.PhaseProposal || at.remaining_seconds != 3600 {
+        return 1
+    }
+    at = ProcessPhaseAt(1000, 60, 120, 4600)
+    if at.phase != Phase.PhaseVoting || at.remaining_seconds != 7200 {
+        return 2
+    }
+    at = ProcessPhaseAt(1000, 60, 120, 11800)
+    if at.phase != Phase.PhaseResults || at.remaining_seconds != 0 {
+        return 3
+    }
+    // No proposal time goes straight to voting.
+    if ProcessPhaseAt(1000, 0, 5, 1000).phase != Phase.PhaseVoting {
+        return 4
+    }
+    buffer: [48]u8
+    if FormatDurationCompact(2 * 86400 + 3 * 3600 + 59, buffer[:]) != "2d 3h" {
+        return 5
+    }
+    if FormatDurationCompact(4 * 3600 + 5 * 60, buffer[:]) != "4h 5m" {
+        return 6
+    }
+    if FormatDurationCompact(367, buffer[:]) != "6m 7s" || FormatDurationCompact(-5, buffer[:]) != "0s" {
+        return 7
+    }
+    timer: [96]u8
+    running := ProcessPhaseAt(0, 0, 10, 0)
+    if FormatProcessTimer(running, "Voting", "remaining", timer[:]) != "Voting | 10m 0s remaining" {
+        return 8
+    }
+    done := ProcessPhaseAt(0, 0, 0, 5)
+    if FormatProcessTimer(done, "Results", "remaining", timer[:]) != "Results" {
+        return 9
+    }
+    // Text that does not fit leaves an empty result, not a cut one.
+    small: [8]u8
+    if FormatProcessTimer(running, "Voting", "remaining", small[:]) != "" {
+        return 10
+    }
+    return 42
+}
+
+#program_export
+main :: () -> s32 {
+    if PhaseAnswer() == 42 {
+        return 0
+    }
+    return 1
+}
