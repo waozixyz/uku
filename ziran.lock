@@ -24,7 +24,7 @@
     "name": "Uku"
   },
   "toolchain": {
-    "commit": "6af4c64a2e182ff14047a94d41893dd665b77158",
+    "commit": "78cab6b16541f31e7bbe62d2f9106a0dfcec3bad",
     "ref": "master",
     "url": "https://github.com/ziranlang/ziran.git"
   }

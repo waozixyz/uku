@@ -1,0 +1,71 @@
+#import "process"
+#import "tally"
+#import "text_buffer"
+
+// Proposals and votes come before the process's own title, and the ids of
+// nested objects repeat field names, so reading by field path matters.
+SAMPLE :: "{\"proposals\":[{\"id\":\"p1\",\"title\":\"Caf\\u00e9 \\\"night\\\"\",\"author_user_id_hash\":\"alice\",\"author_display_name\":\"Alice\"},{\"id\":\"p2\",\"title\":\"Picnic\",\"description\":\"Line 1\\nLine 2\"},{\"title\":\"no id\"}],\"votes\":[{\"voter_user_id_hash\":\"bob\",\"display_name\":\"Bob\",\"updated_at\":\"2026-09-29\",\"scores\":{\"p1\":3,\"p2\":-2,\"gone\":1,\"p1x\":9}},{\"voter_user_id_hash\":\"alice\",\"scores\":{\"p2\":0}}],\"id\":\"proc-7\",\"type\":\"consent\",\"title\":\"Team outing\",\"negative_weight\":0,\"quorum_votes\":2,\"proposal_minutes\":1500,\"voting_access\":\"members\"}"
+
+#program_export
+ProcessAnswer :: () -> s32 {
+    if !ParseProcessDetail(SAMPLE) {
+        return 1
+    }
+    if TextUntilNul(process.settings.id[:]) != "proc-7" || TextUntilNul(process.settings.topic[:]) != "Team outing" {
+        return 2
+    }
+    if process.settings.type != ProcessType.ProcessConsent || process.settings.quorum_votes != 2 || process.settings.proposal_minutes != 1500 {
+        return 3
+    }
+    // Consent processes read a stored weight of 0 as Infinity.
+    if process.settings.negative_weight != NEGATIVE_WEIGHT_INFINITY {
+        return 4
+    }
+    if TextUntilNul(process.settings.visibility[:]) != "public" || TextUntilNul(process.settings.voting_access[:]) != "members" {
+        return 5
+    }
+    // A proposal without an id is skipped; escapes are decoded.
+    if process.proposal_count != 2 {
+        return 6
+    }
+    if TextUntilNul(process.proposals[0].title[:]) != "Café \"night\"" || TextUntilNul(process.proposals[0].display_name[:]) != "Alice" {
+        return 7
+    }
+    if TextUntilNul(process.proposals[1].description[:]) != "Line 1\nLine 2" {
+        return 8
+    }
+    // Bob and Alice voted; Alice is also p1's author and appears once.
+    if process.participant_count != 2 {
+        return 9
+    }
+    bob := ProcessParticipantFind("bob")
+    alice := ProcessParticipantFind("alice")
+    if bob < 0 || alice < 0 || !process.participants[alice].has_ballot {
+        return 10
+    }
+    if TextUntilNul(process.participants[bob].updated_at[:]) != "2026-09-29" {
+        return 11
+    }
+    // Unknown ids and out-of-range scores are ignored.
+    if process.proposal_scores[bob][0] != cast(s8)3 || process.proposal_scores[bob][1] != cast(s8)-2 {
+        return 12
+    }
+    if process.proposal_scores[alice][0] != cast(s8)SCORE_UNSET || process.proposal_scores[alice][1] != cast(s8)0 {
+        return 13
+    }
+    if ProcessTypeFromKey("poll") != ProcessType.ProcessRanked || ProcessTypeKey(ProcessType.ProcessRanked) != "ranked_choice" {
+        return 14
+    }
+    if ParseProcessDetail("{\"title\":\"no id\"}") {
+        return 15
+    }
+    return 42
+}
+
+#program_export
+main :: () -> s32 {
+    if ProcessAnswer() == 42 {
+        return 0
+    }
+    return 1
+}

@@ -7,7 +7,7 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 ziran_root=$("$ziran" pkg path ziran)
 args="--root tests --module-path src --module-path $ziran_root/std"
-for test in tally_test:TallyAnswer ballot_test:BallotAnswer; do
+for test in tally_test:TallyAnswer ballot_test:BallotAnswer process_test:ProcessAnswer; do
     module=${test%%:*}
     work=build/core-test/$module
     rm -rf "$work"
@@ -18,4 +18,4 @@ for test in tally_test:TallyAnswer ballot_test:BallotAnswer; do
     "$ziran" bundle $args --entry "$test" -o "$work/portable.zib" "tests/$module.zi"
     test "$("$ziran" run "$work/portable.zib")" = 42
 done
-echo 'Ukuvota counting and ballots: native and portable tests pass'
+echo 'Ukuvota counting, ballots, and processes: native and portable tests pass'
