@@ -5,6 +5,7 @@ using UI :: #import "Widgets";
 #import "locale"
 #import "text_buffer"
 #import "number_text"
+#import "std/vec"
 
 FIELD_LIMIT :: 32
 
@@ -26,7 +27,14 @@ field_states: [FIELD_LIMIT]FieldState;
 UiBeginFrame :: (session: Session) {
     frame_key = KeyboardTake(session)
     frame_modifiers = KeyboardModifiers(session)
-    frame_typed = TypedTextTake(session, typed_storage[:])
+    typed := TypedTextTake(session, typed_storage[:])
+    text: Vec(u8)
+    if !BuilderAppend(text, typed) {
+        VecFree(text)
+        frame_typed = ""
+        return
+    }
+    frame_typed = BuilderFinish(text)
 }
 
 UiTextProps :: (value: string, bounds: Rectangle, font: s32, wrap: TextWrap) -> TextProps {
@@ -158,37 +166,51 @@ UiApplyEdit :: (buffer: []u8, edit: TextFieldEdit) -> bool {
 // A one-line text field editing buffer; returns true when Enter commits it.
 UiField :: (session: Session, index: s32, label: string, placeholder: string, buffer: []u8, bounds: Rectangle) -> bool {
     state := field_states[index]
-    props: TextFieldProps
-    props.key = cast(u64)(1000 + index)
-    props.focus_id = 1000 + index
-    props.bounds = bounds
-    props.label = label
-    props.placeholder = placeholder
-    props.value = TextUntilNul(buffer)
-    props.cursor = state.cursor
-    props.anchor = state.anchor
-    props.scroll_x = state.scroll_x
-    props.focused = focused_field == index
-    props.max_bytes = cast(s32)buffer.count - 1
-    props.max_codepoints = props.max_bytes
-    if props.focused {
-        props.input = TextFieldInputFor(frame_key, frame_modifiers, frame_typed)
+    edit: TextFieldEdit
+    committed: bool
+    {
+        props: TextFieldProps
+        props.key = cast(u64)(1000 + index)
+        props.focus_id = 1000 + index
+        props.bounds = bounds
+        props.label = label
+        props.placeholder = placeholder
+        props.value = TextUntilNul(buffer)
+        props.cursor = state.cursor
+        props.anchor = state.anchor
+        props.scroll_x = state.scroll_x
+        props.focused = focused_field == index
+        props.max_bytes = cast(s32)buffer.count - 1
+        props.max_codepoints = props.max_bytes
+        if props.focused {
+            props.input = TextFieldInputFor(frame_key, frame_modifiers, frame_typed)
+        }
+        result := TextField(session, props)
+        state.cursor = result.cursor
+        state.anchor = result.anchor
+        state.scroll_x = result.scroll_x
+        field_states[index] = state
+        if result.focused {
+            focused_field = index
+        } else if focused_field == index {
+            focused_field = -1
+        }
+        if result.escaped && focused_field == index {
+            focused_field = -1
+        }
+        edit.start = result.edit.start
+        edit.end = result.edit.end
+        edit.changed = result.edit.changed
+        replacement: Vec(u8)
+        if !BuilderAppend(replacement, result.edit.replacement) {
+            VecFree(replacement)
+            return false
+        }
+        edit.replacement = BuilderFinish(replacement)
+        committed = result.committed
     }
-    result := TextField(session, props)
-    state.cursor = result.cursor
-    state.anchor = result.anchor
-    state.scroll_x = result.scroll_x
-    field_states[index] = state
-    unused UiApplyEdit(buffer, result.edit)
-    if result.focused {
-        focused_field = index
-    } else if focused_field == index {
-        focused_field = -1
-    }
-    if result.escaped && focused_field == index {
-        focused_field = -1
-    }
-    return result.committed
+    unused UiApplyEdit(buffer, edit)
+    return committed
 }
 
 SUB_PAGE_BAR_HEIGHT :: 56.0
