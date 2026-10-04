@@ -3157,7 +3157,7 @@ http_request(const char *method, const char *url, UkuHttpHeaders *headers,
             });
             xhr.send((method === "GET" || method === "DELETE") ? null : body);
         } catch(err) {
-            console.error("Uku server request failed:", err);
+            console.error("Ukuvota server request failed:", err);
             setValue($4, 0, "i32");
             return 0;
         }
@@ -8171,7 +8171,7 @@ share_file(UkuApp *app, const char *path, const char *mime_type,
             }
             return 1;
         } catch(e) {
-            console.error('Uku QR share failed', e);
+            console.error('Ukuvota QR share failed', e);
             return 0;
         }
     }, path, mime_type != NULL ? mime_type : "image/png",
@@ -8207,7 +8207,7 @@ save_file(UkuApp *app, const char *path, const char *mime_type)
             setTimeout(() => URL.revokeObjectURL(url), 30000);
             return 1;
         } catch(e) {
-            console.error('Uku file save failed', e);
+            console.error('Ukuvota file save failed', e);
             return 0;
         }
     }, path, mime_type != NULL ? mime_type : "application/octet-stream");
@@ -8516,7 +8516,7 @@ draw_collect(UkuApp *app, const UkuText *text, int view_w, int view_h)
         }
         if(copy_clicked || share_link_clicked) {
             if(share_link_clicked) {
-                if(!share_text(app, share_url, tr(app, "Share Uku link")))
+                if(!share_text(app, share_url, tr(app, "Share Ukuvota link")))
                     Toast((ToastProps){.message = tr(app, "Could not share link.")});
                 else
                     Toast((ToastProps){.message = tr(app, "Share link ready.")});

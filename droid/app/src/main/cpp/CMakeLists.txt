@@ -26,7 +26,7 @@ foreach(oqs_x86_feature
 endforeach()
 add_subdirectory("${KRYON_DIR}/vendor/liboqs" "${CMAKE_BINARY_DIR}/liboqs")
 if(NOT TARGET oqs)
-    message(FATAL_ERROR "Uku Android builds require liboqs for Ksync account crypto")
+    message(FATAL_ERROR "Ukuvota Android builds require liboqs for Ksync account crypto")
 endif()
 
 file(GLOB_RECURSE KRYON_SOURCES CONFIGURE_DEPENDS "${KRYON_DIR}/src/*.c")

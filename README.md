@@ -1,4 +1,4 @@
-# Uku
+# Ukuvota
 
 <p align="center">
   <img src="assets/app/readme-banner-1280x360.png" alt="Ukuvota" width="960">
@@ -9,6 +9,10 @@ Website: https://uku.waozi.xyz
 Itch: https://waozi.itch.io/ukuvota
 
 Native Ukuvota client — collective decisions without hidden resistance.
+
+Ukuvota is the full product name; `uku` remains its short repository, executable,
+and build identifier.
+
 Groups score every option from -3 to +3; negative scores are weighted so
 resistance is visible, and every ballot includes Status quo and Repeat
 process as explicit choices. Voting needs no account: participants just

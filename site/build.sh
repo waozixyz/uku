@@ -156,4 +156,4 @@ copy_path "$script_dir/screens/og.png" "$out_dir/og.png"
 write_web_app_csp_html "$out_dir/build/web/index.html" "$out_dir/build/web/index.html.tmp"
 mv "$out_dir/build/web/index.html.tmp" "$out_dir/build/web/index.html"
 
-printf 'built uku site -> %s\n' "$out_dir"
+printf 'built Ukuvota site -> %s\n' "$out_dir"

@@ -1,7 +1,7 @@
-# Uku Repository Rules
+# Ukuvota Repository Rules
 
 - Never edit files under `vendor/` from this repository. Make Kryon changes in
-  the core Kryon repository, commit and push them there, then update Uku's
+  the core Kryon repository, commit and push them there, then update Ukuvota's
   Kryon submodule pointer.
 - Do not add compatibility aliases or local runtime shims for removed Kryon
   APIs. Migrate maintained source to the current canonical API.

@@ -30,6 +30,6 @@ git submodule foreach --recursive '
 
 if [ "$status" -ne 0 ]; then
     echo
-    echo "Do not edit vendor from Uku. Make changes in the owning repo, commit there, then update only the submodule pointer here."
+    echo "Do not edit vendor from Ukuvota. Make changes in the owning repo, commit there, then update only the submodule pointer here."
     exit 1
 fi

@@ -102,7 +102,7 @@ def latest_mtime():
 
 def build(state, url):
     state.begin_build()
-    print("Building Uku web...")
+    print("Building Ukuvota web...")
     result = subprocess.run(["make", "web"], cwd=ROOT)
     ok = result.returncode == 0
     state.finish_build(ok)
@@ -147,7 +147,7 @@ def main():
     Handler.state = state
     server = ThreadingHTTPServer((args.host, args.port), handler)
     url = "http://{}:{}/".format(args.host, args.port)
-    print("Serving Uku web at {}".format(url))
+    print("Serving Ukuvota web at {}".format(url))
     watcher = threading.Thread(target=watch, args=(state, args.interval, url), daemon=True)
     watcher.start()
     if not args.no_browser:

@@ -47,11 +47,11 @@ Keine öffentlichen Prozesse gefunden.
 Anleitung
 ---
 [manual_body]
-Uku hilft Gruppen, Optionen zu wählen, die alle unterstützen und akzeptieren können.
+Ukuvota hilft Gruppen, Optionen zu wählen, die alle unterstützen und akzeptieren können.
 
 Erstelle einen Prozess mit einer klaren Frage und teile den Link mit den Teilnehmenden.
 
-Während der Vorschlagsphase fügen Menschen Optionen hinzu. Uku fügt immer „Status quo“ und „Prozess wiederholen“ hinzu, damit Nichtstun oder erneutes Suchen ausdrückliche Wahlmöglichkeiten sind.
+Während der Vorschlagsphase fügen Menschen Optionen hinzu. Ukuvota fügt immer „Status quo“ und „Prozess wiederholen“ hinzu, damit Nichtstun oder erneutes Suchen ausdrückliche Wahlmöglichkeiten sind.
 
 Während der Abstimmung bewertet jedes Konto jeden Vorschlag. Negative Punkte werden gewichtet, damit Widerstand sichtbar bleibt statt von unbezogener Zustimmung verdeckt zu werden.
 ---
@@ -173,7 +173,7 @@ Der Prozess konnte nicht lokal gespeichert werden.
 Zurück
 ---
 [brand_short]
-Uku
+Ukuvota
 ---
 [Currently In Progress]
 Aktuell in Bearbeitung
@@ -261,8 +261,8 @@ QR-Code ausblenden
 [Share link]
 Link teilen
 ---
-[Share Uku link]
-Uku-Link teilen
+[Share Ukuvota link]
+Ukuvota-Link teilen
 ---
 [Could not share link.]
 Link konnte nicht geteilt werden.

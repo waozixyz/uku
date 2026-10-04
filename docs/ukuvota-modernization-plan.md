@@ -4,7 +4,7 @@ Date: 2026-08-27
 
 ## Scope
 
-Rebuild Uku toward the original Ukuvota experience shown in the saved reference screenshots, while keeping the current native Kryon implementation. Do not add compatibility layers for old Kryon APIs. Shared runtime/editor/theme primitives go into the real Kryon repo first, then Uku consumes them by moving the `vendor/kryon` submodule pointer.
+Rebuild Ukuvota toward the original Ukuvota experience shown in the saved reference screenshots, while keeping the current native Kryon implementation. Do not add compatibility layers for old Kryon APIs. Shared runtime/editor/theme primitives go into the real Kryon repo first, then Ukuvota consumes them by moving the `vendor/kryon` submodule pointer.
 
 ## References Saved In This Repo
 
@@ -24,8 +24,8 @@ Legacy source reference: https://gitlab.com/yunity/ukuvota
 
 ## Current Baseline
 
-- Uku now points at Kryon `584bf159 Fix native linux raylib backend rename`.
-- Kryon API usage in Uku has been migrated away from removed `UI*` compatibility names to current public names.
+- Ukuvota now points at Kryon `584bf159 Fix native linux raylib backend rename`.
+- Kryon API usage in Ukuvota has been migrated away from removed `UI*` compatibility names to current public names.
 - Default theme style now clamps to `THEME_STYLE_MATERIAL`.
 - Native x86_64 verification passes with `make linux-x86_64`.
 - Full `make linux` still needs a configured aarch64 cross toolchain.
@@ -70,7 +70,7 @@ From the legacy Quasar/PouchDB app:
 1. Keep all Kryon build/runtime fixes in `/mnt/storage/Projects/kryon` on `master`.
 2. Commit each Kryon fix before updating `uku/vendor/kryon`.
 3. Keep `uku/vendor/kryon` pristine after every checkout: `git status --short` inside the submodule must be empty.
-4. Run `make linux-x86_64` after every Uku-side migration.
+4. Run `make linux-x86_64` after every Ukuvota-side migration.
 5. Add a CI/build note or Makefile target distinction so `make linux-x86_64` is the local verification target when aarch64 cross variables are absent.
 
 ### Phase 2: Material Theme Adoption
@@ -91,7 +91,7 @@ Implement in Kryon first:
 4. Add a preview/render path using Kryon markdown rendering.
 5. Add keyboard behavior: text selection, Ctrl+B/I/U, Enter, Backspace, paste, and cursor persistence.
 6. Add tests in Kryon for command application and selection boundaries.
-7. After commit, bump Uku's submodule pointer and replace plain description fields with the widget.
+7. After commit, bump Ukuvota's submodule pointer and replace plain description fields with the widget.
 
 ### Phase 4: Creation Wizard
 
@@ -142,8 +142,8 @@ Use the existing signed guest identity model for process creation, not a local-o
 
 Rename new code away from Lyra/Ksync/Inbe terminology without breaking old clients:
 
-1. In Uku internals, rename `lyra_*` helpers to domain names such as `http_request`, `login`, `create_remote_process`, `fetch_process_detail`, `submit_proposal`, and `submit_vote`.
-2. In Uku internals, keep `account` for user-facing durable identity, but rename conversion wrappers so Ksync is treated as the legacy key-file/protocol format, not the app's domain model.
+1. In Ukuvota internals, rename `lyra_*` helpers to domain names such as `http_request`, `login`, `create_remote_process`, `fetch_process_detail`, `submit_proposal`, and `submit_vote`.
+2. In Ukuvota internals, keep `account` for user-facing durable identity, but rename conversion wrappers so Ksync is treated as the legacy key-file/protocol format, not the app's domain model.
 3. In Daochi server internals, migrate `ksync*` helper names toward `daochi*`, `account*`, `identity*`, `record*`, or `sync*` depending on the actual concept.
 4. Add Daochi wire aliases before changing clients: `X-Daochi-User`, `X-Daochi-Signature`, `X-Daochi-Client`, `X-Daochi-Since-Version`, `X-Daochi-Limit`, and `X-Daochi-Admin`.
 5. Keep accepting `X-Ksync-*` and `X-Inbe-*` headers, `user_id_hash` JSON fields, `/api/v1/sync/challenge`, `/api/v1/sync/login`, account key headers, and exported legacy key formats.
@@ -184,18 +184,18 @@ Rename new code away from Lyra/Ksync/Inbe terminology without breaking old clien
 2. Build web if Emscripten is available: `make web`.
 3. Smoke test these paths: empty dashboard, create wizard, anonymous process creation, guest-owned reload/manage, proposal phase, template proposal, anonymous vote, logged-in vote, duplicate alias rejection, results, export, completed dashboard.
 4. Screenshot compare key screens against the nine saved references at desktop and mobile-ish view sizes.
-5. Verify `git -C vendor/kryon status --short` is empty before any Uku commit.
+5. Verify `git -C vendor/kryon status --short` is empty before any Ukuvota commit.
 
 ## Commit Boundaries
 
 Recommended commit sequence:
 
 1. Kryon: build-system/API fixes needed by the submodule bump.
-2. Uku: submodule bump plus direct API rename migration.
+2. Ukuvota: submodule bump plus direct API rename migration.
 3. Kryon: Material/rich editor primitives.
-4. Uku: creation wizard and theme restyle.
-5. Uku: proposal templates and collection UI.
-6. Uku/server: anonymous process ownership and vote support.
-7. Daochi/Uku: compatibility-safe Daochi naming migration.
-8. Uku: voting UI and results/export parity.
-9. Uku: dashboard polish, manual/localization, final verification.
+4. Ukuvota: creation wizard and theme restyle.
+5. Ukuvota: proposal templates and collection UI.
+6. Ukuvota/server: anonymous process ownership and vote support.
+7. Daochi/Ukuvota: compatibility-safe Daochi naming migration.
+8. Ukuvota: voting UI and results/export parity.
+9. Ukuvota: dashboard polish, manual/localization, final verification.

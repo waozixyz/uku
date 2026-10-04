@@ -173,7 +173,7 @@ Status quo
 뒤로
 ---
 [brand_short]
-Uku
+Ukuvota
 ---
 [Currently In Progress]
 진행 중

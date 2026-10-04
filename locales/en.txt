@@ -47,11 +47,11 @@ No public processes found.
 Manual
 ---
 [manual_body]
-Uku helps groups choose options people can support and accept.
+Ukuvota helps groups choose options people can support and accept.
 
 Create a process with a clear question, then share the link with participants.
 
-During the proposal phase, people add options. Uku always includes Status quo and Repeat process so doing nothing or looking again are explicit choices.
+During the proposal phase, people add options. Ukuvota always includes Status quo and Repeat process so doing nothing or looking again are explicit choices.
 
 During voting, each account scores every proposal. Negative scores are weighted so resistance is visible instead of hidden by unrelated support.
 ---
@@ -173,7 +173,7 @@ Could not save the process locally.
 Back
 ---
 [brand_short]
-Uku
+Ukuvota
 ---
 [Currently In Progress]
 Currently In Progress
@@ -196,8 +196,8 @@ anonymous
 [Share link]
 Share link
 ---
-[Share Uku link]
-Share Uku link
+[Share Ukuvota link]
+Share Ukuvota link
 ---
 [Could not share link.]
 Could not share link.

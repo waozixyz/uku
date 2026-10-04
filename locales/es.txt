@@ -47,11 +47,11 @@ No se encontraron procesos públicos.
 Manual
 ---
 [manual_body]
-Uku ayuda a los grupos a elegir opciones que las personas puedan apoyar y aceptar.
+Ukuvota ayuda a los grupos a elegir opciones que las personas puedan apoyar y aceptar.
 
 Crea un proceso con una pregunta clara y comparte el enlace con las personas participantes.
 
-Durante la fase de propuestas, las personas agregan opciones. Uku siempre incluye Status quo y Repetir proceso para que no hacer nada o volver a mirar sean opciones explícitas.
+Durante la fase de propuestas, las personas agregan opciones. Ukuvota siempre incluye Status quo y Repetir proceso para que no hacer nada o volver a mirar sean opciones explícitas.
 
 Durante la votación, cada cuenta puntúa cada propuesta. Las puntuaciones negativas se ponderan para que la resistencia sea visible en vez de quedar oculta por apoyos no relacionados.
 ---
@@ -173,7 +173,7 @@ No se pudo guardar el proceso localmente.
 Volver
 ---
 [brand_short]
-Uku
+Ukuvota
 ---
 [Currently In Progress]
 En curso
@@ -261,8 +261,8 @@ Ocultar código QR
 [Share link]
 Compartir enlace
 ---
-[Share Uku link]
-Compartir enlace de Uku
+[Share Ukuvota link]
+Compartir enlace de Ukuvota
 ---
 [Could not share link.]
 No se pudo compartir el enlace.

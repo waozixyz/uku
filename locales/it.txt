@@ -47,11 +47,11 @@ Nessun processo pubblico trovato.
 Manuale
 ---
 [manual_body]
-Uku aiuta i gruppi a scegliere opzioni che le persone possono sostenere e accettare.
+Ukuvota aiuta i gruppi a scegliere opzioni che le persone possono sostenere e accettare.
 
 Crea un processo con una domanda chiara e condividi il link con le persone partecipanti.
 
-Durante la fase delle proposte, le persone aggiungono opzioni. Uku include sempre Status quo e Ripeti processo, così non fare nulla o cercare di nuovo sono scelte esplicite.
+Durante la fase delle proposte, le persone aggiungono opzioni. Ukuvota include sempre Status quo e Ripeti processo, così non fare nulla o cercare di nuovo sono scelte esplicite.
 
 Durante la votazione, ogni account assegna un punteggio a ogni proposta. I punteggi negativi vengono ponderati perché la resistenza sia visibile invece di essere nascosta da supporti non collegati.
 ---
@@ -173,7 +173,7 @@ Impossibile salvare il processo localmente.
 Indietro
 ---
 [brand_short]
-Uku
+Ukuvota
 ---
 [Currently In Progress]
 In corso

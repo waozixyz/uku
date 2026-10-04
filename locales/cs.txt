@@ -47,11 +47,11 @@ Nebyly nalezeny žádné veřejné procesy.
 Návod
 ---
 [manual_body]
-Uku pomáhá skupinám vybírat možnosti, které lidé mohou podpořit a přijmout.
+Ukuvota pomáhá skupinám vybírat možnosti, které lidé mohou podpořit a přijmout.
 
 Vytvořte proces s jasnou otázkou a sdílejte odkaz s účastníky.
 
-Během fáze návrhů lidé přidávají možnosti. Uku vždy obsahuje Status quo a Opakovat proces, aby nic nedělat nebo hledat znovu byly výslovné volby.
+Během fáze návrhů lidé přidávají možnosti. Ukuvota vždy obsahuje Status quo a Opakovat proces, aby nic nedělat nebo hledat znovu byly výslovné volby.
 
 Během hlasování každý účet boduje každý návrh. Záporné body jsou vážené, aby byl odpor viditelný a nezmizel za nesouvisející podporou.
 ---
@@ -173,7 +173,7 @@ Proces se nepodařilo uložit místně.
 Zpět
 ---
 [brand_short]
-Uku
+Ukuvota
 ---
 [Currently In Progress]
 Právě probíhá

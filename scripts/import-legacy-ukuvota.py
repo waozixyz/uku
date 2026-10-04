@@ -341,10 +341,10 @@ def import_doc(conn, doc, replace=False, dry_run=False):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="One-time import of legacy Ukuvota PouchDB topic JSON into Uku SQLite."
+        description="One-time import of legacy Ukuvota PouchDB topic JSON into Ukuvota SQLite."
     )
     parser.add_argument("input", help="Legacy JSON export, Pouch _all_docs output, or one topic document.")
-    parser.add_argument("--sqlite", default=DEFAULT_DB, help="Target Uku SQLite database.")
+    parser.add_argument("--sqlite", default=DEFAULT_DB, help="Target Ukuvota SQLite database.")
     parser.add_argument("--replace", action="store_true", help="Replace processes whose ids already exist.")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be imported without writing.")
     args = parser.parse_args()

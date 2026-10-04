@@ -47,11 +47,11 @@ Tidak ada proses publik ditemukan.
 Panduan
 ---
 [manual_body]
-Uku membantu kelompok memilih opsi yang dapat didukung dan diterima orang.
+Ukuvota membantu kelompok memilih opsi yang dapat didukung dan diterima orang.
 
 Buat proses dengan pertanyaan yang jelas, lalu bagikan tautannya kepada peserta.
 
-Selama fase proposal, orang menambahkan opsi. Uku selalu menyertakan Status quo dan Ulangi proses agar tidak melakukan apa pun atau mencari lagi menjadi pilihan yang jelas.
+Selama fase proposal, orang menambahkan opsi. Ukuvota selalu menyertakan Status quo dan Ulangi proses agar tidak melakukan apa pun atau mencari lagi menjadi pilihan yang jelas.
 
 Selama pemungutan suara, setiap akun memberi skor pada setiap proposal. Skor negatif diberi bobot agar penolakan terlihat dan tidak tersembunyi oleh dukungan yang tidak terkait.
 ---
@@ -173,7 +173,7 @@ Tidak dapat menyimpan proses secara lokal.
 Kembali
 ---
 [brand_short]
-Uku
+Ukuvota
 ---
 [Currently In Progress]
 Sedang Berjalan
