@@ -760,9 +760,11 @@ StorageProcessOwner :: (process_id: string, output: []u8) -> string {
         return TextUntilNul(output)
     }
     key: [96]u8
-    existing := SettingLoadText(GuestSettingKey(process_id, "public_id", key[:]), "", output)
-    if existing.count > 0 {
-        return existing
+    {
+        existing := SettingLoadText(GuestSettingKey(process_id, "public_id", key[:]), "", output)
+        if existing.count > 0 {
+            return existing
+        }
     }
     keys: AccountKeys
     if CreateAccountKeys(*keys) == 0 {
