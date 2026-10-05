@@ -10,14 +10,6 @@
       "url": "https://github.com/ziranlang/oqs.git"
     },
     {
-      "commit": "084a4c376b218a3f247c164b258c1ddb1fbeab53",
-      "dependencies": {"oqs": "p1b5dd8d89e3ab867"},
-      "id": "p38bbeb3fd7ca5480",
-      "name": "DaochiClient",
-      "ref": "master",
-      "url": "https://github.com/kryonlabs/daochi-client.git"
-    },
-    {
       "commit": "fafa2cea97d0cb379d832086ba45a989fa6f9c8e",
       "dependencies": {},
       "id": "p5a77c9c35110e925",
@@ -33,6 +25,14 @@
       "name": "SQLite",
       "ref": "master",
       "url": "https://github.com/ziranlang/sqlite.git"
+    },
+    {
+      "commit": "084a4c376b218a3f247c164b258c1ddb1fbeab53",
+      "dependencies": {"oqs": "p1b5dd8d89e3ab867"},
+      "id": "p7439be58500b9498",
+      "name": "DaochiClient",
+      "ref": "master",
+      "url": "https://github.com/ziranlang/daochi-client.git"
     },
     {
       "commit": "eba5a07370e6fb8260274a867e8cc7edcd67b89c",
@@ -61,7 +61,7 @@
     }
   ],
   "root": {
-    "dependencies": {"daochi_client": "p38bbeb3fd7ca5480", "kryon": "pa609145f4004c02f", "kss": "pccaf6bd8cbf8c434", "sqlite": "p72146cc87fc1bbd6"},
+    "dependencies": {"daochi_client": "p7439be58500b9498", "kryon": "pa609145f4004c02f", "kss": "pccaf6bd8cbf8c434", "sqlite": "p72146cc87fc1bbd6"},
     "name": "Uku"
   },
   "toolchain": {
