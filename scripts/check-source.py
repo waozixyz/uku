@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Reject the retired C/Kryon UI and ambiguous dependency imports."""
 from pathlib import Path
+import fnmatch
 import re
 import subprocess
 
@@ -27,6 +28,15 @@ for base in ("src", "tests"):
 for name in ('SyncNetwork.java', 'ShareProvider.java', 'android_bridge.h'):
     if any((root / 'droid/app/src/main').rglob(name)):
         errors.append(f'{name}: retired Android bridge')
+redirects = root / 'site/static/_redirects'
+if redirects.exists():
+    assets = ('index.js', 'index.wasm', 'browser-input.js', 'uku-logo.svg')
+    for line in redirects.read_text().splitlines():
+        rule = line.strip().split()
+        if not rule or rule[0].startswith('#'):
+            continue
+        if any(fnmatch.fnmatchcase('/build/web/' + asset, rule[0]) for asset in assets):
+            errors.append(f'site/static/_redirects: app assets must be served directly: {rule[0]}')
 if errors:
     raise SystemExit("\n".join(errors))
 print("Maintained source uses Ziran and explicit package imports")
