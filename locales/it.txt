@@ -1,59 +1,23 @@
-[app_title]
-Ukuvota
----
 [home_title]
 Cruscotto
----
-[home_subtitle]
-Decisioni collettive senza resistenza nascosta
----
-[home_summary]
-Ukuvota aiuta i gruppi a prendere decisioni collettive con il voto a punteggio. Le persone partecipanti possono sostenere o opporsi a ogni opzione, così il risultato favorisce scelte accettabili e realizzabili.
 ---
 [start_process_button]
 Crea processo
 ---
-[join_process_label]
-Unisciti a un processo
----
-[join_process_placeholder]
-Incolla ID processo o link
----
-[join_process_button]
-Apri processo
----
-[join_process_error]
-Impossibile aprire quel processo. Controlla ID, link o server.
----
 [dashboard_empty]
 Nessun processo attivo.
----
-[dashboard_recent_label]
-Processi attivi
----
-[dashboard_filter_mine]
-Miei
----
-[dashboard_filter_public]
-Pubblici
----
-[dashboard_public_label]
-Processi pubblici
----
-[dashboard_public_empty]
-Nessun processo pubblico trovato.
 ---
 [manual_title]
 Manuale
 ---
 [manual_body]
-Ukuvota aiuta i gruppi a scegliere opzioni che le persone possono sostenere e accettare.
+Le decisioni sono salvate su questo dispositivo. La condivisione online non è ancora collegata. Create un processo con una domanda chiara e raccogliete proposte.
 
-Crea un processo con una domanda chiara e condividi il link con le persone partecipanti.
+Ogni nuovo processo include Status quo e Ripeti processo. Votate da -3 (forte resistenza) a +3 (forte sostegno); il trattino indica astensione. I punteggi negativi sono ponderati.
 
-Durante la fase delle proposte, le persone aggiungono opzioni. Ukuvota include sempre Status quo e Ripeti processo, così non fare nulla o cercare di nuovo sono scelte esplicite.
+Salvate ogni voto prima di Prossimo partecipante. Ogni persona ha una propria identità locale. Toccate una persona salvata per modificarne il voto. Cambiare nome non seleziona un altro votante.
 
-Durante la votazione, ogni account assegna un punteggio a ogni proposta. I punteggi negativi vengono ponderati perché la resistenza sia visibile invece di essere nascosta da supporti non collegati.
+I risultati mostrano parità e quorum. Tutti i voti contano per impostazione predefinita; le caselle consentono di esplorare un sottoinsieme.
 ---
 [create_title]
 Configurazione decisione
@@ -127,14 +91,8 @@ Minuti
 [create_process_button]
 Crea processo
 ---
-[setup_ready]
-Bozza del processo pronta.
----
 [collect_title]
 Raccogli proposte
----
-[collect_intro]
-Il processo è stato salvato localmente. Condividi questo indirizzo con le persone partecipanti su questo dispositivo mentre si usa solo l’archiviazione locale.
 ---
 [proposal_phase_label]
 Fase proposte
@@ -147,12 +105,6 @@ Risultati pronti
 ---
 [time_remaining_label]
 rimanenti
----
-[local_address_label]
-Indirizzo locale
----
-[default_proposals_label]
-Proposte predefinite
 ---
 [status_quo_title]
 Status quo
@@ -172,9 +124,6 @@ Impossibile salvare il processo localmente.
 [back_button]
 Indietro
 ---
-[brand_short]
-Ukuvota
----
 [Currently In Progress]
 In corso
 ---
@@ -186,27 +135,6 @@ Processi completati
 ---
 [Completed processes will appear here.]
 I processi completati appariranno qui.
----
-[Search or paste link]
-Cerca o incolla link
----
-[Done Decisions]
-Decisioni concluse
----
-[Finished Processes]
-Processi terminati
----
-[No finished processes yet.]
-Nessun processo terminato.
----
-[Finished]
-Terminato
----
-[Copy results as text]
-Copia risultati come testo
----
-[Results copied.]
-Risultati copiati.
 ---
 [support]
 supporto
@@ -235,37 +163,17 @@ Nessun voto inviato.
 [Tap a participant to include or exclude them from the results.]
 Tocca un partecipante per includerlo o escluderlo dai risultati.
 ---
-[ (you)]
- (tu)
----
-[anonymous]
-anonimo---
 [Language]
 Lingua
 ---
 [Mode]
 Modalità
 ---
-[Follow device]
-Segui dispositivo
----
 [Light]
 Chiaro
 ---
 [Dark]
 Scuro
----
-[Refresh]
-Aggiorna
----
-[Get started]
-Inizia
----
-[Logged in]
-Con accesso
----
-[Owner only]
-Solo proprietario
 ---
 [Settings]
 Impostazioni
@@ -300,9 +208,6 @@ Status quo e Ripeti processo sono sempre tra le opzioni.
 [The option people can accept wins.]
 Vince l'opzione che le persone possono accettare.
 ---
-[Start one and share the link with your group.]
-Avviane uno e condividi il link con il tuo gruppo.
----
 [0 means no minimum - the result counts with any number of ballots.]
 0 significa nessun minimo: il risultato vale con qualsiasi numero di voti.
 ---
@@ -333,9 +238,6 @@ Nessuna proposta trovata.
 [Optional details]
 Dettagli facoltativi
 ---
-[Private]
-Privato
----
 [Process phases]
 Fasi del processo
 ---
@@ -348,17 +250,8 @@ Solo votazione
 [Proposal title]
 Titolo della proposta
 ---
-[Proposal visibility]
-Visibilità delle proposte
----
 [Proposals]
 Proposte
----
-[Public]
-Pubblico
----
-[Unlisted]
-Non in elenco
 ---
 [Quorum (minimum ballots)]
 Quorum (voti minimi)
@@ -381,15 +274,6 @@ Imposta processo
 [Title]
 Titolo
 ---
-[Visibility]
-Visibilità
----
-[Who can add proposals]
-Chi può aggiungere proposte
----
-[Who can vote]
-Chi può votare
----
 [ (proposal)]
  (proposta)
 ---
@@ -411,9 +295,6 @@ Impossibile inviare il voto.
 [Every option meets resistance - least resisted prevails: %s]
 Ogni opzione incontra resistenza - prevale la meno contrastata: %s
 ---
-[No account needed - your name keeps votes apart.]
-Nessun account necessario: il tuo nome tiene distinti i voti.
----
 [No quorum yet - %d of %d ballots cast]
 Quorum non ancora raggiunto - %d voti su %d
 ---
@@ -422,9 +303,6 @@ Le obiezioni superano il sostegno - %s è in testa senza consenso
 ---
 [Objections outweigh support - no consent yet]
 Le obiezioni superano il sostegno - ancora nessun consenso
----
-[Proposal submitted.]
-Proposta inviata.
 ---
 [Quorum]
 Quorum
@@ -450,9 +328,6 @@ Tipo
 [Update vote]
 Aggiorna voto
 ---
-[Vote submitted.]
-Voto inviato.
----
 [Weight]
 Peso
 ---
@@ -467,4 +342,25 @@ totale
 ---
 [weighted resistance]
 resistenza ponderata
+---
+[identity_hint]
+La chiave del dispositivo protegge il tuo voto. Il nome è solo un’etichetta. Conserva una copia per mantenere l’accesso.
+---
+[result_tie]
+Parità: nessun vincitore unico. Discutete le opzioni a pari merito o ripetete il processo.
+---
+[saved_locally]
+Salvato su questo dispositivo.
+---
+[score_hint]
+-3 indica forte resistenza, 0 neutralità e +3 forte sostegno. Lascia un’opzione senza selezione per astenerti.
+---
+[persistence_error]
+Impossibile salvare i dati del browser. Tieni aperta questa pagina ed esporta una copia di sicurezza.
+---
+[local_mode_hint]
+Le decisioni sono salvate su questo dispositivo. La condivisione online non è ancora collegata.
+---
+[next_participant]
+Partecipante successivo
 ---

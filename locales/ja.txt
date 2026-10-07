@@ -1,59 +1,23 @@
-[app_title]
-Ukuvota
----
 [home_title]
 ダッシュボード
----
-[home_subtitle]
-隠れた反対をなくす共同意思決定
----
-[home_summary]
-Ukuvota は、スコア投票でグループの共同意思決定を支援します。参加者は各選択肢を支持または反対できるため、受け入れて実行できる案が結果として選ばれやすくなります。
 ---
 [start_process_button]
 プロセスを作成
 ---
-[join_process_label]
-プロセスに参加
----
-[join_process_placeholder]
-プロセスIDまたはリンクを貼り付け
----
-[join_process_button]
-プロセスを開く
----
-[join_process_error]
-このプロセスを開けませんでした。ID、リンク、サーバーを確認してください。
----
 [dashboard_empty]
 アクティブなプロセスはまだありません。
----
-[dashboard_recent_label]
-アクティブなプロセス
----
-[dashboard_filter_mine]
-自分
----
-[dashboard_filter_public]
-公開
----
-[dashboard_public_label]
-公開プロセス
----
-[dashboard_public_empty]
-公開プロセスは見つかりません。
 ---
 [manual_title]
 マニュアル
 ---
 [manual_body]
-Ukuvota は、人々が支持し受け入れられる選択肢をグループが選ぶためのツールです。
+決定はこの端末に保存されます。オンライン共有はまだ接続されていません。明確な質問でプロセスを作成してください。
 
-明確な質問でプロセスを作成し、参加者にリンクを共有します。
+新しいプロセスには「現状維持」と「プロセスをやり直す」が含まれます。-3（強い反対）から+3（強い支持）で評価し、横線は棄権を意味します。負の点数には重みが付きます。
 
-提案フェーズでは、人々が選択肢を追加します。Ukuvota は常に Status quo と プロセスを繰り返す を含め、何もしないことやもう一度検討することを明示的な選択肢にします。
+「次の参加者」の前に投票を保存してください。各参加者には独立した端末内の識別情報があります。保存済み参加者をタップして投票を編集できます。名前の変更で別の参加者は選択されません。
 
-投票では、各アカウントがすべての提案を採点します。反対が無関係な支持に隠れないよう、負のスコアには重みが付きます。
+結果には同点と最低投票数の達成状況が表示されます。初期状態では全投票を集計し、チェックボックスで一部だけを確認できます。
 ---
 [create_title]
 決定の設定
@@ -127,14 +91,8 @@ Ukuvota は、人々が支持し受け入れられる選択肢をグループが
 [create_process_button]
 プロセスを作成
 ---
-[setup_ready]
-プロセスの下書きができました。
----
 [collect_title]
 提案を集める
----
-[collect_intro]
-プロセスはローカルに保存されました。ローカル保存のみを使用している間、このデバイス上の参加者にこのアドレスを共有してください。
 ---
 [proposal_phase_label]
 提案フェーズ
@@ -147,12 +105,6 @@ Ukuvota は、人々が支持し受け入れられる選択肢をグループが
 ---
 [time_remaining_label]
 残り
----
-[local_address_label]
-ローカルアドレス
----
-[default_proposals_label]
-既定の提案
 ---
 [status_quo_title]
 Status quo
@@ -172,9 +124,6 @@ Status quo
 [back_button]
 戻る
 ---
-[brand_short]
-Ukuvota
----
 [Currently In Progress]
 進行中
 ---
@@ -187,29 +136,8 @@ Ukuvota
 [Completed processes will appear here.]
 完了したプロセスはここに表示されます。
 ---
-[Search or paste link]
-検索またはリンクを貼り付け
----
-[Done Decisions]
-完了した決定
----
-[Finished Processes]
-終了したプロセス
----
-[No finished processes yet.]
-終了したプロセスはまだありません。
----
-[Finished]
-終了
----
 [Results]
 結果
----
-[Copy results as text]
-結果をテキストとしてコピー
----
-[Results copied.]
-結果をコピーしました。
 ---
 [total]
 合計
@@ -241,16 +169,8 @@ Ukuvota
 [Tap a participant to include or exclude them from the results.]
 参加者をタップして結果に含めるか除外します。
 ---
-[ (you)]
-（あなた）
----
-[anonymous]
-匿名---
 [Language]
 言語
----
-[Theme]
-テーマ
 ---
 [System]
 システム
@@ -258,26 +178,11 @@ Ukuvota
 [Mode]
 モード
 ---
-[Follow device]
-デバイスに従う
----
 [Light]
 ライト
 ---
 [Dark]
 ダーク
----
-[Refresh]
-更新
----
-[Get started]
-開始
----
-[Logged in]
-ログイン済み
----
-[Owner only]
-所有者のみ
 ---
 [Settings]
 設定
@@ -309,9 +214,6 @@ Status quo と「プロセスを繰り返す」は常に選択肢にあります
 [The option people can accept wins.]
 人々が受け入れられる選択肢が選ばれます。
 ---
-[Start one and share the link with your group.]
-プロセスを始めて、リンクをグループと共有しましょう。
----
 [0 means no minimum - the result counts with any number of ballots.]
 0 は最低数なしを意味し、投票数にかかわらず結果が有効になります。
 ---
@@ -342,9 +244,6 @@ Status quo と「プロセスを繰り返す」は常に選択肢にあります
 [Optional details]
 詳細（任意）
 ---
-[Private]
-非公開
----
 [Process phases]
 プロセスの段階
 ---
@@ -357,17 +256,8 @@ Status quo と「プロセスを繰り返す」は常に選択肢にあります
 [Proposal title]
 提案のタイトル
 ---
-[Proposal visibility]
-提案の公開範囲
----
 [Proposals]
 提案
----
-[Public]
-公開
----
-[Unlisted]
-限定公開
 ---
 [Quorum (minimum ballots)]
 定足数（最低投票数）
@@ -390,15 +280,6 @@ Status quo と「プロセスを繰り返す」は常に選択肢にあります
 [Title]
 タイトル
 ---
-[Visibility]
-公開範囲
----
-[Who can add proposals]
-提案を追加できる人
----
-[Who can vote]
-投票できる人
----
 [ (proposal)]
  (提案)
 ---
@@ -420,9 +301,6 @@ Status quo と「プロセスを繰り返す」は常に選択肢にあります
 [Every option meets resistance - least resisted prevails: %s]
 どの選択肢にも抵抗があります - 最も抵抗の少ない選択肢が選ばれます: %s
 ---
-[No account needed - your name keeps votes apart.]
-アカウントは不要です。名前で投票を区別します。
----
 [No quorum yet - %d of %d ballots cast]
 定足数に達していません - %d / %d 票
 ---
@@ -431,9 +309,6 @@ Status quo と「プロセスを繰り返す」は常に選択肢にあります
 ---
 [Objections outweigh support - no consent yet]
 反対が支持を上回っています - まだ同意はありません
----
-[Proposal submitted.]
-提案を送信しました。
 ---
 [Quorum]
 定足数
@@ -456,9 +331,6 @@ Status quo が維持されます
 [Update vote]
 投票を更新
 ---
-[Vote submitted.]
-投票を送信しました。
----
 [Weight]
 重み
 ---
@@ -470,4 +342,25 @@ Status quo が維持されます
 ---
 [weighted resistance]
 重み付きの抵抗
+---
+[identity_hint]
+端末の鍵が投票を保護します。名前は表示用です。アクセスを失わないようバックアップを保管してください。
+---
+[result_tie]
+同点のため、勝者は一つに決まりません。同点の案を話し合うか、もう一度決めてください。
+---
+[saved_locally]
+この端末に保存しました。
+---
+[score_hint]
+-3は強い反対、0は中立、+3は強い賛成です。棄権する案は未選択のままにしてください。
+---
+[persistence_error]
+ブラウザーのデータを保存できませんでした。このページを開いたままバックアップを書き出してください。
+---
+[local_mode_hint]
+決定はこの端末に保存されます。オンライン共有はまだ接続されていません。
+---
+[next_participant]
+次の参加者
 ---

@@ -1,59 +1,23 @@
-[app_title]
-Ukuvota
----
 [home_title]
 대시보드
----
-[home_subtitle]
-숨은 반대가 없는 공동 의사결정
----
-[home_summary]
-Ukuvota는 점수 투표로 그룹의 공동 결정을 돕습니다. 참여자는 각 선택지를 지지하거나 반대할 수 있으므로, 사람들이 받아들이고 실행할 수 있는 선택이 결과로 이어집니다.
 ---
 [start_process_button]
 프로세스 만들기
 ---
-[join_process_label]
-프로세스 참여
----
-[join_process_placeholder]
-프로세스 ID 또는 링크 붙여넣기
----
-[join_process_button]
-프로세스 열기
----
-[join_process_error]
-해당 프로세스를 열 수 없습니다. ID, 링크 또는 서버를 확인하세요.
----
 [dashboard_empty]
 아직 활성 프로세스가 없습니다.
----
-[dashboard_recent_label]
-활성 프로세스
----
-[dashboard_filter_mine]
-내 것
----
-[dashboard_filter_public]
-공개
----
-[dashboard_public_label]
-공개 프로세스
----
-[dashboard_public_empty]
-공개 프로세스를 찾을 수 없습니다.
 ---
 [manual_title]
 안내
 ---
 [manual_body]
-Uku는 사람들이 지지하고 받아들일 수 있는 선택지를 그룹이 고르도록 돕습니다.
+결정은 이 기기에 저장됩니다. 온라인 공유는 아직 연결되지 않았습니다. 명확한 질문으로 절차를 만드세요.
 
-명확한 질문으로 프로세스를 만들고 참여자에게 링크를 공유하세요.
+새 절차에는 현상 유지와 절차 반복이 포함됩니다. -3(강한 반대)부터 +3(강한 지지)까지 평가하세요. 대시는 기권이며 음수에는 가중치가 적용됩니다.
 
-제안 단계에서는 사람들이 선택지를 추가합니다. Uku는 항상 Status quo와 프로세스 반복을 포함하여 아무것도 하지 않거나 다시 찾는 것도 명확한 선택지가 되게 합니다.
+다음 참가자를 선택하기 전에 투표를 저장하세요. 각 참가자는 별도의 로컬 식별 정보를 받습니다. 저장된 참가자를 눌러 투표를 수정하세요. 이름을 바꿔도 다른 참가자가 선택되지 않습니다.
 
-투표 중에는 각 계정이 모든 제안에 점수를 매깁니다. 부정 점수에는 가중치를 두어 반대가 관련 없는 지지에 가려지지 않도록 합니다.
+결과에는 동점과 최소 투표 수 달성 여부가 표시됩니다. 기본적으로 모든 투표를 집계하며 체크박스로 일부만 살펴볼 수 있습니다.
 ---
 [create_title]
 결정 설정
@@ -127,14 +91,8 @@ Uku는 사람들이 지지하고 받아들일 수 있는 선택지를 그룹이 
 [create_process_button]
 프로세스 만들기
 ---
-[setup_ready]
-프로세스 초안이 준비되었습니다.
----
 [collect_title]
 제안 모으기
----
-[collect_intro]
-프로세스가 로컬에 저장되었습니다. 로컬 저장만 사용하는 동안 이 장치의 참여자에게 이 주소를 공유하세요.
 ---
 [proposal_phase_label]
 제안 단계
@@ -147,12 +105,6 @@ Uku는 사람들이 지지하고 받아들일 수 있는 선택지를 그룹이 
 ---
 [time_remaining_label]
 남음
----
-[local_address_label]
-로컬 주소
----
-[default_proposals_label]
-기본 제안
 ---
 [status_quo_title]
 Status quo
@@ -172,9 +124,6 @@ Status quo
 [back_button]
 뒤로
 ---
-[brand_short]
-Ukuvota
----
 [Currently In Progress]
 진행 중
 ---
@@ -187,29 +136,8 @@ Ukuvota
 [Completed processes will appear here.]
 완료된 프로세스가 여기에 표시됩니다.
 ---
-[Search or paste link]
-검색 또는 링크 붙여넣기
----
-[Done Decisions]
-완료된 결정
----
-[Finished Processes]
-종료된 프로세스
----
-[No finished processes yet.]
-아직 종료된 프로세스가 없습니다.
----
-[Finished]
-종료됨
----
 [Results]
 결과
----
-[Copy results as text]
-결과를 텍스트로 복사
----
-[Results copied.]
-결과가 복사되었습니다.
 ---
 [total]
 합계
@@ -241,16 +169,8 @@ Ukuvota
 [Tap a participant to include or exclude them from the results.]
 참여자를 눌러 결과에 포함하거나 제외하세요.
 ---
-[ (you)]
- (나)
----
-[anonymous]
-익명---
 [Language]
 언어
----
-[Theme]
-테마
 ---
 [System]
 시스템
@@ -258,26 +178,11 @@ Ukuvota
 [Mode]
 모드
 ---
-[Follow device]
-장치 설정 따르기
----
 [Light]
 밝게
 ---
 [Dark]
 어둡게
----
-[Refresh]
-새로고침
----
-[Get started]
-시작하기
----
-[Logged in]
-로그인됨
----
-[Owner only]
-소유자만
 ---
 [Settings]
 설정
@@ -309,9 +214,6 @@ Status quo와 프로세스 반복은 항상 선택지에 있습니다.
 [The option people can accept wins.]
 사람들이 받아들일 수 있는 선택지가 이깁니다.
 ---
-[Start one and share the link with your group.]
-하나를 시작하고 그룹과 링크를 공유하세요.
----
 [0 means no minimum - the result counts with any number of ballots.]
 0은 최소 기준이 없다는 뜻으로, 투표 수와 관계없이 결과가 유효합니다.
 ---
@@ -342,9 +244,6 @@ Status quo와 프로세스 반복은 항상 선택지에 있습니다.
 [Optional details]
 세부 정보(선택)
 ---
-[Private]
-비공개
----
 [Process phases]
 프로세스 단계
 ---
@@ -357,17 +256,8 @@ Status quo와 프로세스 반복은 항상 선택지에 있습니다.
 [Proposal title]
 제안 제목
 ---
-[Proposal visibility]
-제안 공개 범위
----
 [Proposals]
 제안
----
-[Public]
-공개
----
-[Unlisted]
-링크 공개
 ---
 [Quorum (minimum ballots)]
 정족수(최소 투표 수)
@@ -390,15 +280,6 @@ Status quo와 프로세스 반복은 항상 선택지에 있습니다.
 [Title]
 제목
 ---
-[Visibility]
-공개 범위
----
-[Who can add proposals]
-제안을 추가할 수 있는 사람
----
-[Who can vote]
-투표할 수 있는 사람
----
 [ (proposal)]
  (제안)
 ---
@@ -420,9 +301,6 @@ Status quo와 프로세스 반복은 항상 선택지에 있습니다.
 [Every option meets resistance - least resisted prevails: %s]
 모든 선택지에 반대가 있습니다 - 반대가 가장 적은 선택지가 채택됩니다: %s
 ---
-[No account needed - your name keeps votes apart.]
-계정이 필요 없습니다. 이름으로 투표를 구분합니다.
----
 [No quorum yet - %d of %d ballots cast]
 아직 정족수 미달 - %d / %d 표
 ---
@@ -431,9 +309,6 @@ Status quo와 프로세스 반복은 항상 선택지에 있습니다.
 ---
 [Objections outweigh support - no consent yet]
 반대가 지지를 앞섭니다 - 아직 동의가 없습니다
----
-[Proposal submitted.]
-제안을 제출했습니다.
 ---
 [Quorum]
 정족수
@@ -456,9 +331,6 @@ Status quo가 유지됩니다
 [Update vote]
 투표 수정
 ---
-[Vote submitted.]
-투표를 제출했습니다.
----
 [Weight]
 가중치
 ---
@@ -470,4 +342,25 @@ Status quo가 유지됩니다
 ---
 [weighted resistance]
 가중 반대
+---
+[identity_hint]
+기기 키가 투표를 보호합니다. 이름은 표시용입니다. 접근 권한을 유지하려면 백업을 보관하세요.
+---
+[result_tie]
+동점으로 단독 승자가 없습니다. 동점인 안건을 논의하거나 절차를 반복하세요.
+---
+[saved_locally]
+이 기기에 저장했습니다.
+---
+[score_hint]
+-3은 강한 반대, 0은 중립, +3은 강한 찬성입니다. 기권하려는 안건은 선택하지 마세요.
+---
+[persistence_error]
+브라우저 데이터를 저장하지 못했습니다. 이 페이지를 열어 두고 백업을 내보내세요.
+---
+[local_mode_hint]
+결정은 이 기기에 저장됩니다. 온라인 공유는 아직 연결되지 않았습니다.
+---
+[next_participant]
+다음 참여자
 ---

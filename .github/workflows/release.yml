@@ -24,7 +24,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 1
 
       - name: Cache Test apt packages
@@ -38,6 +37,9 @@ jobs:
       - name: Install Test Dependencies
         timeout-minutes: 15
         run: .github/scripts/install-apt-packages.sh .github/apt/test-packages.txt
+
+      - name: Set up locked Ziran
+        uses: ./.github/actions/ziran
 
       - name: Run Tests
         run: make test
@@ -53,7 +55,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 1
 
       - name: Cache Web apt packages
@@ -72,12 +73,15 @@ jobs:
         run: |
           set -euo pipefail
           git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$HOME/emsdk"
-          "$HOME/emsdk/emsdk" install latest
-          "$HOME/emsdk/emsdk" activate latest
+          "$HOME/emsdk/emsdk" install 6.0.6
+          "$HOME/emsdk/emsdk" activate 6.0.6
           echo "EMSDK=$HOME/emsdk" >> "$GITHUB_ENV"
           echo "EM_CONFIG=$HOME/emsdk/.emscripten" >> "$GITHUB_ENV"
           echo "$HOME/emsdk" >> "$GITHUB_PATH"
           echo "$HOME/emsdk/upstream/emscripten" >> "$GITHUB_PATH"
+
+      - name: Set up locked Ziran
+        uses: ./.github/actions/ziran
 
       - name: Build Web ZIP
         run: |
@@ -114,7 +118,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 1
 
       - name: Cache Linux apt packages
@@ -135,58 +138,33 @@ jobs:
           mkdir -p "$HOME/.local/bin"
           curl -fL -o "$HOME/.local/bin/linuxdeploy" \
             https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${{ matrix.tool_arch }}.AppImage
-          curl -fL -o "$HOME/.local/bin/linuxdeploy-plugin-appimage" \
-            https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/1-alpha-20250213-1/linuxdeploy-plugin-appimage-${{ matrix.tool_arch }}.AppImage
           curl -fL -o "$HOME/.local/bin/appimagetool" \
             https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-${{ matrix.tool_arch }}.AppImage
-          chmod +x "$HOME/.local/bin/linuxdeploy" "$HOME/.local/bin/linuxdeploy-plugin-appimage" "$HOME/.local/bin/appimagetool"
+          chmod +x "$HOME/.local/bin/linuxdeploy" "$HOME/.local/bin/appimagetool"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      - name: Set up locked Ziran
+        uses: ./.github/actions/ziran
+
       - name: Build Linux AppImage
-        env:
-          APPIMAGE_EXTRACT_AND_RUN: "1"
-          RAY_RAYLIB_CONFIG: -DSUPPORT_SCREEN_CAPTURE=0 -DSUPPORT_COMPRESSION_API=0 -DSUPPORT_AUTOMATION_EVENTS=0 -DSUPPORT_CLIPBOARD_IMAGE=0 -DSUPPORT_FILEFORMAT_BMP=0 -DSUPPORT_FILEFORMAT_GIF=0 -DSUPPORT_FILEFORMAT_QOI=0 -DSUPPORT_FILEFORMAT_DDS=0 -DSUPPORT_FILEFORMAT_TTF=0
         run: |
           set -euo pipefail
-          RAY_SDL_INCLUDE_DIR="$(pkg-config --variable=includedir sdl2 | sed 's,/SDL2$,,')"
-          RAY_CFLAGS="$(pkg-config --cflags sdl2 libdrm gbm egl glesv2)"
-          RAY_LDLIBS="$(pkg-config --libs sdl2 libdrm gbm egl glesv2)"
-          RAY_SDL_LDLIBS="$(pkg-config --libs sdl2)"
-          export RAY_SDL_INCLUDE_DIR RAY_CFLAGS RAY_LDLIBS RAY_SDL_LDLIBS
           make appimage
           mkdir -p build/release/linux
-          find build/dist/linux -maxdepth 1 -type f -name '*.AppImage' -exec cp {} build/release/linux/ \;
-          test -n "$(find build/release/linux -type f -name '*.AppImage' -print -quit)"
+          cp build/dist/linux/*.AppImage build/release/linux/
 
       - name: Smoke Test Linux AppImage
         timeout-minutes: 5
-        env:
-          APPIMAGE_EXTRACT_AND_RUN: "1"
-          DISPLAY: ":99"
         run: |
           set -euo pipefail
-          appimage="$(find build/release/linux -maxdepth 1 -type f -name '*.AppImage' | head -n 1)"
+          appimage="$(find build/release/linux -name '*.AppImage' -print -quit)"
           chmod +x "$appimage"
-          Xvfb "$DISPLAY" -screen 0 800x600x24 >/tmp/uku-xvfb.log 2>&1 &
-          xvfb_pid=$!
-          trap 'kill "$app_pid" "$xvfb_pid" >/dev/null 2>&1 || true' EXIT
-          sleep 2
-          "$appimage" >/tmp/uku-appimage.log 2>&1 &
-          app_pid=$!
-          for _ in $(seq 1 30); do
-            if xwininfo -tree -root | grep -q 'Ukuvota'; then
-              exit 0
-            fi
-            if ! kill -0 "$app_pid" >/dev/null 2>&1; then
-              echo "AppImage exited before opening a window"
-              cat /tmp/uku-appimage.log || true
-              exit 1
-            fi
-            sleep 1
-          done
-          echo "AppImage did not open an X11 window within 30 seconds"
-          cat /tmp/uku-appimage.log || true
-          exit 1
+          data="$(mktemp -d)"
+          trap 'rm -rf "$data"' EXIT
+          env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS \
+            xvfb-run -a env APPIMAGE_EXTRACT_AND_RUN=1 UKUVOTA_DATA_DIR="$data" \
+            KRYON_CAPTURE_PATH="$data/home.png" "$appimage"
+          test -s "$data/home.png"
 
       - name: Upload Linux AppImage Artifact
         uses: actions/upload-artifact@v4
@@ -214,7 +192,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 1
 
       - name: Cache Linux apt packages
@@ -228,6 +205,9 @@ jobs:
       - name: Install Linux Dependencies
         timeout-minutes: 15
         run: .github/scripts/install-apt-packages.sh .github/apt/linux-packages.txt
+
+      - name: Set up locked Ziran
+        uses: ./.github/actions/ziran
 
       - name: Build Debian Package
         run: |
@@ -258,7 +238,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 1
 
       - name: Set up JDK 21
@@ -313,6 +292,9 @@ jobs:
           mkdir -p ~/.android
           echo "$KEYSTORE_BASE64" | base64 -d > ~/.android/uku-release.keystore
 
+      - name: Set up locked Ziran
+        uses: ./.github/actions/ziran
+
       - name: Build Android APK and AAB
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -326,7 +308,8 @@ jobs:
           if [ -z "${KEY_ALIAS:-}" ]; then
             KEY_ALIAS=uku-key
           fi
-          make android-release-ci PASSWORD="$KEYSTORE_PASSWORD" ANDROID_KEY_ALIAS="$KEY_ALIAS"
+          ANDROID_TASK=assembleRelease sh scripts/android-build.sh -Pkeystore.alias="$KEY_ALIAS"
+          ANDROID_TASK=bundleRelease sh scripts/android-build.sh -Pkeystore.alias="$KEY_ALIAS"
 
       - name: Collect Android Release Files
         run: |
@@ -334,13 +317,8 @@ jobs:
           mkdir -p build/release/android
           VERSION="$(awk '/versionName "/ { gsub(/^.*versionName "/, ""); gsub(/".*$/, ""); print; exit }' droid/app/build.gradle)"
           test -n "$VERSION"
-          for artifact in "build/android/uku-$VERSION.apk" "build/android/uku-$VERSION.aab"; do
-            if [ ! -f "$artifact" ]; then
-              echo "Missing Android release artifact: $artifact"
-              exit 1
-            fi
-            cp "$artifact" build/release/android/
-          done
+          cp droid/app/build/outputs/apk/release/app-universal-release.apk "build/release/android/uku-$VERSION.apk"
+          cp droid/app/build/outputs/bundle/release/app-release.aab "build/release/android/uku-$VERSION.aab"
 
       - name: Upload Android Artifacts
         uses: actions/upload-artifact@v4

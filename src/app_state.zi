@@ -1,6 +1,6 @@
 // Which screen Uku shows, shared by the app and its views.
 
-Screen :: enum {
+ScreenId :: enum {
     ScreenHome :: 0
     ScreenCreate :: 1
     ScreenCollect :: 2
@@ -8,6 +8,6 @@ Screen :: enum {
     ScreenManual :: 4
 }
 
-screen: Screen;
+screen: ScreenId;
 // The process_rows index the collect screen shows.
 open_row: s32 = -1;

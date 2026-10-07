@@ -1,12 +1,12 @@
 // Uku draws with Kryon's classic style in the desktop's colors or in a
 // chosen light or dark palette, and keeps the palette for the panels it
 // paints itself.
-using UI :: #import "Widgets";
+using UI :: #import "kryon/Widgets";
 SystemStyle :: #import "kss/SystemStyle";
-SystemThemeLinux :: #import "SystemThemeLinux";
+SystemThemeLinux :: #import "kryon/SystemThemeLinux";
 #import "kryon/system_theme"
 #import "text_append"
-#import "text_buffer"
+#import "std/text_buffer"
 
 theme_palette: SystemPalette;
 // ThemePolicy: 0 follows the desktop, 1 is light, 2 is dark.
@@ -43,6 +43,12 @@ ThemeUpdate :: () {
             return
         }
         theme_frames = 0
+    }
+    #if #defined(PLATFORM_WEB) || #defined(ANDROID_BUILD) {
+        theme_palette = SystemPaletteFallback(false)
+        unused SystemStyle.StyleInstallSystem(theme_palette)
+        theme_installed = true
+        return
     }
     name := SystemThemeLinux.SystemThemeName()
     if theme_installed && name == TextUntilNul(theme_name[:]) {

@@ -24,7 +24,7 @@ BallotAnswer :: () -> s32 {
     if BallotScore(ballot, "p1") != 3 {
         return 2
     }
-    // Spaces after ';' and a '+' sign read as the C client read them.
+    // Spaces after ';' and an explicit '+' sign are accepted.
     if BallotScore(ballot, "p2") != 1 {
         return 3
     }

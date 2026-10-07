@@ -1,6 +1,6 @@
 // A process moves from collecting proposals to voting to results as its
 // proposal and voting minutes pass after it was created.
-#import "number_text"
+#import "std/number_text"
 #import "text_append"
 
 Phase :: enum {
@@ -104,13 +104,13 @@ AppendTwoDigits :: (output: []u8, length: s64, value: s64) -> s64 {
 }
 
 // The UTC calendar date of a Unix time, as "2026-09-30".
-FormatDate :: (unix: s64, output: []u8) -> string {
+FormatDate :: (timestamp: s64, output: []u8) -> string {
     if output.count == 0 {
         return ""
     }
     output[0] = cast(u8)0
-    days := unix / 86400
-    if unix % 86400 < 0 {
+    days := timestamp / 86400
+    if timestamp % 86400 < 0 {
         days -= 1
     }
     // Howard Hinnant's civil_from_days.

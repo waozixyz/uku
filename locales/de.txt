@@ -1,59 +1,23 @@
-[app_title]
-Ukuvota
----
 [home_title]
 Dashboard
----
-[home_subtitle]
-Kollektive Entscheidungen ohne versteckten Widerstand
----
-[home_summary]
-Ukuvota hilft Gruppen, kollektive Entscheidungen mit Punkte-Wahl zu treffen. Teilnehmende können jede Option unterstützen oder ablehnen, sodass das Ergebnis Wahlmöglichkeiten begünstigt, die alle akzeptieren und dennoch umsetzen können.
 ---
 [start_process_button]
 Neuen Prozess starten
 ---
-[join_process_label]
-Prozess beitreten
----
-[join_process_placeholder]
-Prozess-ID oder Link einfügen
----
-[join_process_button]
-Prozess öffnen
----
-[join_process_error]
-Dieser Prozess konnte nicht geöffnet werden. Prüfe ID, Link oder Server.
----
 [dashboard_empty]
 Noch keine aktiven Prozesse.
----
-[dashboard_recent_label]
-Aktive Prozesse
----
-[dashboard_filter_mine]
-Meine
----
-[dashboard_filter_public]
-Öffentlich
----
-[dashboard_public_label]
-Öffentliche Prozesse
----
-[dashboard_public_empty]
-Keine öffentlichen Prozesse gefunden.
 ---
 [manual_title]
 Anleitung
 ---
 [manual_body]
-Ukuvota hilft Gruppen, Optionen zu wählen, die alle unterstützen und akzeptieren können.
+Entscheidungen werden auf diesem Gerät gespeichert. Online-Teilen ist noch nicht verbunden. Erstellt einen Prozess mit einer klaren Frage und sammelt Vorschläge.
 
-Erstelle einen Prozess mit einer klaren Frage und teile den Link mit den Teilnehmenden.
+Jeder neue Prozess enthält Status quo und Prozess wiederholen. Bewertet von -3 (starker Widerstand) bis +3 (starke Zustimmung); der Strich bedeutet Enthaltung. Negative Werte werden gewichtet.
 
-Während der Vorschlagsphase fügen Menschen Optionen hinzu. Ukuvota fügt immer „Status quo“ und „Prozess wiederholen“ hinzu, damit Nichtstun oder erneutes Suchen ausdrückliche Wahlmöglichkeiten sind.
+Speichert jeden Stimmzettel vor der nächsten Person. Jede Person hat eine eigene lokale Identität. Tippt auf eine gespeicherte Person, um ihren Stimmzettel zu ändern. Ein anderer Name wählt keine andere Person aus.
 
-Während der Abstimmung bewertet jedes Konto jeden Vorschlag. Negative Punkte werden gewichtet, damit Widerstand sichtbar bleibt statt von unbezogener Zustimmung verdeckt zu werden.
+Ergebnisse zeigen Gleichstände und Quorum. Standardmäßig zählen alle Stimmen; die Kontrollkästchen zeigen eine Teilmenge.
 ---
 [create_title]
 Entscheidung einrichten
@@ -127,14 +91,8 @@ Minuten
 [create_process_button]
 Prozess erstellen
 ---
-[setup_ready]
-Prozessentwurf bereit.
----
 [collect_title]
 Vorschläge sammeln
----
-[collect_intro]
-Der Prozess wurde lokal gespeichert. Teile diese Adresse mit Teilnehmenden auf diesem Gerät, solange nur lokale Speicherung aktiv ist.
 ---
 [proposal_phase_label]
 Vorschlagsphase
@@ -147,12 +105,6 @@ Ergebnisse bereit
 ---
 [time_remaining_label]
 verbleibend
----
-[local_address_label]
-Lokale Adresse
----
-[default_proposals_label]
-Standardvorschläge
 ---
 [status_quo_title]
 Status quo
@@ -172,9 +124,6 @@ Der Prozess konnte nicht lokal gespeichert werden.
 [back_button]
 Zurück
 ---
-[brand_short]
-Ukuvota
----
 [Currently In Progress]
 Aktuell in Bearbeitung
 ---
@@ -187,29 +136,8 @@ Abgeschlossene Prozesse
 [Completed processes will appear here.]
 Abgeschlossene Prozesse erscheinen hier.
 ---
-[Search or paste link]
-Suchen oder Link einfügen
----
-[Done Decisions]
-Abgeschlossene Entscheidungen
----
-[Finished Processes]
-Abgeschlossene Prozesse
----
-[No finished processes yet.]
-Noch keine abgeschlossenen Prozesse.
----
-[Finished]
-Abgeschlossen
----
 [Results]
 Ergebnisse
----
-[Copy results as text]
-Ergebnisse als Text kopieren
----
-[Results copied.]
-Ergebnisse kopiert.
 ---
 [total]
 Gesamt
@@ -241,115 +169,17 @@ Noch keine Stimmen abgegeben.
 [Tap a participant to include or exclude them from the results.]
 Tippe auf eine Person, um sie in die Ergebnisse ein- oder auszuschließen.
 ---
-[ (you)]
- (du)
----
-[anonymous]
-anonym---
-[Copy share link]
-Link zum Teilen kopieren
----
-[Share link copied.]
-Link zum Teilen kopiert.
----
-[Show QR code]
-QR-Code anzeigen
----
-[Hide QR code]
-QR-Code ausblenden
----
-[Share link]
-Link teilen
----
-[Share Ukuvota link]
-Ukuvota-Link teilen
----
-[Could not share link.]
-Link konnte nicht geteilt werden.
----
-[Share link ready.]
-Link bereit zum Teilen.
----
-[Save QR code]
-QR-Code speichern
----
-[Share QR code]
-QR-Code teilen
----
-[QR code saved:]
-QR-Code gespeichert:
----
-[QR code saved.]
-QR-Code gespeichert.
----
-[QR code ready to share.]
-QR-Code bereit zum Teilen.
----
-[Could not create QR code.]
-QR-Code konnte nicht erstellt werden.
----
-[Could not share QR code.]
-QR-Code konnte nicht geteilt werden.
----
-[Scan QR code]
-QR-Code scannen
----
-[Scan QR unavailable. Paste the link instead.]
-QR-Scanner nicht verfuegbar. Fuege den Link stattdessen ein.
----
-[Paste a QR link into search.]
-Fuege einen QR-Link in die Suche ein.
----
 [Type]
 Typ
 ---
 [weighted resistance]
 gewichteter Widerstand
 ---
-[weighted resistance | reason required]
-gewichteter Widerstand | Begründung erforderlich
----
-[weighted resistance | reason optional]
-gewichteter Widerstand | Begründung optional
----
-[Outcome:]
-Ergebnis:
----
-[Review:]
-Überprüfung:
----
-[Saved locally, but server upload failed. Check your connection and account.]
-Lokal gespeichert, aber der Server-Upload ist fehlgeschlagen. Prüfe Verbindung und Konto.
----
-[Could not refresh this process from the server. Showing local details.]
-Dieser Prozess konnte nicht vom Server aktualisiert werden. Lokale Details werden angezeigt.
----
-[Export decision packet]
-Entscheidungspaket exportieren
----
-[Could not export decision packet.]
-Entscheidungspaket konnte nicht exportiert werden.
----
-[Decision packet copied.]
-Entscheidungspaket kopiert.
----
-[Archive process]
-Prozess archivieren
----
-[Could not update process visibility.]
-Sichtbarkeit des Prozesses konnte nicht geändert werden.
----
 [Add proposal]
 Vorschlag hinzufügen
 ---
 [Your name or persistent alias]
 Dein Name oder dauerhafter Alias
----
-[Create or import an account before adding proposals.]
-Erstelle oder importiere ein Konto, bevor du Vorschläge hinzufügst.
----
-[Create or import an account before voting.]
-Erstelle oder importiere ein Konto, bevor du abstimmen kannst.
 ---
 [Title]
 Titel
@@ -366,12 +196,6 @@ Optionale Details
 [Submit proposal]
 Vorschlag einreichen
 ---
-[Proposal submitted.]
-Vorschlag eingereicht.
----
-[Proposal saved locally. It will sync when the server is reachable.]
-Vorschlag lokal gespeichert. Er synchronisiert sich, sobald der Server erreichbar ist.
----
 [Could not submit proposal.]
 Vorschlag konnte nicht eingereicht werden.
 ---
@@ -384,17 +208,8 @@ Stimme aktualisieren
 [Submit vote]
 Stimme abgeben
 ---
-[Vote submitted.]
-Stimme abgegeben.
----
-[Vote saved locally. It will sync when the server is reachable.]
-Stimme lokal gespeichert. Sie synchronisiert sich, sobald der Server erreichbar ist.
----
 [Could not submit vote.]
 Stimme konnte nicht abgegeben werden.
----
-[Collected proposals]
-Gesammelte Vorschläge
 ---
 [Proposals]
 Vorschläge
@@ -402,35 +217,17 @@ Vorschläge
 [Language]
 Sprache
 ---
-[Theme]
-Design
----
 [System]
 System
 ---
 [Mode]
 Modus
 ---
-[Follow device]
-Geräteeinstellung folgen
----
 [Light]
 Hell
 ---
 [Dark]
 Dunkel
----
-[Palette]
-Palette
----
-[Refresh]
-Aktualisieren
----
-[Start one and share the link with your group.]
-Starte einen und teile den Link mit deiner Gruppe.
----
-[Make New Process]
-Neuen Prozess erstellen
 ---
 [Decide together]
 Gemeinsam entscheiden
@@ -446,9 +243,6 @@ Status quo und Prozess wiederholen stehen immer zur Wahl.
 ---
 [The option people can accept wins.]
 Die Option, die alle akzeptieren können, gewinnt.
----
-[Get started]
-Loslegen
 ---
 [Minimum ballots (quorum)]
 Mindeststimmen (Quorum)
@@ -489,38 +283,11 @@ Prozess wird wiederholt
 [Consent reached: %s]
 Konsens erreicht: %s
 ---
-[No account needed - your name keeps votes apart.]
-Kein Konto nötig - dein Name hält die Stimmen auseinander.
----
 [That name is already taken in this process. Choose another.]
 Dieser Name ist in diesem Prozess bereits vergeben. Wähle einen anderen.
 ---
-[Proposal visibility]
-Vorschläge sichtbar für
----
-[Who can add proposals]
-Wer Vorschläge hinzufügen kann
----
-[Who can vote]
-Wer abstimmen kann
----
-[Logged in]
-Angemeldet
----
-[Owner only]
-Nur Besitzer
----
 [ (proposal)]
  (Vorschlag)
----
-[You do not have permission to add proposals to this process.]
-Du hast keine Berechtigung, in diesem Prozess Vorschläge hinzuzufügen.
----
-[You do not have permission to vote in this process.]
-Du hast keine Berechtigung, in diesem Prozess abzustimmen.
----
-[You do not have permission to view proposals in this process.]
-Du hast keine Berechtigung, die Vorschläge in diesem Prozess zu sehen.
 ---
 [Settings]
 Einstellungen
@@ -555,9 +322,6 @@ Löschen
 [No proposals found.]
 Keine Vorschläge gefunden.
 ---
-[Private]
-Privat
----
 [Process phases]
 Prozessphasen
 ---
@@ -566,12 +330,6 @@ Vorschläge und Abstimmung
 ---
 [Voting Phase only]
 Nur Abstimmung
----
-[Public]
-Öffentlich
----
-[Unlisted]
-Nicht gelistet
 ---
 [Review Process]
 Prozess prüfen
@@ -588,6 +346,24 @@ Wähle die Zeit für die Abstimmung
 [Setup Process]
 Prozess einrichten
 ---
-[Visibility]
-Sichtbarkeit
+[identity_hint]
+Dein Geräteschlüssel schützt deinen Stimmzettel. Dein Name ist nur eine Bezeichnung. Sichere deine Daten, um den Zugang zu behalten.
+---
+[result_tie]
+Gleichstand: kein eindeutiger Gewinner. Besprecht die gleichauf liegenden Optionen oder wiederholt den Prozess.
+---
+[saved_locally]
+Auf diesem Gerät gespeichert.
+---
+[score_hint]
+-3 bedeutet starken Widerstand, 0 neutral, +3 starke Unterstützung. Lass eine Option offen, um dich zu enthalten.
+---
+[persistence_error]
+Browserdaten konnten nicht gespeichert werden. Lass diese Seite geöffnet und exportiere eine Sicherung.
+---
+[local_mode_hint]
+Entscheidungen werden auf diesem Gerät gespeichert. Online-Teilen ist noch nicht verbunden.
+---
+[next_participant]
+Nächste teilnehmende Person
 ---

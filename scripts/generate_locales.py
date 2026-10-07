@@ -24,7 +24,7 @@ def literal(text):
 
 
 def parse(text):
-    """Read a catalog as the C client did: a "[key]" line, its text lines,
+    """Read a catalog: a "[key]" line, its text lines,
     and a "---" line. Trailing newlines of a value are dropped."""
     entries = []
     key = None

@@ -1,32 +1,35 @@
 # Ukuvota Repository Rules
 
-- Never edit files under `vendor/` from this repository. Make Kryon changes in
-  the core Kryon repository, commit and push them there, then update Ukuvota's
-  Kryon submodule pointer.
-- Do not add compatibility aliases or local runtime shims for removed Kryon
-  APIs. Migrate maintained source to the current canonical API.
+- Work in this canonical checkout on master. Never use source worktrees or
+  temporary checkouts.
+- Ukuvota's maintained app and host code uses Ziran and current Kryon package
+  APIs. Android's C and Java files are platform glue only.
+- Dependencies belong in `ziran.toml` and the generated `ziran.lock`. Use
+  ignored `ziran.local.toml` overrides for canonical local repositories.
+- Never edit a dependency under `vendor/` or in Ziran's package cache. Change
+  its owning repository, test and commit there first, then update the lock.
+- Do not add compatibility aliases or wrappers for retired Kryon APIs.
 
-## Canonical Text Rule
+## Text and source checks
 
-- `Text` has exactly one supported form: `Text((TextProps){...})`. Put bounds,
-  wrapping, clipping, color, alignment, and disabled state in `TextProps`.
-- Do not add positional `Text` calls, parallel helpers such as `TextWrapped` or
-  `TextColored`, or local wrappers that conceal the old signature.
-- Keep `make clean-text-api-check` passing. A UI migration is incomplete until
-  the maintained source builds with upstream Kryon.
+- Use `Text(session, TextProps)` with bounds, wrapping, clipping, color,
+  alignment and disabled state in `TextProps`.
+- Do not add positional text APIs, parallel text widgets or local runtime shims.
+- Keep `make clean-text-api-check` and `make test` passing. Verify release
+  builds with `ZIRAN_LOCKED=1` so local overrides cannot hide missing exports.
 
-## Readability Rule
+## Readability and data
 
-- Write conventional, fully readable code. Do not compress multiple statements,
-  branches, declarations, or error checks onto one line. Use descriptive names,
-  explicit control flow, and focused helpers.
-- Format changed source, run `git diff --check`, and inspect the final diff before
-  considering a change complete.
+- Write conventional, readable code with descriptive names and explicit error
+  handling. Format changed source and inspect `git diff --check` before commit.
+- Database upgrades must preserve decisions, ballots and identities. Refuse an
+  unsupported schema without dropping it or silently replacing its keys.
+- Keep UI claims consistent with available behavior. Local decisions must not
+  advertise online sharing or server-enforced permissions.
+- Translate changed content in every touched locale and regenerate catalogs.
 
-## Bend
+## Visual verification
 
-When using Bend:
-- run `bend guide` to learn it
-- use `LAWS.bend` to keep important rules
-- run `bend PROOF.bend` before committing
-- parallelize the code whenever possible
+- All tests use a private Xvfb display and an isolated data directory. Scrub
+  DISPLAY, WAYLAND_DISPLAY, XAUTHORITY and DBUS_SESSION_BUS_ADDRESS before
+  starting it. Capture only windows created by that test.

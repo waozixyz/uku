@@ -1,0 +1,58 @@
+// Native Android host for the same Frame used by desktop and browser builds.
+#import "app"
+#import "kryon/Raylib"
+#import "kryon/Frame"
+#import "kryon/session"
+#import "kryon/tree_input"
+
+platform_api :: #system_library "platform_api";
+InitializeAndroid :: () #foreign platform_api "uku_initialize";
+AndroidTyped :: () -> s32 #foreign platform_api "uku_typed_codepoint";
+AndroidKey :: () -> s32 #foreign platform_api "uku_pressed_key";
+
+#program_export
+main :: () -> s32 {
+    InitializeAndroid()
+    if !OpenRaylib() {
+        return 1
+    }
+    session := SessionOpen()
+    if !SessionValid(session) {
+        CloseRaylib()
+        return 1
+    }
+    ok := true
+    while ok && PollRaylib() {
+        KeyboardModifiersSend(session, RaylibModifiers())
+        key := AndroidKey()
+        if key == 0 {
+            key = RaylibPressedKey()
+        }
+        if key != 0 {
+            KeyboardSend(session, key)
+        }
+        codepoint := AndroidTyped()
+        while codepoint != 0 {
+            TypedCodepointSend(session, codepoint)
+            codepoint = AndroidTyped()
+        }
+        codepoint = RaylibTypedCodepoint()
+        while codepoint != 0 {
+            TypedCodepointSend(session, codepoint)
+            codepoint = RaylibTypedCodepoint()
+        }
+        BeginRaylibFrame()
+        viewport := RaylibViewport()
+        pointer := PollPointer()
+        TreePointerUpdate(session, pointer)
+        PointerWheelSend(session, pointer.x, pointer.y, RaylibWheelMove())
+        ok = BeginFrame(session, cast(u64)1, viewport) == cast(FrameStatus)FrameStatus.FrameOk
+        if ok {
+            ok = Frame(session, viewport) == 0 && EndFrame(session) == cast(FrameStatus)FrameStatus.FrameOk
+        }
+        ok = EndRaylibFrame() && ok
+    }
+    CloseSession(session)
+    CloseRaylib()
+    return ifx ok then 0 else 1
+}

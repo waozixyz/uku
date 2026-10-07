@@ -1,6 +1,0 @@
-#import "kryon.h"
-
-UkuTopBarFrame :: (view_w: int, h: int) #export {
-    DrawRectangle(0, 0, view_w, h, StyleTokenColor("surface"))
-    DrawLine(0, h - 1, view_w, h - 1, StyleTokenColor("text"))
-}

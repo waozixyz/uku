@@ -1,5 +1,5 @@
 // Ukuvota on Kryon: the host calls Frame for every frame.
-using UI :: #import "Widgets";
+using UI :: #import "kryon/Widgets";
 #import "app_state"
 #import "collect_view"
 #import "create_view"
@@ -8,18 +8,17 @@ using UI :: #import "Widgets";
 #import "settings_view"
 #import "locale"
 #import "storage"
+#import "platform"
 #import "theme"
 #import "ui_kit"
 #import "kryon/ScrollDevice"
-#import "date_time_linux"
-
-STORAGE_PATH :: "uku.sqlite3"
+#import "std/date_time_linux"
 
 initialized: bool;
 storage_ready: bool;
 
 Initialize :: () {
-    storage_ready = StorageOpen(STORAGE_PATH)
+    storage_ready = StorageOpen(DataPath())
     if storage_ready {
         language: [16]u8
         unused LocaleSelect(SettingLoadText("locale", "en", language[:]))
@@ -48,14 +47,25 @@ Frame :: (session: Session, viewport: Rectangle) -> s32 {
     pointer := PointerSample(session)
     BeginScrollFrame(session, Vector2.{pointer.x, pointer.y}, pointer.pressed, pointer.down, pointer.released, PointerWheelTake(session, viewport), 0.0)
     Background(session, viewport)
+    ShowKeyboard(focused_field >= 0)
+    if !storage_ready {
+        column := UiColumn(viewport, 520.0)
+        unused UiParagraph(session, Tr("db_error"), column.x, viewport.y + 48.0, column.width, 16)
+        return 0
+    }
+    if PersistenceFailed() {
+        height := UiParagraph(session, Tr("persistence_error"), viewport.x + 16.0, viewport.y + 8.0, viewport.width - 32.0, 14) + 16.0
+        viewport.y += height
+        viewport.height -= height
+    }
     now := UnixNow()
-    if screen == Screen.ScreenHome {
+    if screen == ScreenId.ScreenHome {
         HomeView(session, viewport, now)
-    } else if screen == Screen.ScreenCreate {
+    } else if screen == ScreenId.ScreenCreate {
         CreateView(session, viewport, now)
-    } else if screen == Screen.ScreenCollect {
+    } else if screen == ScreenId.ScreenCollect {
         CollectView(session, viewport, now)
-    } else if screen == Screen.ScreenSettings {
+    } else if screen == ScreenId.ScreenSettings {
         SettingsView(session, viewport)
     } else {
         ManualView(session, viewport)

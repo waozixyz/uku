@@ -97,26 +97,17 @@ write_web_app_csp_html() {
 	csp="default-src 'self' data: blob:; connect-src 'self' https: wss:; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; worker-src 'self' 'unsafe-eval' 'unsafe-inline' data: blob:; img-src 'self' data: blob:; media-src 'self' data: blob:; object-src 'none'"
 	meta="<meta http-equiv=\"Content-Security-Policy\" content=\"$csp\">"
 
-	awk -v meta="$meta" -v version="$cache_version" '
-		{
-			gsub(/src="index\.js(\?v=[0-9A-Za-z._-]+)?"/, "src=\"index.js?v=" version "\"")
-			if ($0 ~ /<meta http-equiv="Content-Security-Policy"/) {
-				if (!done) print meta
-				done = 1
-				next
-			}
-			print
-			if (!done && !inserted && $0 ~ /<meta charset="[^"]+"/) {
-				print "    " meta
-				inserted = 1
-				done = 1
-			}
-			if (!done && $0 ~ /<\/head>/) {
-				print "    " meta
-				done = 1
-			}
-		}
-	' "$src" > "$dst"
+    python3 - "$src" "$dst" "$meta" "$cache_version" <<'PYTHON'
+from pathlib import Path
+import re
+import sys
+source, destination, meta, version = sys.argv[1:]
+html = Path(source).read_text()
+html = re.sub(r'<meta[^>]*http-equiv=["\']?Content-Security-Policy[^>]*>', '', html, flags=re.I)
+html = html.replace('<head>', '<head>' + meta, 1)
+html = re.sub(r'src=["\']?index\.js(?:\?v=[0-9A-Za-z._-]+)?["\']?', 'src="index.js?v=' + version + '"', html)
+Path(destination).write_text(html)
+PYTHON
 }
 
 version=$(read_version)
@@ -130,6 +121,8 @@ if [ -z "$asset_version" ]; then
 fi
 
 require_path "$web_dir/index.html"
+require_path "$web_dir/index.js"
+require_path "$web_dir/index.wasm"
 
 rm -rf "$out_dir"
 mkdir -p "$out_dir"

@@ -3,19 +3,17 @@
 #import "ballot"
 #import "process"
 #import "tally"
-#import "byte_text_linux"
-#import "c_string"
-#import "number_text"
-#import "text_buffer"
+#import "std/byte_text_linux"
+#import "std/c_string"
+#import "std/number_text"
+#import "std/text_buffer"
 #import "text_append"
+#import "platform"
 
-// Uku's local database on the desktop and Android: processes with their
-// proposals and options, ballots, the sync account, and settings. Opening
-// an older database upgrades it in place and keeps its data, except that a
-// processes table from before process types existed is replaced, as the C
-// client did.
+// Local decisions, ballots, account keys and preferences. Schema upgrades
+// preserve data; unsupported schemas are refused without modifying them.
 
-STORAGE_SCHEMA :: "create table if not exists processes (id text primary key, type text not null, phase text not null, topic text not null, description text not null, proposal_minutes integer not null, voting_minutes integer not null, negative_weight integer not null, quorum_votes integer not null default 0, visibility text not null default 'public', proposal_visibility text not null default 'public', proposal_access text not null default 'public', voting_access text not null default 'public', local_address text not null, created_at integer not null, synced integer not null default 0); create table if not exists options (id text primary key, process_id text not null, label text not null, description text not null, position integer not null, foreign key(process_id) references processes(id)); create table if not exists proposals (id integer primary key autoincrement, process_id text not null, author_user_id text not null default '', remote_id text not null default '', display_name text not null default '', title text not null, description text not null, created_at integer not null, synced integer not null default 0, foreign key(process_id) references processes(id)); create table if not exists votes (process_id text not null, voter_user_id text not null, display_name text not null, reason text not null, scores text not null, updated_at integer not null, synced integer not null default 0, primary key(process_id, voter_user_id), foreign key(process_id) references processes(id)); create table if not exists results (process_id text primary key, result_json text not null, computed_at integer not null, foreign key(process_id) references processes(id)); create table if not exists account (id integer primary key check(id = 1), public_id text not null, public_key text not null, private_key text not null); create table if not exists settings (key text primary key, value text not null);"
+STORAGE_SCHEMA :: "create table if not exists processes (id text primary key, type text not null, phase text not null, topic text not null, description text not null, proposal_minutes integer not null, voting_minutes integer not null, negative_weight integer not null, quorum_votes integer not null default 0, visibility text not null default 'public', proposal_visibility text not null default 'public', proposal_access text not null default 'public', voting_access text not null default 'public', local_address text not null, created_at integer not null, synced integer not null default 0); create table if not exists options (id text primary key, process_id text not null, label text not null, description text not null, position integer not null, foreign key(process_id) references processes(id)); create table if not exists proposals (id integer primary key autoincrement, process_id text not null, author_user_id text not null default '', remote_id text not null default '', display_name text not null default '', title text not null, description text not null, created_at integer not null, synced integer not null default 0, foreign key(process_id) references processes(id)); create table if not exists votes (process_id text not null, voter_user_id text not null, display_name text not null, reason text not null, scores text not null, updated_at integer not null, synced integer not null default 0, primary key(process_id, voter_user_id), foreign key(process_id) references processes(id)); create table if not exists results (process_id text primary key, result_json text not null, computed_at integer not null, foreign key(process_id) references processes(id)); create table if not exists account (id integer primary key check(id = 1), public_id text not null, public_key text not null, private_key text not null); create table if not exists settings (key text primary key, value text not null); create table if not exists participants (process_id text not null, public_id text not null, public_key text not null, private_key text not null, primary key(process_id, public_id));"
 
 StorageColumn :: struct {
     table: string
@@ -74,39 +72,28 @@ StorageTableHasColumn :: (table: string, column: string) -> bool {
     return found
 }
 
-// Processes from before process types cannot be read; the C client dropped
-// them and their proposals, votes, options, and results.
-StorageResetOldProcessSchema :: () {
-    if !StorageTableExists("processes") || StorageTableHasColumn("processes", "type") {
-        return
-    }
-    unused SqliteExecText(database, "drop table if exists processes")
-    unused SqliteExecText(database, "drop table if exists proposals")
-    unused SqliteExecText(database, "drop table if exists votes")
-    unused SqliteExecText(database, "drop table if exists options")
-    unused SqliteExecText(database, "drop table if exists results")
-}
-
 // Columns added after the first releases, as ALTER TABLE statements that
 // older databases need.
-StorageAddMissingColumns :: () {
-    columns: [8]StorageColumn = .{
-        StorageColumn.{"account", "auth_token", "alter table account add column auth_token text not null default ''"},
-        StorageColumn.{"account", "server_url", "alter table account add column server_url text not null default 'https://api.waozi.xyz'"},
+StorageAddMissingColumns :: () -> bool {
+    columns: [7]StorageColumn = .{
         StorageColumn.{"processes", "quorum_votes", "alter table processes add column quorum_votes integer not null default 0"},
         StorageColumn.{"processes", "owner_user_id", "alter table processes add column owner_user_id text not null default ''"},
         StorageColumn.{"processes", "proposal_visibility", "alter table processes add column proposal_visibility text not null default 'public'"},
         StorageColumn.{"processes", "proposal_access", "alter table processes add column proposal_access text not null default 'public'"},
         StorageColumn.{"processes", "voting_access", "alter table processes add column voting_access text not null default 'public'"},
+        StorageColumn.{"proposals", "proposal_key", "alter table proposals add column proposal_key text not null default ''"},
         StorageColumn.{"proposals", "display_name", "alter table proposals add column display_name text not null default ''"}
     }
     index: s64 = 0
     while index < columns.count {
         if !StorageTableHasColumn(columns[index].table, columns[index].column) {
-            unused SqliteExecText(database, columns[index].definition)
+            if SqliteExecText(database, columns[index].definition) != SQLITE_OK {
+                return false
+            }
         }
         index += 1
     }
+    return true
 }
 
 // Opens (or creates) the database at `path` and brings its schema up to
@@ -114,7 +101,7 @@ StorageAddMissingColumns :: () {
 StorageOpen :: (path: string) -> bool {
     StorageClose()
     bytes: [1024]u8
-    if !CopyCString(path, bytes[:]) {
+    if path.count == 0 || !CopyCString(path, bytes[:]) {
         return false
     }
     flags: s32 = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE
@@ -122,12 +109,24 @@ StorageOpen :: (path: string) -> bool {
         StorageClose()
         return false
     }
-    StorageResetOldProcessSchema()
-    if SqliteExecText(database, STORAGE_SCHEMA) != SQLITE_OK {
+    // Refuse unknown pre-release schemas without deleting anyone's decisions.
+    if StorageTableExists("processes") && !StorageTableHasColumn("processes", "type") {
         StorageClose()
         return false
     }
-    StorageAddMissingColumns()
+    unused SqliteExecText(database, "pragma busy_timeout=3000")
+    if SqliteExecText(database, "begin immediate") != SQLITE_OK {
+        StorageClose()
+        return false
+    }
+    ready := SqliteExecText(database, STORAGE_SCHEMA) == SQLITE_OK && StorageAddMissingColumns()
+    ready = ready && SqliteExecText(database, "commit") == SQLITE_OK
+    if !ready {
+        unused SqliteExecText(database, "rollback")
+        StorageClose()
+        return false
+    }
+    PersistChanges()
     return true
 }
 
@@ -164,10 +163,13 @@ SettingSaveText :: (key: string, value: string) -> bool {
     unused SqliteBindTextString(statement, 2, value, -1)
     saved := SqliteStep(statement) == SQLITE_DONE
     unused SqliteFinalize(statement)
+    if saved {
+        PersistChanges()
+    }
     return saved
 }
 
-// Reads a whole number the way the C client's atoi did: an optional sign,
+// Reads a whole number: an optional sign,
 // then digits; anything else ends it, and no digits read as 0.
 StorageReadInt :: (text: string) -> s32 {
     index: s64 = 0
@@ -299,6 +301,7 @@ StorageInsertProposal :: (process_id: string, author: string, display_name: stri
     if !inserted {
         return -1
     }
+    PersistChanges()
     return SqliteLastInsertRowid(database)
 }
 
@@ -331,6 +334,22 @@ StorageInsertOption :: (process_id: string, option: Option, position: s32) -> bo
     inserted := SqliteStep(statement) == SQLITE_DONE
     unused SqliteFinalize(statement)
     return inserted
+}
+
+StorageInsertStanding :: (process_id: string, owner: string, key: string, title: string, description: string, now: s64) -> bool {
+    rowid := StorageInsertProposal(process_id, owner, "", title, description, now, true)
+    if rowid < 0 {
+        return false
+    }
+    statement: *void = null
+    if SqlitePrepareText(database, "update proposals set proposal_key=? where id=?", -1, *statement, null) != SQLITE_OK {
+        return false
+    }
+    unused SqliteBindTextString(statement, 1, key, -1)
+    unused SqliteBindInt64(statement, 2, rowid)
+    saved := SqliteStep(statement) == SQLITE_DONE
+    unused SqliteFinalize(statement)
+    return saved
 }
 
 // The standing proposals of a new consent process that has none of its own.
@@ -392,11 +411,12 @@ StorageSaveNewProcess :: (row: ProcessRow, owner_name: string, standing: Standin
                 saved = StorageInsertProposal(process_id, owner, owner_name, TextUntilNul(proposal.title[:]), TextUntilNul(proposal.description[:]), row.created_at, true) >= 0
                 index += 1
             }
-        } else {
-            saved = StorageInsertProposal(process_id, owner, "", standing.status_quo_title, standing.status_quo_description, row.created_at, true) >= 0
-            if saved {
-                saved = StorageInsertProposal(process_id, owner, "", standing.repeat_title, standing.repeat_description, row.created_at, true) >= 0
-            }
+        }
+        if saved {
+            saved = StorageInsertStanding(process_id, owner, "status-quo", standing.status_quo_title, standing.status_quo_description, row.created_at)
+        }
+        if saved {
+            saved = StorageInsertStanding(process_id, owner, "repeat-process", standing.repeat_title, standing.repeat_description, row.created_at)
         }
     }
     if saved {
@@ -404,6 +424,9 @@ StorageSaveNewProcess :: (row: ProcessRow, owner_name: string, standing: Standin
     }
     if !saved {
         unused SqliteExecText(database, "rollback")
+    }
+    if saved {
+        PersistChanges()
     }
     return saved
 }
@@ -457,10 +480,10 @@ StorageLoadOptions :: (process_id: string) {
     unused SqliteFinalize(statement)
 }
 
-// A proposal keeps the server's id once synced, and "local-<rowid>" before.
+// Preserve stored proposal keys; otherwise use a stable local row identifier.
 StorageLoadProposals :: (process_id: string) {
     statement: *void = null
-    if SqlitePrepareText(database, "select id, author_user_id, remote_id, title, description, display_name from proposals where process_id=? order by created_at, id", -1, *statement, null) != SQLITE_OK {
+    if SqlitePrepareText(database, "select id, author_user_id, coalesce(nullif(proposal_key,''), remote_id), title, description, display_name from proposals where process_id=? order by created_at, id", -1, *statement, null) != SQLITE_OK {
         return
     }
     unused SqliteBindTextString(statement, 1, process_id, -1)
@@ -533,7 +556,7 @@ StorageLoadProcessDetail :: (row: ProcessRow, standing: StandingProposals) -> bo
     return true
 }
 
-// The id a proposal has before the server gives it one.
+// A proposal's stable local identifier.
 StorageLocalProposalId :: (rowid: s64, output: []u8) -> string {
     number: [24]u8
     length := TextAppend(output, 0, "local-")
@@ -541,7 +564,7 @@ StorageLocalProposalId :: (rowid: s64, output: []u8) -> string {
     return TextUntilNul(output)
 }
 
-// Saves a proposal written here, not yet synced. Returns its rowid, or -1.
+// Saves a local proposal. Returns its rowid, or -1.
 StorageSaveLocalProposal :: (process_id: string, author: string, display_name: string, title: string, description: string, now: s64) -> s64 {
     if database == null || !StorageHasText(title) {
         return -1
@@ -549,10 +572,9 @@ StorageSaveLocalProposal :: (process_id: string, author: string, display_name: s
     return StorageInsertProposal(process_id, author, display_name, title, description, now, false)
 }
 
-// Saves this participant's ballot, replacing an earlier one; it waits to
-// be synced.
+// Saves this participant's ballot, replacing only their own earlier ballot.
 StorageSaveLocalVote :: (process_id: string, voter: string, display_name: string, ballot: string, now: s64) -> bool {
-    if database == null || voter.count == 0 {
+    if database == null || voter.count == 0 || ballot.count == 0 || !StorageNameAvailable(process_id, voter, display_name) {
         return false
     }
     statement: *void = null
@@ -567,175 +589,40 @@ StorageSaveLocalVote :: (process_id: string, voter: string, display_name: string
     unused SqliteBindInt64(statement, 6, now)
     saved := SqliteStep(statement) == SQLITE_DONE
     unused SqliteFinalize(statement)
+    if saved {
+        PersistChanges()
+    }
     return saved
 }
 
-StorageExecWithId :: (sql: string, id: string) -> bool {
-    if database == null {
-        return false
-    }
-    statement: *void = null
-    if SqlitePrepareText(database, sql, -1, *statement, null) != SQLITE_OK {
-        return false
-    }
-    unused SqliteBindTextString(statement, 1, id, -1)
-    done := SqliteStep(statement) == SQLITE_DONE
-    unused SqliteFinalize(statement)
-    return done
-}
-
-StorageMarkProcessSynced :: (process_id: string) -> bool {
-    return StorageExecWithId("update processes set synced=1 where id=?", process_id)
-}
-
-StorageProcessSynced :: (process_id: string) -> bool {
-    if database == null {
-        return false
-    }
-    statement: *void = null
-    if SqlitePrepareText(database, "select synced from processes where id=?", -1, *statement, null) != SQLITE_OK {
-        return false
-    }
-    unused SqliteBindTextString(statement, 1, process_id, -1)
-    synced := SqliteStep(statement) == SQLITE_ROW && SqliteColumnInt(statement, 0) != 0
-    unused SqliteFinalize(statement)
-    return synced
-}
-
-// Changes to the process, its proposals, and its ballots waiting to sync.
-StoragePendingCount :: (process_id: string) -> s32 {
-    if database == null {
-        return 0
-    }
-    statement: *void = null
-    if SqlitePrepareText(database, "select (select count(*) from processes where id=?1 and synced=0) + (select count(*) from proposals where process_id=?1 and synced=0) + (select count(*) from votes where process_id=?1 and synced=0)", -1, *statement, null) != SQLITE_OK {
-        return 0
-    }
-    unused SqliteBindTextString(statement, 1, process_id, -1)
-    count: s32 = 0
-    if SqliteStep(statement) == SQLITE_ROW {
-        count = SqliteColumnInt(statement, 0)
-    }
-    unused SqliteFinalize(statement)
-    return count
-}
-
-// Records the server's id for a proposal written here.
-StorageMarkProposalSynced :: (rowid: s64, remote_id: string) -> bool {
-    if database == null {
-        return false
-    }
-    statement: *void = null
-    if SqlitePrepareText(database, "update proposals set synced=1, remote_id=? where id=?", -1, *statement, null) != SQLITE_OK {
-        return false
-    }
-    unused SqliteBindTextString(statement, 1, remote_id, -1)
-    unused SqliteBindInt64(statement, 2, rowid)
-    done := SqliteStep(statement) == SQLITE_DONE
-    unused SqliteFinalize(statement)
-    return done
-}
-
-// Renames a proposal in every stored ballot of the process, as when a local
-// proposal gets its server id. A ballot whose renamed form would not fit is
-// left as it was, and the result is false.
-StorageRewriteBallotId :: (process_id: string, old_id: string, new_id: string) -> bool {
-    if database == null {
-        return false
-    }
-    select: *void = null
-    update: *void = null
-    if SqlitePrepareText(database, "select voter_user_id, scores from votes where process_id=?", -1, *select, null) != SQLITE_OK {
-        return false
-    }
-    if SqlitePrepareText(database, "update votes set scores=? where process_id=? and voter_user_id=?", -1, *update, null) != SQLITE_OK {
-        unused SqliteFinalize(select)
-        return false
-    }
-    unused SqliteBindTextString(select, 1, process_id, -1)
-    all := true
-    while SqliteStep(select) == SQLITE_ROW {
-        voter := SqliteColumnText(select, 0)
-        ballot := SqliteColumnText(select, 1)
-        renamed: [8192]u8
-        length: s64 = -1
-        if voter != null && ballot != null {
-            length = BallotReplaceId(TextFromCString(ballot), old_id, new_id, renamed[:])
-        }
-        if length < 0 {
-            all = false
-        } else {
-            unused SqliteReset(update)
-            unused SqliteClearBindings(update)
-            unused SqliteBindTextString(update, 1, TextUntilNul(renamed[:]), -1)
-            unused SqliteBindTextString(update, 2, process_id, -1)
-            unused SqliteBindTextString(update, 3, TextFromCString(voter), -1)
-            if SqliteStep(update) != SQLITE_DONE {
-                all = false
-            }
-        }
-    }
-    unused SqliteFinalize(update)
-    unused SqliteFinalize(select)
-    return all
-}
-
-// The sync account: its keys, the server's bearer token, and the server.
-StoredAccount :: struct {
+// A participant identity contains only its signing keys and validity.
+ParticipantIdentity :: struct {
     keys: AccountKeys
-    auth_token: [768]u8
-    server_url: [256]u8
     loaded: bool
 }
 
 // Loads the account; `loaded` is false when there is none or its keys do
 // not form a valid key pair.
-StorageLoadAccount :: () -> StoredAccount {
-    account: StoredAccount
+StorageExistingIdentity :: () -> ParticipantIdentity {
+    account: ParticipantIdentity
     if database == null {
         return account
     }
     statement: *void = null
-    if SqlitePrepareText(database, "select public_id, public_key, private_key, auth_token, server_url from account where id=1", -1, *statement, null) != SQLITE_OK {
+    if SqlitePrepareText(database, "select public_id, public_key, private_key from account where id=1", -1, *statement, null) != SQLITE_OK {
         return account
     }
     if SqliteStep(statement) == SQLITE_ROW {
         StorageColumnText(statement, 0, "", account.keys.public_id[:])
         StorageColumnText(statement, 1, "", account.keys.public_key_hex[:])
         StorageColumnText(statement, 2, "", account.keys.private_key_hex[:])
-        StorageColumnText(statement, 3, "", account.auth_token[:])
-        StorageColumnText(statement, 4, "https://api.waozi.xyz", account.server_url[:])
         account.loaded = ValidateAccountKeys(*account.keys) != 0
     }
     unused SqliteFinalize(statement)
     return account
 }
 
-// Saves valid keys with the bearer token. As before, saving replaces the
-// row, so the server address returns to its default.
-StorageSaveAccount :: (keys: AccountKeys, auth_token: string) -> bool {
-    if database == null {
-        return false
-    }
-    checked := keys
-    if ValidateAccountKeys(*checked) == 0 {
-        return false
-    }
-    statement: *void = null
-    if SqlitePrepareText(database, "insert or replace into account(id, public_id, public_key, private_key, auth_token) values(1, ?, ?, ?, ?)", -1, *statement, null) != SQLITE_OK {
-        return false
-    }
-    unused SqliteBindTextString(statement, 1, TextUntilNul(keys.public_id[:]), -1)
-    unused SqliteBindTextString(statement, 2, TextUntilNul(keys.public_key_hex[:]), -1)
-    unused SqliteBindTextString(statement, 3, TextUntilNul(keys.private_key_hex[:]), -1)
-    unused SqliteBindTextString(statement, 4, auth_token, -1)
-    saved := SqliteStep(statement) == SQLITE_DONE
-    unused SqliteFinalize(statement)
-    return saved
-}
-
-// The settings key of one field of a process's guest key pair, as the C
-// client named it: "guest.<process id>.<field>".
+// The settings key for one field of a process participant: "guest.<process id>.<field>".
 GuestSettingKey :: (process_id: string, field: string, output: []u8) -> string {
     output[0] = cast(u8)0
     length := TextAppend(output, 0, "guest.")
@@ -749,36 +636,123 @@ GuestSettingKey :: (process_id: string, field: string, output: []u8) -> string {
     return TextUntilNul(output)
 }
 
-// The public id that owns a new process: the account's, or else a key pair
-// made for this process alone and kept in settings, as the C client did.
-// Returns "" when no key pair can be made or saved.
-StorageProcessOwner :: (process_id: string, output: []u8) -> string {
-    output[0] = cast(u8)0
-    account := StorageLoadAccount()
-    if account.loaded {
-        unused TextAppend(output, 0, TextUntilNul(account.keys.public_id[:]))
-        return TextUntilNul(output)
+// Every participant created on this device retains their own keys.
+StorageParticipantIdentity :: (process_id: string, public_id: string) -> ParticipantIdentity {
+    account: ParticipantIdentity
+    statement: *void = null
+    if database == null || SqlitePrepareText(database, "select public_id, public_key, private_key from participants where process_id=? and public_id=?", -1, *statement, null) != SQLITE_OK {
+        return account
     }
-    key: [96]u8
-    {
-        existing := SettingLoadText(GuestSettingKey(process_id, "public_id", key[:]), "", output)
-        if existing.count > 0 {
-            return existing
+    unused SqliteBindTextString(statement, 1, process_id, -1)
+    unused SqliteBindTextString(statement, 2, public_id, -1)
+    if SqliteStep(statement) == SQLITE_ROW {
+        StorageColumnText(statement, 0, "", account.keys.public_id[:])
+        StorageColumnText(statement, 1, "", account.keys.public_key_hex[:])
+        StorageColumnText(statement, 2, "", account.keys.private_key_hex[:])
+        account.loaded = ValidateAccountKeys(*account.keys) != 0
+    }
+    unused SqliteFinalize(statement)
+    return account
+}
+
+StorageKeepParticipant :: (process_id: string, keys: AccountKeys) -> bool {
+    statement: *void = null
+    if SqlitePrepareText(database, "insert or ignore into participants(process_id, public_id, public_key, private_key) values(?, ?, ?, ?)", -1, *statement, null) != SQLITE_OK {
+        return false
+    }
+    unused SqliteBindTextString(statement, 1, process_id, -1)
+    unused SqliteBindTextString(statement, 2, TextUntilNul(keys.public_id[:]), -1)
+    unused SqliteBindTextString(statement, 3, TextUntilNul(keys.public_key_hex[:]), -1)
+    unused SqliteBindTextString(statement, 4, TextUntilNul(keys.private_key_hex[:]), -1)
+    saved := SqliteStep(statement) == SQLITE_DONE
+    unused SqliteFinalize(statement)
+    return saved
+}
+
+StorageSelectParticipant :: (process_id: string, public_id: string) -> bool {
+    account := StorageParticipantIdentity(process_id, public_id)
+    if !account.loaded {
+        return false
+    }
+    key: [128]u8
+    return SettingSaveText(GuestSettingKey(process_id, "active", key[:]), public_id)
+}
+
+// Creates another participant without replacing anyone's saved ballot or keys.
+StorageNewParticipant :: (process_id: string) -> ParticipantIdentity {
+    account: ParticipantIdentity
+    if database == null || process_id.count == 0 || CreateAccountKeys(*account.keys) == 0 {
+        return account
+    }
+    if SqliteExecText(database, "begin immediate") != SQLITE_OK {
+        return account
+    }
+    key: [128]u8
+    saved := StorageKeepParticipant(process_id, account.keys)
+    saved = saved && SettingSaveText(GuestSettingKey(process_id, "active", key[:]), TextUntilNul(account.keys.public_id[:]))
+    saved = saved && SqliteExecText(database, "commit") == SQLITE_OK
+    if !saved {
+        unused SqliteExecText(database, "rollback")
+    } else {
+        PersistChanges()
+    }
+    account.loaded = saved
+    return account
+}
+
+StorageActiveParticipant :: (process_id: string, create: bool) -> ParticipantIdentity {
+    account: ParticipantIdentity
+    if database == null || process_id.count == 0 {
+        return account
+    }
+    key: [128]u8
+    active: [96]u8
+    unused SettingLoadText(GuestSettingKey(process_id, "active", key[:]), "", active[:])
+    if active[0] != cast(u8)0 {
+        return StorageParticipantIdentity(process_id, TextUntilNul(active[:]))
+    }
+    // Import an existing process identity once, preserving its keys.
+    unused SettingLoadText(GuestSettingKey(process_id, "public_id", key[:]), "", account.keys.public_id[:])
+    unused SettingLoadText(GuestSettingKey(process_id, "public_key", key[:]), "", account.keys.public_key_hex[:])
+    unused SettingLoadText(GuestSettingKey(process_id, "private_key", key[:]), "", account.keys.private_key_hex[:])
+    account.loaded = ValidateAccountKeys(*account.keys) != 0
+    if !account.loaded && account.keys.public_id[0] == cast(u8)0 {
+        existing := StorageExistingIdentity()
+        if existing.loaded {
+            account = existing
         }
     }
-    keys: AccountKeys
-    if CreateAccountKeys(*keys) == 0 {
+    if account.loaded {
+        account.loaded = StorageKeepParticipant(process_id, account.keys) && StorageSelectParticipant(process_id, TextUntilNul(account.keys.public_id[:]))
+        return account
+    }
+    if !create || account.keys.public_id[0] != cast(u8)0 {
+        return account
+    }
+    return StorageNewParticipant(process_id)
+}
+
+StorageParticipantId :: (process_id: string, output: []u8) -> string {
+    output[0] = cast(u8)0
+    account := StorageActiveParticipant(process_id, true)
+    if !account.loaded || !CopyCString(TextUntilNul(account.keys.public_id[:]), output) {
         return ""
     }
-    saved := SettingSaveText(GuestSettingKey(process_id, "public_key", key[:]), TextUntilNul(keys.public_key_hex[:]))
-    saved = saved && SettingSaveText(GuestSettingKey(process_id, "private_key", key[:]), TextUntilNul(keys.private_key_hex[:]))
-    saved = saved && SettingSaveText(GuestSettingKey(process_id, "token", key[:]), "")
-    saved = saved && SettingSaveText(GuestSettingKey(process_id, "public_id", key[:]), TextUntilNul(keys.public_id[:]))
-    if !saved {
-        return ""
-    }
-    unused TextAppend(output, 0, TextUntilNul(keys.public_id[:]))
     return TextUntilNul(output)
+}
+
+// Case-insensitive names are unique among ballots; only their key holder updates.
+StorageNameAvailable :: (process_id: string, voter: string, display_name: string) -> bool {
+    statement: *void = null
+    if database == null || !StorageHasText(display_name) || SqlitePrepareText(database, "select 1 from votes where process_id=? and voter_user_id<>? and lower(trim(display_name))=lower(trim(?)) limit 1", -1, *statement, null) != SQLITE_OK {
+        return false
+    }
+    unused SqliteBindTextString(statement, 1, process_id, -1)
+    unused SqliteBindTextString(statement, 2, voter, -1)
+    unused SqliteBindTextString(statement, 3, display_name, -1)
+    result := SqliteStep(statement)
+    unused SqliteFinalize(statement)
+    return result == SQLITE_DONE
 }
 
 AppendHex32 :: (output: []u8, length: s64, value: u32) -> s64 {
@@ -798,7 +772,7 @@ AppendHex32 :: (output: []u8, length: s64, value: u32) -> s64 {
     return TextAppend(output, length, TextView(digits[0:8]))
 }
 
-// A new process id as the C client made them: the creation time and a random
+// A new process id: the creation time and a random
 // number, each as eight hex digits ("66f9a2b1-3c0d9e7f").
 StorageNewProcessId :: (now: s64, output: []u8) -> string {
     output[0] = cast(u8)0

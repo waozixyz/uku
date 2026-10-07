@@ -1,6 +1,6 @@
 // Setting up a new consent process in steps: the question, the rules, the
 // proposals when the process only votes, the phase times, and a review.
-using UI :: #import "Widgets";
+using UI :: #import "kryon/Widgets";
 #import "app_state"
 #import "locale"
 #import "process"
@@ -8,9 +8,9 @@ using UI :: #import "Widgets";
 #import "storage"
 #import "tally"
 #import "ui_kit"
-#import "number_text"
+#import "std/number_text"
 #import "text_append"
-#import "text_buffer"
+#import "std/text_buffer"
 
 CreateStep :: enum {
     CreateSetup :: 0
@@ -46,11 +46,6 @@ CreateDraft :: struct {
     voting_minutes: s32
     negative_weight: s32
     quorum_votes: s32
-    // Indexes into the choices below.
-    visibility: s32
-    proposal_visibility: s32
-    proposal_access: s32
-    voting_access: s32
     proposals: [DRAFT_PROPOSAL_LIMIT]DraftProposal
     proposal_count: s32
     proposal_title: [180]u8
@@ -65,34 +60,6 @@ create_scroll: s32;
 create_content_height: s32 = 800;
 weight_menu: DropdownResult;
 
-VISIBILITY_VALUES: [3]string = .{"public", "private", "unlisted"};
-PROPOSAL_VISIBILITY_VALUES: [3]string = .{"public", "participants", "owner"};
-ACCESS_VALUES: [3]string = .{"public", "logged_in", "participants"};
-
-VisibilityLabels :: () -> [3]string {
-    labels: [3]string
-    labels[0] = Tr("Public")
-    labels[1] = Tr("Private")
-    labels[2] = Tr("Unlisted")
-    return labels
-}
-
-ProposalVisibilityLabels :: () -> [3]string {
-    labels: [3]string
-    labels[0] = Tr("Public")
-    labels[1] = Tr("Participants")
-    labels[2] = Tr("Owner only")
-    return labels
-}
-
-AccessLabels :: () -> [3]string {
-    labels: [3]string
-    labels[0] = Tr("Public")
-    labels[1] = Tr("Logged in")
-    labels[2] = Tr("Participants")
-    return labels
-}
-
 // Opens the create screen, starting a new draft unless one is in progress.
 CreateStart :: () {
     if !draft.started {
@@ -104,7 +71,7 @@ CreateStart :: () {
         create_scroll = 0
     }
     focused_field = -1
-    screen = Screen.ScreenCreate
+    screen = ScreenId.ScreenCreate
 }
 
 GoToStep :: (step: CreateStep) {
@@ -117,7 +84,7 @@ DurationMinutes :: (days: s32, hours: s32, minutes: s32) -> s32 {
     return days * 24 * 60 + hours * 60 + minutes
 }
 
-// "1d 2h 3m", as the C review showed durations.
+// A duration in days, hours, and minutes.
 FormatDays :: (days: s32, hours: s32, minutes: s32, output: []u8) -> string {
     digits: [16]u8
     length := TextAppend(output, 0, FormatInteger(cast(s64)days, digits[:]))
@@ -149,10 +116,10 @@ StepTitle :: (session: Session, title: string, x: float32, y: float32, width: fl
 // Back and Continue at the foot of a step; returns 1 for Continue, -1 for
 // Back, and 0 otherwise.
 StepButtons :: (session: Session, continue_label: string, show_back: bool, x: float32, y: float32, width: float32) -> s32 {
-    if show_back && UiButton(session, 2101, Tr("back_button"), Rectangle.{x, y, 130.0, 40.0}, false) {
+    if show_back && UiButton(session, 2101, Tr("back_button"), Rectangle.{x, y, width * 0.4 - 4.0, 44.0}, false) {
         return -1
     }
-    if UiButton(session, 2102, continue_label, Rectangle.{x + width - 190.0, y, 190.0, 40.0}, true) {
+    if UiButton(session, 2102, continue_label, Rectangle.{x + width * 0.4 + 4.0, y, width * 0.6 - 4.0, 44.0}, true) {
         return 1
     }
     return 0
@@ -231,21 +198,7 @@ RulesStep :: (session: Session, x: float32, y: float32, width: float32) -> float
         y += UiParagraph(session, Tr("0 means no minimum - the result counts with any number of ballots."), x, y, width, 13) + 12.0
     }
     y += 8.0
-    visibility_labels := VisibilityLabels()
-    proposal_visibility_labels := ProposalVisibilityLabels()
-    access_labels := AccessLabels()
-    UiText(session, Tr("Visibility"), Rectangle.{x, y, width, 18.0}, 13)
-    draft.visibility = UiChoice(session, 2402, visibility_labels[:], draft.visibility, Rectangle.{x, y + 24.0, width, 38.0})
-    y += 80.0
-    UiText(session, Tr("Proposal visibility"), Rectangle.{x, y, width, 18.0}, 13)
-    draft.proposal_visibility = UiChoice(session, 2403, proposal_visibility_labels[:], draft.proposal_visibility, Rectangle.{x, y + 24.0, width, 38.0})
-    y += 80.0
-    UiText(session, Tr("Who can add proposals"), Rectangle.{x, y, width, 18.0}, 13)
-    draft.proposal_access = UiChoice(session, 2404, access_labels[:], draft.proposal_access, Rectangle.{x, y + 24.0, width, 38.0})
-    y += 80.0
-    UiText(session, Tr("Who can vote"), Rectangle.{x, y, width, 18.0}, 13)
-    draft.voting_access = UiChoice(session, 2405, access_labels[:], draft.voting_access, Rectangle.{x, y + 24.0, width, 38.0})
-    y += 88.0
+    y += UiParagraph(session, Tr("local_mode_hint"), x, y, width, 13) + 24.0
     pressed := StepButtons(session, Tr("Continue"), true, x, y, width)
     if pressed == -1 {
         GoToStep(CreateStep.CreateSetup)
@@ -384,7 +337,7 @@ SaveDraft :: (now: s64) -> bool {
     }
     row.id = id
     owner: [96]u8
-    if StorageProcessOwner(TextUntilNul(id[:]), owner[:]).count == 0 {
+    if StorageParticipantId(TextUntilNul(id[:]), owner[:]).count == 0 {
         return false
     }
     SetText(row.owner[:], TextUntilNul(owner[:]))
@@ -397,10 +350,10 @@ SaveDraft :: (now: s64) -> bool {
     row.voting_minutes = DurationMinutes(draft.voting_days, draft.voting_hours, draft.voting_minutes)
     row.negative_weight = draft.negative_weight
     row.quorum_votes = draft.quorum_votes
-    SetText(row.visibility[:], VISIBILITY_VALUES[draft.visibility])
-    SetText(row.proposal_visibility[:], PROPOSAL_VISIBILITY_VALUES[draft.proposal_visibility])
-    SetText(row.proposal_access[:], ACCESS_VALUES[draft.proposal_access])
-    SetText(row.voting_access[:], ACCESS_VALUES[draft.voting_access])
+    SetText(row.visibility[:], "private")
+    SetText(row.proposal_visibility[:], "participants")
+    SetText(row.proposal_access[:], "participants")
+    SetText(row.voting_access[:], "participants")
     row.created_at = now
     ProcessClear()
     if draft.voting_only {
@@ -445,14 +398,8 @@ ReviewStep :: (session: Session, x: float32, y: float32, width: float32, now: s6
     if draft.voting_only {
         mode = Tr("Voting Phase only")
     }
-    visibility_labels := VisibilityLabels()
-    proposal_visibility_labels := ProposalVisibilityLabels()
-    access_labels := AccessLabels()
     y += ReviewLine(session, Tr("Mode"), mode, x, y, width)
-    y += ReviewLine(session, Tr("Visibility"), visibility_labels[draft.visibility], x, y, width)
-    y += ReviewLine(session, Tr("Proposal visibility"), proposal_visibility_labels[draft.proposal_visibility], x, y, width)
-    y += ReviewLine(session, Tr("Who can add proposals"), access_labels[draft.proposal_access], x, y, width)
-    y += ReviewLine(session, Tr("Who can vote"), access_labels[draft.voting_access], x, y, width)
+    y += UiParagraph(session, Tr("local_mode_hint"), x, y, width, 13) + 16.0
     y += ReviewLine(session, Tr("negative_weight_label"), WeightLabel(NegativeWeightToIndex(draft.negative_weight)), x, y, width)
     if draft.quorum_votes > 0 {
         digits: [16]u8
@@ -487,7 +434,7 @@ ReviewStep :: (session: Session, x: float32, y: float32, width: float32, now: s6
         if !draft.save_failed {
             draft = CreateDraft.{}
             focused_field = -1
-            screen = Screen.ScreenCollect
+            screen = ScreenId.ScreenCollect
         }
     }
     return y + 56.0
@@ -496,7 +443,7 @@ ReviewStep :: (session: Session, x: float32, y: float32, width: float32, now: s6
 CreateView :: (session: Session, viewport: Rectangle, now: s64) {
     // Going back keeps the draft for the next visit.
     if UiSubPageBar(session, viewport, Tr("create_title")) {
-        screen = Screen.ScreenHome
+        screen = ScreenId.ScreenHome
         return
     }
     props: ScrollProps

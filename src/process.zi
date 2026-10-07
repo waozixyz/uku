@@ -1,7 +1,7 @@
-#import "json_scan"
+#import "std/json_scan"
 #import "ballot"
 #import "tally"
-#import "text_buffer"
+#import "std/text_buffer"
 
 // A decision process as the Ukuvota server returns it: its settings, the
 // proposals (consent and collection processes) or options (ranked
@@ -77,10 +77,9 @@ ProcessDetail :: struct {
 
 process: ProcessDetail;
 
-// "ranked_choice" is the current key; "poll", "approval", and "ranked" are
-// older names for the same process. Unknown keys are consent processes.
+// Canonical process types.
 ProcessTypeFromKey :: (key: string) -> ProcessType {
-    if key == "ranked_choice" || key == "ranked" || key == "poll" || key == "approval" {
+    if key == "ranked_choice" {
         return ProcessType.ProcessRanked
     }
     if key == "collection" {

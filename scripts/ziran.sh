@@ -1,46 +1,24 @@
 #!/bin/sh
-# Run the Ziran toolchain commit pinned by ziran.lock. Package commands fetch
-# their own locked sources into the user's Ziran cache.
+# Use the canonical local compiler when explicitly overridden, otherwise the
+# installed toolchain. Dependencies are resolved by Ziran, never vendored here.
 set -eu
-
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
-
-# Local development uses the real root repository, never another checkout.
+compiler=ziran
 if [ -f ziran.local.toml ]; then
     local_root=$(python3 -c 'import tomllib; print(tomllib.load(open("ziran.local.toml", "rb")).get("overrides", {}).get("ziran", ""))')
     if [ -n "$local_root" ]; then
-        exec "$local_root/build/bin/ziran" "$@"
+        compiler="$local_root/build/bin/ziran"
     fi
 fi
-
-toolchain_field() {
-    python3 -c 'import json, sys; print(json.load(open("ziran.lock"))["toolchain"][sys.argv[1]])' "$1"
-}
-
-tool_url=$(toolchain_field url)
-tool_commit=$(toolchain_field commit)
-bootstrap="$root/build/ziran-bootstrap"
-ziran="$bootstrap/build/bin/ziran"
-cache_root="${XDG_CACHE_HOME:-$HOME/.cache}/ziran/sources"
-tool_cache="$cache_root/$(python3 -c 'import hashlib, sys; print("p" + hashlib.sha256(f"{sys.argv[1]}\n{sys.argv[2]}".encode()).hexdigest()[:16])' "$tool_url" "$tool_commit")"
-
-current=$(git -C "$bootstrap" rev-parse HEAD 2>/dev/null || true)
-if [ "$current" != "$tool_commit" ]; then
-    rm -rf "$bootstrap"
-    if [ -d "$tool_cache" ]; then
-        git clone -q --no-checkout "$tool_cache" "$bootstrap"
-        git -C "$bootstrap" checkout -q --detach "$tool_commit"
-    else
-        mkdir -p "$bootstrap"
-        git -C "$bootstrap" init -q
-        git -C "$bootstrap" fetch -q --depth 1 "$tool_url" "$tool_commit"
-        git -C "$bootstrap" checkout -q --detach FETCH_HEAD
-    fi
+if [ "${ZIRAN_LOCKED:-0}" = 1 ] || [ ! -f ziran.local.toml ]; then
+    case ${1:-} in
+        build|check|ir|bundle|run|install)
+            verb=$1
+            shift
+            exec "$compiler" "$verb" --locked "$@"
+            ;;
+        pkg) exec "$compiler" "$@" --locked ;;
+    esac
 fi
-
-if [ ! -x "$ziran" ]; then
-    env -u DISPLAY -u WAYLAND_DISPLAY make -C "$bootstrap" -s all >&2
-fi
-
-exec "$ziran" "$@"
+exec "$compiler" "$@"

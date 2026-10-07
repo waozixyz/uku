@@ -22,7 +22,7 @@ BALLOT_PLUS :: 43
 BALLOT_ZERO :: 48
 BALLOT_NINE :: 57
 
-// Reads a whole number the way the C client's atoi did: an optional sign,
+// Reads a whole number: an optional sign,
 // then digits; anything else ends it.
 BallotReadScore :: (text: string, start: s64, end: s64) -> s32 {
     at := start

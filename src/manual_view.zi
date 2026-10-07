@@ -1,5 +1,5 @@
 // The manual: how a Ukuvota process runs.
-using UI :: #import "Widgets";
+using UI :: #import "kryon/Widgets";
 #import "app_state"
 #import "locale"
 #import "ui_kit"
@@ -9,7 +9,7 @@ manual_content_height: s32 = 600;
 
 ManualView :: (session: Session, viewport: Rectangle) {
     if UiSubPageBar(session, viewport, Tr("manual_title")) {
-        screen = Screen.ScreenHome
+        screen = ScreenId.ScreenHome
         return
     }
     props: ScrollProps

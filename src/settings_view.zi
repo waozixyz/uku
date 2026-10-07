@@ -1,5 +1,5 @@
 // Settings: the interface language and the light or dark appearance.
-using UI :: #import "Widgets";
+using UI :: #import "kryon/Widgets";
 #import "app_state"
 #import "locale"
 #import "storage"
@@ -57,7 +57,7 @@ LanguageChoice :: (session: Session, x: float32, y: float32, width: float32) {
 
 SettingsView :: (session: Session, viewport: Rectangle) {
     if UiSubPageBar(session, viewport, Tr("Settings")) {
-        screen = Screen.ScreenHome
+        screen = ScreenId.ScreenHome
         return
     }
     column := UiColumn(viewport, 520.0)

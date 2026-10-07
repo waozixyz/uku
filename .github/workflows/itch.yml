@@ -25,7 +25,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 1
 
       - name: Cache Web apt packages
@@ -44,16 +43,19 @@ jobs:
         run: |
           set -euo pipefail
           git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$HOME/emsdk"
-          "$HOME/emsdk/emsdk" install latest
-          "$HOME/emsdk/emsdk" activate latest
+          "$HOME/emsdk/emsdk" install 6.0.6
+          "$HOME/emsdk/emsdk" activate 6.0.6
           echo "EMSDK=$HOME/emsdk" >> "$GITHUB_ENV"
           echo "EM_CONFIG=$HOME/emsdk/.emscripten" >> "$GITHUB_ENV"
           echo "$HOME/emsdk/upstream/emscripten" >> "$GITHUB_PATH"
 
+      - name: Set up locked Ziran
+        uses: ./.github/actions/ziran
+
       - name: Build Itch Package
         run: |
           set -euo pipefail
-          make CMAKE=/usr/bin/cmake itch
+          make itch
           test -f build/dist/uku-itch-html5.zip
 
       - name: Install Butler

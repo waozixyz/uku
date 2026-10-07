@@ -1,0 +1,20 @@
+name: Locked Ziran toolchain
+description: Build the compiler revision recorded in the application lock
+runs:
+  using: composite
+  steps:
+    - name: Read compiler revision
+      id: toolchain
+      shell: bash
+      run: python3 -c 'import json; print("commit=" + json.load(open("ziran.lock"))["toolchain"]["commit"])' >> "$GITHUB_OUTPUT"
+    - name: Checkout Ziran
+      uses: actions/checkout@v4
+      with:
+        repository: ziranlang/ziran
+        ref: ${{ steps.toolchain.outputs.commit }}
+        path: ziranlang/ziran
+    - name: Install compiler
+      shell: bash
+      run: |
+        make -C "$GITHUB_WORKSPACE/ziranlang/ziran" install-user
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"

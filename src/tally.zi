@@ -38,6 +38,8 @@ Verdict :: enum {
     // Under the Infinity weight every proposal was resisted; the least
     // resisted one leads.
     VerdictAllResisted :: 4
+    // Equally ranked leaders require another decision; input order is not a vote.
+    VerdictTie :: 5
 }
 
 NegativeWeightIsInfinite :: (weight: s32) -> bool {
@@ -95,6 +97,9 @@ OptionTallyWithScore :: (tally: OptionTally, score: s32) -> OptionTally {
 // True when a ranks before b: higher total, then less resistance, then more
 // support. Equal proposals keep their order.
 TallyRanksBefore :: (a: ProposalTally, b: ProposalTally) -> bool {
+    if (a.vote_count > 0) != (b.vote_count > 0) {
+        return a.vote_count > 0
+    }
     if a.total != b.total { return a.total > b.total }
     if a.negative_total != b.negative_total {
         return a.negative_total > b.negative_total
@@ -148,6 +153,16 @@ TallyVerdict :: (tallies: []ProposalTally, count: s32, included_ballots: s32,
     if count > 64 { count = 64 }
     TallySortIndices(tallies, indices[:], count)
     leader := tallies[indices[0]]
+    if leader.vote_count == 0 {
+        return result
+    }
+    if count > 1 {
+        runner_up := tallies[indices[1]]
+        if runner_up.vote_count > 0 && leader.total == runner_up.total && leader.negative_total == runner_up.negative_total && leader.positive_total == runner_up.positive_total {
+            result.verdict = Verdict.VerdictTie
+            return result
+        }
+    }
     result.winner = indices[0]
     result.verdict = Verdict.VerdictConsent
     // Under Infinity any resistance excludes a proposal, so a resisted leader

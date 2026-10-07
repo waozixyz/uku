@@ -1,8 +1,0 @@
-name "Ukuvota"
-generated "build/kryon/generated"
-default_target "Run"
-
-target "Run" "run" "make run"
-target "Web" "web" "make web"
-target "Native" "native" "make native"
-target "Linux" "linux" "make linux"

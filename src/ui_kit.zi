@@ -1,11 +1,11 @@
 // Uku's building blocks over Kryon's widgets: text, buttons, panels, and text
 // fields fed with the frame's keyboard input.
-using UI :: #import "Widgets";
+using UI :: #import "kryon/Widgets";
 #import "theme"
 #import "locale"
-#import "text_buffer"
-#import "number_text"
-#import "std/vec"
+#import "std/text_buffer"
+#import "std/number_text"
+#import "std/c_string"
 
 FIELD_LIMIT :: 32
 
@@ -17,7 +17,7 @@ FieldState :: struct {
 
 frame_key: s32;
 frame_modifiers: s32;
-frame_typed: string;
+frame_typed_count: s64;
 typed_storage: [256]u8;
 // The field that receives typing, or -1.
 focused_field: s32 = -1;
@@ -28,13 +28,7 @@ UiBeginFrame :: (session: Session) {
     frame_key = KeyboardTake(session)
     frame_modifiers = KeyboardModifiers(session)
     typed := TypedTextTake(session, typed_storage[:])
-    text: Vec(u8)
-    if !BuilderAppend(text, typed) {
-        VecFree(text)
-        frame_typed = ""
-        return
-    }
-    frame_typed = BuilderFinish(text)
+    frame_typed_count = cast(s64)typed.count
 }
 
 UiTextProps :: (value: string, bounds: Rectangle, font: s32, wrap: TextWrap) -> TextProps {
@@ -167,6 +161,7 @@ UiApplyEdit :: (buffer: []u8, edit: TextFieldEdit) -> bool {
 UiField :: (session: Session, index: s32, label: string, placeholder: string, buffer: []u8, bounds: Rectangle) -> bool {
     state := field_states[index]
     edit: TextFieldEdit
+    replacement_storage: [1024]u8
     committed: bool
     {
         props: TextFieldProps
@@ -183,7 +178,7 @@ UiField :: (session: Session, index: s32, label: string, placeholder: string, bu
         props.max_bytes = cast(s32)buffer.count - 1
         props.max_codepoints = props.max_bytes
         if props.focused {
-            props.input = TextFieldInputFor(frame_key, frame_modifiers, frame_typed)
+            props.input = TextFieldInputFor(frame_key, frame_modifiers, TextView(typed_storage[0:frame_typed_count]))
         }
         result := TextField(session, props)
         state.cursor = result.cursor
@@ -201,14 +196,12 @@ UiField :: (session: Session, index: s32, label: string, placeholder: string, bu
         edit.start = result.edit.start
         edit.end = result.edit.end
         edit.changed = result.edit.changed
-        replacement: Vec(u8)
-        if !BuilderAppend(replacement, result.edit.replacement) {
-            VecFree(replacement)
+        if !CopyCString(result.edit.replacement, replacement_storage[:]) {
             return false
         }
-        edit.replacement = BuilderFinish(replacement)
         committed = result.committed
     }
+    edit.replacement = TextUntilNul(replacement_storage[:])
     unused UiApplyEdit(buffer, edit)
     return committed
 }

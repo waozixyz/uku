@@ -1,59 +1,23 @@
-[app_title]
-Ukuvota
----
 [home_title]
 Dasbor
----
-[home_subtitle]
-Keputusan kolektif tanpa penolakan tersembunyi
----
-[home_summary]
-Ukuvota membantu kelompok membuat keputusan kolektif dengan pemungutan suara skor. Peserta dapat mendukung atau menolak setiap opsi, sehingga hasilnya mengutamakan pilihan yang dapat diterima dan dijalankan.
 ---
 [start_process_button]
 Buat Proses
 ---
-[join_process_label]
-Gabung Proses
----
-[join_process_placeholder]
-Tempel ID proses atau tautan
----
-[join_process_button]
-Buka Proses
----
-[join_process_error]
-Proses itu tidak dapat dibuka. Periksa ID, tautan, atau server.
----
 [dashboard_empty]
 Belum ada proses aktif.
----
-[dashboard_recent_label]
-Proses Aktif
----
-[dashboard_filter_mine]
-Milik saya
----
-[dashboard_filter_public]
-Publik
----
-[dashboard_public_label]
-Proses Publik
----
-[dashboard_public_empty]
-Tidak ada proses publik ditemukan.
 ---
 [manual_title]
 Panduan
 ---
 [manual_body]
-Ukuvota membantu kelompok memilih opsi yang dapat didukung dan diterima orang.
+Keputusan disimpan di perangkat ini. Berbagi online belum terhubung. Buat proses dengan pertanyaan yang jelas dan kumpulkan usulan.
 
-Buat proses dengan pertanyaan yang jelas, lalu bagikan tautannya kepada peserta.
+Proses baru mencakup Status quo dan Ulangi proses. Beri skor -3 (penolakan kuat) hingga +3 (dukungan kuat); tanda pisah berarti abstain. Skor negatif diberi bobot.
 
-Selama fase proposal, orang menambahkan opsi. Ukuvota selalu menyertakan Status quo dan Ulangi proses agar tidak melakukan apa pun atau mencari lagi menjadi pilihan yang jelas.
+Simpan suara sebelum memilih Peserta berikutnya. Setiap orang memiliki identitas lokal tersendiri. Ketuk peserta tersimpan untuk mengedit suaranya. Mengubah nama tidak memilih pemilih lain.
 
-Selama pemungutan suara, setiap akun memberi skor pada setiap proposal. Skor negatif diberi bobot agar penolakan terlihat dan tidak tersembunyi oleh dukungan yang tidak terkait.
+Hasil menunjukkan seri dan kuorum. Semua suara dihitung secara default; kotak centang memungkinkan pemeriksaan sebagian peserta.
 ---
 [create_title]
 Pengaturan Keputusan
@@ -127,14 +91,8 @@ Menit
 [create_process_button]
 Buat Proses
 ---
-[setup_ready]
-Draf proses siap.
----
 [collect_title]
 Kumpulkan Proposal
----
-[collect_intro]
-Proses disimpan secara lokal. Bagikan alamat ini kepada peserta di perangkat ini selama hanya penyimpanan lokal yang digunakan.
 ---
 [proposal_phase_label]
 Fase proposal
@@ -147,12 +105,6 @@ Hasil siap
 ---
 [time_remaining_label]
 tersisa
----
-[local_address_label]
-Alamat lokal
----
-[default_proposals_label]
-Proposal bawaan
 ---
 [status_quo_title]
 Status quo
@@ -172,9 +124,6 @@ Tidak dapat menyimpan proses secara lokal.
 [back_button]
 Kembali
 ---
-[brand_short]
-Ukuvota
----
 [Currently In Progress]
 Sedang Berjalan
 ---
@@ -187,29 +136,8 @@ Proses Selesai
 [Completed processes will appear here.]
 Proses selesai akan muncul di sini.
 ---
-[Search or paste link]
-Cari atau tempel tautan
----
-[Done Decisions]
-Keputusan Selesai
----
-[Finished Processes]
-Proses Selesai
----
-[No finished processes yet.]
-Belum ada proses selesai.
----
-[Finished]
-Selesai
----
 [Results]
 Hasil
----
-[Copy results as text]
-Salin hasil sebagai teks
----
-[Results copied.]
-Hasil disalin.
 ---
 [support]
 dukungan
@@ -238,11 +166,6 @@ Belum ada suara dikirim.
 [Tap a participant to include or exclude them from the results.]
 Ketuk peserta untuk menyertakan atau mengecualikannya dari hasil.
 ---
-[ (you)]
- (Anda)
----
-[anonymous]
-anonim---
 [Language]
 Bahasa
 ---
@@ -252,26 +175,11 @@ Sistem
 [Mode]
 Mode
 ---
-[Follow device]
-Ikuti perangkat
----
 [Light]
 Terang
 ---
 [Dark]
 Gelap
----
-[Refresh]
-Segarkan
----
-[Get started]
-Mulai
----
-[Logged in]
-Masuk
----
-[Owner only]
-Hanya pemilik
 ---
 [Settings]
 Pengaturan
@@ -303,9 +211,6 @@ Status quo dan Ulangi proses selalu ada di surat suara.
 [The option people can accept wins.]
 Opsi yang dapat diterima orang-orang yang menang.
 ---
-[Start one and share the link with your group.]
-Mulai satu dan bagikan tautannya dengan kelompok Anda.
----
 [0 means no minimum - the result counts with any number of ballots.]
 0 berarti tanpa batas minimum - hasil berlaku berapa pun jumlah suaranya.
 ---
@@ -336,9 +241,6 @@ Tidak ada proposal.
 [Optional details]
 Detail opsional
 ---
-[Private]
-Pribadi
----
 [Process phases]
 Fase proses
 ---
@@ -351,17 +253,8 @@ Hanya pemungutan suara
 [Proposal title]
 Judul proposal
 ---
-[Proposal visibility]
-Visibilitas proposal
----
 [Proposals]
 Proposal
----
-[Public]
-Publik
----
-[Unlisted]
-Tidak terdaftar
 ---
 [Quorum (minimum ballots)]
 Kuorum (suara minimum)
@@ -384,15 +277,6 @@ Atur proses
 [Title]
 Judul
 ---
-[Visibility]
-Visibilitas
----
-[Who can add proposals]
-Siapa yang dapat menambah proposal
----
-[Who can vote]
-Siapa yang dapat memilih
----
 [ (proposal)]
  (proposal)
 ---
@@ -414,9 +298,6 @@ Suara tidak dapat dikirim.
 [Every option meets resistance - least resisted prevails: %s]
 Setiap opsi mendapat penolakan - yang paling sedikit ditolak menang: %s
 ---
-[No account needed - your name keeps votes apart.]
-Tidak perlu akun - nama Anda membedakan suara.
----
 [No quorum yet - %d of %d ballots cast]
 Belum kuorum - %d dari %d suara masuk
 ---
@@ -425,9 +306,6 @@ Keberatan melebihi dukungan - %s unggul tanpa persetujuan
 ---
 [Objections outweigh support - no consent yet]
 Keberatan melebihi dukungan - belum ada persetujuan
----
-[Proposal submitted.]
-Proposal terkirim.
 ---
 [Quorum]
 Kuorum
@@ -450,9 +328,6 @@ Jenis
 [Update vote]
 Perbarui suara
 ---
-[Vote submitted.]
-Suara terkirim.
----
 [Weight]
 Bobot
 ---
@@ -467,4 +342,25 @@ total
 ---
 [weighted resistance]
 penolakan berbobot
+---
+[identity_hint]
+Kunci perangkat melindungi suara Anda. Nama hanya sebagai label. Simpan cadangan agar akses tetap tersedia.
+---
+[result_tie]
+Seri: tidak ada pemenang tunggal. Diskusikan opsi yang seri atau ulangi prosesnya.
+---
+[saved_locally]
+Disimpan di perangkat ini.
+---
+[score_hint]
+-3 berarti penolakan kuat, 0 netral, dan +3 dukungan kuat. Biarkan opsi tidak dipilih untuk abstain.
+---
+[persistence_error]
+Data peramban tidak dapat disimpan. Biarkan halaman ini terbuka dan ekspor cadangan.
+---
+[local_mode_hint]
+Keputusan disimpan di perangkat ini. Berbagi daring belum terhubung.
+---
+[next_participant]
+Peserta berikutnya
 ---

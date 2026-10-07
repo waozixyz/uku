@@ -14,3 +14,14 @@ uku.sqlite3
 __pycache__/
 vendor-builds/
 /ziran.local.toml
+
+# Former submodule remains local only; dependencies use ziran.lock.
+/vendor/
+/backup/
+
+/droid/.gradle/
+/droid/app/build/
+/droid/app/src/main/assets/
+/droid/local.properties
+
+/droid/app/.cxx/

@@ -4,8 +4,8 @@
 #import "ballot"
 #import "process"
 #import "tally"
-#import "c_string"
-#import "text_buffer"
+#import "std/c_string"
+#import "std/text_buffer"
 
 STORAGE_TEST_PATH :: "build/core-test/storage.sqlite3"
 
@@ -44,18 +44,34 @@ main :: () -> s32 {
     if !WriteOldDatabase() {
         return 1
     }
-    if !StorageOpen(STORAGE_TEST_PATH) {
+    // An unsupported schema is refused without destroying old decisions.
+    if StorageOpen(STORAGE_TEST_PATH) {
         return 2
     }
-    // Typeless processes and their proposals are replaced; the account and
-    // settings stay, with the new columns added.
+    name: [128]u8
+    unused CopyCString(STORAGE_TEST_PATH, name[:])
+    old: *void = null
+    if SqliteOpen(*name[0], *old, SQLITE_OPEN_READWRITE) != SQLITE_OK {
+        return 23
+    }
+    database = old
+    if Count("select count(*) from processes where topic='Lunch'") != 1 || Count("select count(*) from proposals") != 1 {
+        return 24
+    }
+    // Only this disposable fixture is reset, explicitly by the test.
+    unused SqliteExecText(database, "drop table processes; drop table proposals")
+    StorageClose()
+    if !StorageOpen(STORAGE_TEST_PATH) {
+        return 25
+    }
+    // Account and settings remain, with missing columns added.
     if !StorageTableHasColumn("processes", "type") || !StorageTableHasColumn("processes", "voting_access") {
         return 3
     }
     if Count("select count(*) from processes") != 0 || Count("select count(*) from proposals") != 0 {
         return 4
     }
-    if Count("select count(*) from account where public_id = 'me' and auth_token = '' and server_url = 'https://api.waozi.xyz'") != 1 {
+    if Count("select count(*) from account where public_id = 'me' and public_key = 'pub' and private_key = 'priv'") != 1 {
         return 5
     }
     value: [32]u8
@@ -104,9 +120,6 @@ main :: () -> s32 {
     }
     if !CheckLocalChanges() {
         return 20
-    }
-    if !CheckAccount() {
-        return 21
     }
     if !CheckOwnerAndId() {
         return 22
@@ -167,13 +180,13 @@ SaveProcesses :: () -> bool {
 // Stored ballots fill the score matrix, so leaving a voter out of the
 // results recomputes from the ballots that remain.
 CheckDetail :: () -> bool {
-    if SqliteExecText(database, "insert into votes values ('consent-1', 'ann', 'Ann', '', 'local-1=3;local-2=-1', 10, 0); insert into votes values ('consent-1', 'ben', 'Ben', '', 'local-1=-2;gone=3', 20, 0);") != SQLITE_OK {
+    if SqliteExecText(database, "insert into votes values ('consent-1', 'ann', 'Ann', '', 'status-quo=3;repeat-process=-1', 10, 0); insert into votes values ('consent-1', 'ben', 'Ben', '', 'status-quo=-2;gone=3', 20, 0);") != SQLITE_OK {
         return false
     }
     if !StorageLoadProcessDetail(process_rows[1], Standing()) {
         return false
     }
-    if process.proposal_count != 2 || TextUntilNul(process.proposals[0].id[:]) != "local-1" || TextUntilNul(process.proposals[1].title[:]) != "Repeat process" {
+    if process.proposal_count != 2 || TextUntilNul(process.proposals[0].id[:]) != "status-quo" || TextUntilNul(process.proposals[1].title[:]) != "Repeat process" {
         return false
     }
     // Ann, Ben, and the owner who wrote the proposals.
@@ -190,17 +203,8 @@ CheckDetail :: () -> bool {
     return ProcessSubsetActive() && first.total == 3 && first.vote_count == 1 && TextUntilNul(process.participants[ben].updated_at[:]) == "20"
 }
 
-// A proposal and ballot written here wait to sync; the proposal's server
-// id then replaces its local id in every ballot.
+// Saving another participant's ballot never replaces an existing participant.
 CheckLocalChanges :: () -> bool {
-    unused StorageMarkProcessSynced("consent-1")
-    if !StorageProcessSynced("consent-1") || StorageProcessSynced("ranked-1") {
-        return false
-    }
-    // Ann's and Ben's ballots from CheckDetail are unsynced.
-    if StoragePendingCount("consent-1") != 2 {
-        return false
-    }
     rowid := StorageSaveLocalProposal("consent-1", "ann", "Ann", "Picnic", "", 30)
     if rowid <= 0 || StorageSaveLocalProposal("consent-1", "ann", "Ann", "   ", "", 31) != -1 {
         return false
@@ -208,50 +212,19 @@ CheckLocalChanges :: () -> bool {
     local: [24]u8
     local_id := StorageLocalProposalId(rowid, local[:])
     ballot: [64]u8
-    length := BallotAppend(ballot[:], 0, "local-1", 1)
+    length := BallotAppend(ballot[:], 0, "status-quo", 1)
     length = BallotAppend(ballot[:], length, local_id, 3)
     if !StorageSaveLocalVote("consent-1", "ann", "Ann", TextUntilNul(ballot[:]), 40) {
         return false
     }
-    // Ann's ballot replaced her earlier one; the proposal is new.
-    if StoragePendingCount("consent-1") != 3 || Count("select count(*) from votes where voter_user_id = 'ann'") != 1 {
-        return false
-    }
-    if !StorageMarkProposalSynced(rowid, "srv-9") || !StorageRewriteBallotId("consent-1", local_id, "srv-9") {
-        return false
-    }
-    return Count("select count(*) from votes where scores = 'local-1=1;srv-9=3'") == 1 && StoragePendingCount("consent-1") == 2
+    return Count("select count(*) from votes where voter_user_id='ann'") == 1 && Count("select count(*) from votes where voter_user_id='ben'") == 1
 }
 
-// Keys round-trip through the account row; invalid keys are refused.
-CheckAccount :: () -> bool {
-    // The old database's account row has placeholder keys.
-    if StorageLoadAccount().loaded {
-        return false
-    }
-    keys: AccountKeys
-    if CreateAccountKeys(*keys) == 0 || !StorageSaveAccount(keys, "token-1") {
-        return false
-    }
-    account := StorageLoadAccount()
-    if !account.loaded || !AccountValuesEqual(*keys, *account.keys) || TextUntilNul(account.auth_token[:]) != "token-1" {
-        return false
-    }
-    broken := keys
-    broken.public_id[0] = cast(u8)122
-    if StorageSaveAccount(broken, "") {
-        return false
-    }
-    reloaded := StorageLoadAccount()
-    return TextUntilNul(reloaded.server_url[:]) == "https://api.waozi.xyz"
-}
-
-// A process gets the account as its owner, and new ids look like the C
-// client's.
+// Process ownership follows the selected local identity; identifiers are unique.
 CheckOwnerAndId :: () -> bool {
     owner: [96]u8
-    account := StorageLoadAccount()
-    if StorageProcessOwner("p-owner", owner[:]) != TextUntilNul(account.keys.public_id[:]) {
+    account := StorageActiveParticipant("p-owner", true)
+    if StorageParticipantId("p-owner", owner[:]) != TextUntilNul(account.keys.public_id[:]) {
         return false
     }
     id: [40]u8
@@ -261,4 +234,41 @@ CheckOwnerAndId :: () -> bool {
     }
     other: [40]u8
     return StorageNewProcessId(0x66f9a2b1, other[:]) != made
+}
+
+// Names cannot take over a ballot; guest identities survive a database reopen.
+CheckGuestIdentity :: () -> bool {
+    guest := StorageActiveParticipant("guest-test", true)
+    if !guest.loaded {
+        return false
+    }
+    StorageClose()
+    if !StorageOpen(STORAGE_TEST_PATH) {
+        return false
+    }
+    restored := StorageActiveParticipant("guest-test", false)
+    if !restored.loaded || !AccountValuesEqual(*guest.keys, *restored.keys) {
+        return false
+    }
+    next := StorageNewParticipant("guest-test")
+    if !next.loaded || AccountValuesEqual(*guest.keys, *next.keys) {
+        return false
+    }
+    if !StorageSelectParticipant("guest-test", TextUntilNul(guest.keys.public_id[:])) {
+        return false
+    }
+    selected := StorageActiveParticipant("guest-test", false)
+    if !selected.loaded || !AccountValuesEqual(*guest.keys, *selected.keys) {
+        return false
+    }
+    if !StorageSaveLocalVote("consent-1", "key-alice", "Alice", "status-quo=3", 50) {
+        return false
+    }
+    if StorageSaveLocalVote("consent-1", "key-mallory", " alice ", "status-quo=-3", 51) {
+        return false
+    }
+    if StorageSaveLocalVote("consent-1", "key-mallory", "Mallory", "", 51) {
+        return false
+    }
+    return StorageSaveLocalVote("consent-1", "key-alice", "Alice", "status-quo=2", 52) && Count("select count(*) from votes where voter_user_id='key-alice' and scores='status-quo=2'") == 1
 }

@@ -17,29 +17,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  guard-submodule-urls:
-    name: Submodule URLs are public HTTPS
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Reject non-HTTPS submodule URLs
-        run: |
-          set -eu
-          if [ ! -f .gitmodules ]; then echo "no submodules - ok"; exit 0; fi
-          bad=$(grep -nE '^[[:space:]]*url[[:space:]]*=' .gitmodules \
-              | grep -vE '^[0-9]+:[[:space:]]*url[[:space:]]*=[[:space:]]*https://' || true)
-          if [ -n "$bad" ]; then
-            echo "::error::Non-HTTPS submodule URL(s) break fresh clones and CI:$bad"
-            exit 1
-          fi
-          echo "all submodule URLs HTTPS - ok"
-
   test:
     name: Test
     runs-on: ubuntu-latest
-    needs: guard-submodule-urls
     timeout-minutes: 60
     env:
       APT_CACHE_DIR: /tmp/apt-cache
@@ -47,7 +27,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 1
 
       - name: Cache Test apt packages
@@ -61,6 +40,9 @@ jobs:
       - name: Install Test Dependencies
         timeout-minutes: 15
         run: .github/scripts/install-apt-packages.sh .github/apt/test-packages.txt
+
+      - name: Set up locked Ziran
+        uses: ./.github/actions/ziran
 
       - name: Run Tests
         run: make test
@@ -76,7 +58,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 1
 
       - name: Cache Web apt packages
@@ -95,18 +76,31 @@ jobs:
         run: |
           set -euo pipefail
           git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$HOME/emsdk"
-          "$HOME/emsdk/emsdk" install latest
-          "$HOME/emsdk/emsdk" activate latest
+          "$HOME/emsdk/emsdk" install 6.0.6
+          "$HOME/emsdk/emsdk" activate 6.0.6
           echo "EMSDK=$HOME/emsdk" >> "$GITHUB_ENV"
           echo "EM_CONFIG=$HOME/emsdk/.emscripten" >> "$GITHUB_ENV"
           echo "$HOME/emsdk" >> "$GITHUB_PATH"
           echo "$HOME/emsdk/upstream/emscripten" >> "$GITHUB_PATH"
+
+      - name: Set up locked Ziran
+        uses: ./.github/actions/ziran
 
       - name: Build Web ZIP
         run: |
           set -euo pipefail
           make web
           test -f build/dist/uku-web.zip
+
+      - name: Set up browser test runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Test browser persistence
+        env:
+          CHROMIUM: google-chrome
+        run: node tests/web_test.mjs
 
   build-android-debug:
     name: Build Android Debug
@@ -119,7 +113,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 1
 
       - name: Set up JDK 21
@@ -162,5 +155,8 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platforms;android-36" "build-tools;34.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
 
+      - name: Set up locked Ziran
+        uses: ./.github/actions/ziran
+
       - name: Build Android Debug APK
-        run: make android-debug-ci
+        run: sh scripts/android-build.sh -Puku.onlyAbi=arm64-v8a

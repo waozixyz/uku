@@ -23,7 +23,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
 
       - name: Install Packages
         timeout-minutes: 15
@@ -33,8 +32,8 @@ jobs:
         run: |
           set -euo pipefail
           git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$HOME/emsdk"
-          "$HOME/emsdk/emsdk" install latest
-          "$HOME/emsdk/emsdk" activate latest
+          "$HOME/emsdk/emsdk" install 6.0.6
+          "$HOME/emsdk/emsdk" activate 6.0.6
           echo "EMSDK=$HOME/emsdk" >> "$GITHUB_ENV"
           echo "EM_CONFIG=$HOME/emsdk/.emscripten" >> "$GITHUB_ENV"
           mkdir -p "$HOME/emscripten-bin"
@@ -44,6 +43,9 @@ jobs:
           done
           echo "$HOME/emscripten-bin" >> "$GITHUB_PATH"
 
+      - name: Set up locked Ziran
+        uses: ./.github/actions/ziran
+
       - name: Build Site
         run: |
           set -euo pipefail
@@ -51,7 +53,7 @@ jobs:
           test -f build/site/index.html
           test -f build/site/build/web/index.html
           test -f build/site/build/web/index.js
-          test ! -f build/site/build/web/index.wasm
+          test -f build/site/build/web/index.wasm
 
       - name: Upload Site Artifact
         uses: actions/upload-artifact@v4

@@ -27,10 +27,14 @@ TallyAnswer :: () -> s32 {
 
     // Ranking: higher total first; then less resistance; then more support.
     tallies: [4]ProposalTally
+    tallies[0].vote_count = 1
+    tallies[2].vote_count = 1
+    tallies[3].vote_count = 1
     tallies[0].total = 2
     tallies[0].negative_total = -4
     tallies[0].positive_total = 6
     tallies[1].total = 5
+    tallies[1].vote_count = 1
     tallies[2].total = 2
     tallies[2].positive_total = 2
     tallies[3].total = 2
@@ -77,6 +81,24 @@ TallyAnswer :: () -> s32 {
     o = OptionTallyWithScore(o, 3)
     o = OptionTallyWithScore(o, SCORE_UNSET)
     if o.total != 1 || o.vote_count != 2 { return 13 }
+    // A tie has no selected winner, even though sorting is stable.
+    tied: [2]ProposalTally
+    tied_scores: [1]s32 = .{2}
+    tied[0] = Score(tied_scores[:], 3)
+    tied[1] = tied[0]
+    v = TallyVerdict(tied[:], 2, 1, 0, 3)
+    if v.verdict != Verdict.VerdictTie || v.winner != -1 { return 14 }
+    empty: [1]ProposalTally
+    if TallyVerdict(empty[:], 1, 1, 0, 3).verdict != Verdict.VerdictPending { return 15 }
+    abstained: [2]ProposalTally
+    opposed: [1]s32 = .{-1}
+    abstained[0] = Score(opposed[:], 3)
+    v = TallyVerdict(abstained[:], 2, 1, 0, 3)
+    if v.winner != 0 || v.verdict != Verdict.VerdictObjections { return 16 }
+    neutral: [1]s32 = .{0}
+    abstained[0] = Score(neutral[:], 3)
+    v = TallyVerdict(abstained[:], 2, 1, 0, 3)
+    if v.winner != 0 || v.verdict == Verdict.VerdictTie { return 17 }
     return 42
 }
 

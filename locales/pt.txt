@@ -1,56 +1,23 @@
-[app_title]
-Ukuvota
----
 [home_title]
 Painel
----
-[home_subtitle]
-Decisões coletivas sem resistência oculta
----
-[home_summary]
-Ukuvota ajuda grupos a tomar decisões coletivas com votação por pontuação. Participantes podem apoiar ou rejeitar cada opção, para que o resultado favoreça escolhas que as pessoas possam aceitar e executar.
 ---
 [start_process_button]
 Criar processo
 ---
-[join_process_label]
-Entrar em um processo
----
-[join_process_placeholder]
-Cole o ID do processo ou link
----
-[join_process_button]
-Abrir processo
----
-[join_process_error]
-Não foi possível abrir esse processo. Verifique o ID, o link ou o servidor.
----
 [dashboard_empty]
 Ainda não há processos ativos.
----
-[dashboard_recent_label]
-Processos ativos
----
-[dashboard_filter_mine]
-Meus
----
-[dashboard_public_label]
-Processos públicos
----
-[dashboard_public_empty]
-Nenhum processo público encontrado.
 ---
 [manual_title]
 Manual
 ---
 [manual_body]
-Ukuvota ajuda grupos a escolher opções que as pessoas possam apoiar e aceitar.
+As decisões são salvas neste dispositivo. O compartilhamento online ainda não está conectado. Criem um processo com uma pergunta clara e reúnam propostas.
 
-Crie um processo com uma pergunta clara e compartilhe o link com participantes.
+Cada novo processo inclui Status quo e Repetir processo. Avaliem de -3 (forte resistência) a +3 (forte apoio); o traço significa abstenção. Notas negativas são ponderadas.
 
-Durante a fase de propostas, as pessoas adicionam opções. Ukuvota sempre inclui Status quo e Repetir processo para que não fazer nada ou procurar novamente sejam escolhas explícitas.
+Salvem cada voto antes de escolher Próximo participante. Cada pessoa tem uma identidade local própria. Toquem em uma pessoa salva para editar seu voto. Mudar o nome não seleciona outro votante.
 
-Durante a votação, cada conta pontua cada proposta. Pontuações negativas são ponderadas para que a resistência fique visível em vez de ser escondida por apoios não relacionados.
+Os resultados mostram empates e quórum. Todos os votos contam por padrão; as caixas permitem explorar um subconjunto.
 ---
 [create_title]
 Configuração da decisão
@@ -124,14 +91,8 @@ Minutos
 [create_process_button]
 Criar processo
 ---
-[setup_ready]
-Rascunho do processo pronto.
----
 [collect_title]
 Coletar propostas
----
-[collect_intro]
-O processo foi salvo localmente. Compartilhe este endereço com participantes neste dispositivo enquanto o armazenamento for apenas local.
 ---
 [proposal_phase_label]
 Fase de propostas
@@ -144,12 +105,6 @@ Resultados prontos
 ---
 [time_remaining_label]
 restantes
----
-[local_address_label]
-Endereço local
----
-[default_proposals_label]
-Propostas padrão
 ---
 [status_quo_title]
 Status quo
@@ -169,9 +124,6 @@ Não foi possível salvar o processo localmente.
 [back_button]
 Voltar
 ---
-[brand_short]
-Ukuvota
----
 [Currently In Progress]
 Em andamento
 ---
@@ -183,18 +135,6 @@ Processos concluídos
 ---
 [Completed processes will appear here.]
 Processos concluídos aparecerão aqui.
----
-[Search or paste link]
-Pesquisar ou colar link
----
-[Done Decisions]
-Decisões concluídas
----
-[Finished Processes]
-Processos finalizados
----
-[No finished processes yet.]
-Ainda não há processos finalizados.
 ---
 [support]
 apoio
@@ -214,25 +154,8 @@ Ainda não há votos enviados.
 [Tap a participant to include or exclude them from the results.]
 Toque em uma pessoa participante para incluí-la ou excluí-la dos resultados.
 ---
-[ (you)]
- (você)
----
-[anonymous]
-anônimo---
 [Dark]
 Escuro
----
-[Refresh]
-Atualizar
----
-[Get started]
-Começar
----
-[Logged in]
-Com sessão iniciada
----
-[Owner only]
-Somente proprietário
 ---
 [Settings]
 Configurações
@@ -273,9 +196,6 @@ Status quo e Repetir processo estão sempre na votação.
 [The option people can accept wins.]
 Vence a opção que as pessoas conseguem aceitar.
 ---
-[Start one and share the link with your group.]
-Crie um e compartilhe o link com seu grupo.
----
 [0 means no minimum - the result counts with any number of ballots.]
 0 significa sem mínimo - o resultado vale com qualquer número de votos.
 ---
@@ -312,9 +232,6 @@ Detalhes opcionais
 [Participants]
 Participantes
 ---
-[Private]
-Privado
----
 [Process phases]
 Fases do processo
 ---
@@ -327,17 +244,8 @@ Apenas votação
 [Proposal title]
 Título da proposta
 ---
-[Proposal visibility]
-Visibilidade das propostas
----
 [Proposals]
 Propostas
----
-[Public]
-Público
----
-[Unlisted]
-Não listado
 ---
 [Quorum (minimum ballots)]
 Quórum (votos mínimos)
@@ -359,15 +267,6 @@ Configurar processo
 ---
 [Title]
 Título
----
-[Visibility]
-Visibilidade
----
-[Who can add proposals]
-Quem pode adicionar propostas
----
-[Who can vote]
-Quem pode votar
 ---
 [ (proposal)]
  (proposta)
@@ -393,9 +292,6 @@ Não foi possível enviar o voto.
 [Every option meets resistance - least resisted prevails: %s]
 Todas as opções encontram resistência - prevalece a menos resistida: %s
 ---
-[No account needed - your name keeps votes apart.]
-Não precisa de conta - seu nome separa os votos.
----
 [No quorum yet - %d of %d ballots cast]
 Ainda sem quórum - %d de %d votos
 ---
@@ -404,9 +300,6 @@ As objeções superam o apoio - %s lidera sem consentimento
 ---
 [Objections outweigh support - no consent yet]
 As objeções superam o apoio - ainda sem consentimento
----
-[Proposal submitted.]
-Proposta enviada.
 ---
 [Quorum]
 Quórum
@@ -432,9 +325,6 @@ Tipo
 [Update vote]
 Atualizar voto
 ---
-[Vote submitted.]
-Voto enviado.
----
 [Weight]
 Peso
 ---
@@ -452,4 +342,25 @@ votos
 ---
 [weighted resistance]
 resistência ponderada
+---
+[identity_hint]
+A chave do seu dispositivo protege seu voto. Seu nome é apenas um rótulo. Guarde uma cópia para manter o acesso.
+---
+[result_tie]
+Empate: não há um vencedor único. Discutam as opções empatadas ou repitam o processo.
+---
+[saved_locally]
+Salvo neste dispositivo.
+---
+[score_hint]
+-3 indica forte resistência, 0 neutralidade e +3 forte apoio. Deixe uma opção sem seleção para se abster.
+---
+[persistence_error]
+Não foi possível salvar os dados do navegador. Mantenha esta página aberta e exporte uma cópia de segurança.
+---
+[local_mode_hint]
+As decisões ficam neste dispositivo. O compartilhamento on-line ainda não está conectado.
+---
+[next_participant]
+Próximo participante
 ---

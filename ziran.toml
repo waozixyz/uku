@@ -1,6 +1,6 @@
 [package]
 tool = "kryon"
-name = "Uku"
+name = "uku"
 entry = "src/app.zi"
 module_roots = ["src", "tests"]
 bridge_modules = ["app"]
@@ -25,7 +25,7 @@ library = "sqlite3"
 # scripts/native_deps.sh builds this from the locked liboqs source.
 static_archive = "build/liboqs/lib/liboqs.a"
 
-[tool.kryon.profiles.canvas]
+[tool.kryon.profiles.web]
 backend = "canvas"
 
 [dependencies.sqlite]
@@ -39,3 +39,9 @@ ref = "master"
 [dependencies.kss]
 git = "https://github.com/kryonlabs/kss.git"
 ref = "master"
+
+[tool.kryon.install]
+profile = "desktop"
+name = "Ukuvota"
+comment = "Collective decisions with visible resistance"
+categories = "Office;"

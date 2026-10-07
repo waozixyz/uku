@@ -1,6 +1,6 @@
 // The dashboard: processes still running, then finished ones, and the way to
 // start a new process.
-using UI :: #import "Widgets";
+using UI :: #import "kryon/Widgets";
 #import "app_state"
 #import "create_view"
 #import "labels"
@@ -10,7 +10,7 @@ using UI :: #import "Widgets";
 #import "storage"
 #import "ui_kit"
 #import "text_append"
-#import "text_buffer"
+#import "std/text_buffer"
 
 TOP_BAR_HEIGHT :: 56.0
 CONTENT_WIDTH :: 760.0
@@ -48,12 +48,12 @@ EmptyState :: (session: Session, x: float32, y: float32, width: float32) -> floa
     pad: float32 = 28.0
     text_width := width - pad * 2.0
     title_height := UiTextHeight(Tr("dashboard_empty"), text_width, 20)
-    body_height := UiTextHeight(Tr("Start one and share the link with your group."), text_width, 14)
+    body_height := UiTextHeight(Tr("local_mode_hint"), text_width, 14)
     height := pad + title_height + 10.0 + body_height + 20.0 + 40.0 + pad
     UiPanel(session, cast(u64)4100, Rectangle.{x, y, width, height})
     text_y := y + pad
     text_y += UiParagraph(session, Tr("dashboard_empty"), x + pad, text_y, text_width, 20) + 10.0
-    text_y += UiParagraph(session, Tr("Start one and share the link with your group."), x + pad, text_y, text_width, 14) + 20.0
+    text_y += UiParagraph(session, Tr("local_mode_hint"), x + pad, text_y, text_width, 14) + 20.0
     if UiButton(session, 4101, Tr("start_process_button"), Rectangle.{x + pad, text_y, 240.0, 40.0}, true) {
         CreateStart()
     }
@@ -87,22 +87,34 @@ IntroPanel :: (session: Session, x: float32, y: float32, width: float32) -> floa
     return height
 }
 
+HomeBarHeight :: (width: float32) -> float32 {
+    return ifx width < 720.0 then 112.0 else TOP_BAR_HEIGHT
+}
+
 TopBar :: (session: Session, viewport: Rectangle) {
-    UiRule(session, cast(u64)4001, viewport.x, viewport.y + TOP_BAR_HEIGHT - 1.0, viewport.width)
+    height := HomeBarHeight(viewport.width)
+    UiRule(session, cast(u64)4001, viewport.x, viewport.y + height - 1.0, viewport.width)
     UiText(session, Tr("home_title"), Rectangle.{viewport.x + 18.0, viewport.y + 17.0, 240.0, 24.0}, 18)
+    narrow := viewport.width < 720.0
+    y := viewport.y + 10.0
+    button_width: float32 = 110.0
     right := viewport.x + viewport.width - 12.0
-    new_width: float32 = 200.0
-    settings_width: float32 = 110.0
-    manual_width: float32 = 100.0
-    if UiButton(session, 4002, Tr("Settings"), Rectangle.{right - settings_width, viewport.y + 10.0, settings_width, 36.0}, false) {
-        screen = Screen.ScreenSettings
+    if narrow {
+        y = viewport.y + 56.0
+        button_width = (viewport.width - 40.0) / 3.0
     }
-    right -= settings_width + 8.0
-    if UiButton(session, 4003, Tr("manual_title"), Rectangle.{right - manual_width, viewport.y + 10.0, manual_width, 36.0}, false) {
-        screen = Screen.ScreenManual
+    if UiButton(session, 4002, Tr("Settings"), Rectangle.{right - button_width, y, button_width, 44.0}, false) {
+        screen = ScreenId.ScreenSettings
     }
-    right -= manual_width + 8.0
-    if UiButton(session, 4004, Tr("start_process_button"), Rectangle.{right - new_width, viewport.y + 10.0, new_width, 36.0}, true) {
+    right -= button_width + 8.0
+    if UiButton(session, 4003, Tr("manual_title"), Rectangle.{right - button_width, y, button_width, 44.0}, false) {
+        screen = ScreenId.ScreenManual
+    }
+    right -= button_width + 8.0
+    if !narrow {
+        button_width = 200.0
+    }
+    if UiButton(session, 4004, Tr("start_process_button"), Rectangle.{right - button_width, y, button_width, 44.0}, true) {
         CreateStart()
     }
 }
@@ -115,7 +127,7 @@ HomeView :: (session: Session, viewport: Rectangle, now: s64) {
     }
     props: ScrollProps
     props.key = cast(u64)4010
-    props.bounds = Rectangle.{viewport.x, viewport.y + TOP_BAR_HEIGHT, viewport.width, viewport.height - TOP_BAR_HEIGHT}
+    props.bounds = Rectangle.{viewport.x, viewport.y + HomeBarHeight(viewport.width), viewport.width, viewport.height - HomeBarHeight(viewport.width)}
     props.content_height = home_content_height
     props.scroll_offset = home_scroll
     props.scale = 1.0
@@ -153,7 +165,7 @@ HomeView :: (session: Session, viewport: Rectangle, now: s64) {
             if RowPhase(row, now).phase != Phase.PhaseResults {
                 if ProcessCard(session, index, row, now, x, y, width) {
                     open_row = index
-                    screen = Screen.ScreenCollect
+                    screen = ScreenId.ScreenCollect
                 }
                 y += CARD_HEIGHT + CARD_GAP
             }
@@ -171,7 +183,7 @@ HomeView :: (session: Session, viewport: Rectangle, now: s64) {
             if RowPhase(row, now).phase == Phase.PhaseResults {
                 if ProcessCard(session, index, row, now, x, y, width) {
                     open_row = index
-                    screen = Screen.ScreenCollect
+                    screen = ScreenId.ScreenCollect
                 }
                 y += CARD_HEIGHT + CARD_GAP
             }

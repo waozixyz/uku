@@ -1,59 +1,23 @@
-[app_title]
-Ukuvota
----
 [home_title]
 仪表板
----
-[home_subtitle]
-没有隐藏阻力的集体决策
----
-[home_summary]
-Ukuvota 帮助群组通过评分投票做出集体决策。参与者可以支持或反对每个选项，因此结果会偏向人们能够接受并执行的选择。
 ---
 [start_process_button]
 创建流程
 ---
-[join_process_label]
-加入流程
----
-[join_process_placeholder]
-粘贴流程 ID 或链接
----
-[join_process_button]
-打开流程
----
-[join_process_error]
-无法打开该流程。请检查 ID、链接或服务器。
----
 [dashboard_empty]
 还没有活动流程。
----
-[dashboard_recent_label]
-活动流程
----
-[dashboard_filter_mine]
-我的
----
-[dashboard_filter_public]
-公开
----
-[dashboard_public_label]
-公开流程
----
-[dashboard_public_empty]
-未找到公开流程。
 ---
 [manual_title]
 手册
 ---
 [manual_body]
-Ukuvota 帮助群组选择人们可以支持和接受的选项。
+决定保存在本设备上。在线分享尚未连接。请用清晰的问题创建流程。
 
-用清晰的问题创建一个流程，然后把链接分享给参与者。
+新流程包含“维持现状”和“重新进行流程”。评分从 -3（强烈反对）到 +3（强烈支持），横线表示弃权。负分会加权。
 
-在提案阶段，人们添加选项。Ukuvota 总是包含 Status quo 和重复流程，让什么都不做或重新寻找也成为明确选择。
+选择“下一位参与者”前，请保存投票。每位参与者都有独立的本地身份。点击已保存的参与者即可编辑投票。更改名称不会选择其他参与者。
 
-在投票期间，每个账户为每个提案评分。负分会被加权，使阻力可见，而不会被无关的支持掩盖。
+结果显示平票和最低投票数达成情况。默认计入所有投票，可用复选框查看部分参与者的结果。
 ---
 [create_title]
 决策设置
@@ -127,14 +91,8 @@ Ukuvota 帮助群组选择人们可以支持和接受的选项。
 [create_process_button]
 创建流程
 ---
-[setup_ready]
-流程草稿已准备好。
----
 [collect_title]
 收集提案
----
-[collect_intro]
-流程已保存在本地。使用仅本地存储时，请在此设备上把该地址分享给参与者。
 ---
 [proposal_phase_label]
 提案阶段
@@ -147,12 +105,6 @@ Ukuvota 帮助群组选择人们可以支持和接受的选项。
 ---
 [time_remaining_label]
 剩余
----
-[local_address_label]
-本地地址
----
-[default_proposals_label]
-默认提案
 ---
 [status_quo_title]
 Status quo
@@ -172,9 +124,6 @@ Status quo
 [back_button]
 返回
 ---
-[brand_short]
-Ukuvota
----
 [Currently In Progress]
 进行中
 ---
@@ -187,29 +136,8 @@ Ukuvota
 [Completed processes will appear here.]
 已完成的流程会显示在这里。
 ---
-[Search or paste link]
-搜索或粘贴链接
----
-[Done Decisions]
-已完成决策
----
-[Finished Processes]
-已结束流程
----
-[No finished processes yet.]
-还没有已结束流程。
----
-[Finished]
-已结束
----
 [Results]
 结果
----
-[Copy results as text]
-将结果复制为文本
----
-[Results copied.]
-结果已复制。
 ---
 [total]
 总计
@@ -241,16 +169,8 @@ Ukuvota
 [Tap a participant to include or exclude them from the results.]
 点击参与者以将其纳入或排除出结果。
 ---
-[ (you)]
-（你）
----
-[anonymous]
-匿名---
 [Language]
 语言
----
-[Theme]
-主题
 ---
 [System]
 系统
@@ -258,26 +178,11 @@ Ukuvota
 [Mode]
 模式
 ---
-[Follow device]
-跟随设备
----
 [Light]
 浅色
 ---
 [Dark]
 深色
----
-[Refresh]
-刷新
----
-[Get started]
-开始
----
-[Logged in]
-已登录
----
-[Owner only]
-仅所有者
 ---
 [Settings]
 设置
@@ -309,9 +214,6 @@ Status quo 和“重复流程”始终是可选项。
 [The option people can accept wins.]
 大家都能接受的选项胜出。
 ---
-[Start one and share the link with your group.]
-创建一个流程，并与你的小组分享链接。
----
 [0 means no minimum - the result counts with any number of ballots.]
 0 表示没有最低要求，任何票数下结果都有效。
 ---
@@ -342,9 +244,6 @@ Status quo 和“重复流程”始终是可选项。
 [Optional details]
 可选详情
 ---
-[Private]
-私密
----
 [Process phases]
 流程阶段
 ---
@@ -357,17 +256,8 @@ Status quo 和“重复流程”始终是可选项。
 [Proposal title]
 提案标题
 ---
-[Proposal visibility]
-提案可见性
----
 [Proposals]
 提案
----
-[Public]
-公开
----
-[Unlisted]
-不公开列出
 ---
 [Quorum (minimum ballots)]
 法定人数（最低票数）
@@ -390,15 +280,6 @@ Status quo 和“重复流程”始终是可选项。
 [Title]
 标题
 ---
-[Visibility]
-可见性
----
-[Who can add proposals]
-谁可以添加提案
----
-[Who can vote]
-谁可以投票
----
 [ (proposal)]
  (提案)
 ---
@@ -420,9 +301,6 @@ Status quo 和“重复流程”始终是可选项。
 [Every option meets resistance - least resisted prevails: %s]
 每个选项都遭到反对 - 反对最少的选项胜出：%s
 ---
-[No account needed - your name keeps votes apart.]
-无需账户，你的名字用于区分投票。
----
 [No quorum yet - %d of %d ballots cast]
 尚未达到法定人数 - 已投 %d / %d 票
 ---
@@ -431,9 +309,6 @@ Status quo 和“重复流程”始终是可选项。
 ---
 [Objections outweigh support - no consent yet]
 反对超过支持 - 尚未达成同意
----
-[Proposal submitted.]
-提案已提交。
 ---
 [Quorum]
 法定人数
@@ -456,9 +331,6 @@ Status quo 和“重复流程”始终是可选项。
 [Update vote]
 更新投票
 ---
-[Vote submitted.]
-投票已提交。
----
 [Weight]
 权重
 ---
@@ -470,4 +342,25 @@ Status quo 和“重复流程”始终是可选项。
 ---
 [weighted resistance]
 加权反对
+---
+[identity_hint]
+设备密钥保护你的选票，姓名仅用于显示。请保留备份以免失去访问权限。
+---
+[result_tie]
+平局：没有唯一胜者。请讨论得分相同的选项或重新进行决策。
+---
+[saved_locally]
+已保存在此设备上。
+---
+[score_hint]
+-3表示强烈反对，0表示中立，+3表示强烈支持。如需对某个选项弃权，请保持未选择状态。
+---
+[persistence_error]
+无法保存浏览器数据。请保持此页面打开并导出备份。
+---
+[local_mode_hint]
+决策保存在此设备上。在线分享尚未连接。
+---
+[next_participant]
+下一位参与者
 ---

@@ -1,7 +1,11 @@
 build-essential
 cmake
 pkg-config
-python3-fonttools
-zlib1g-dev
-zip
+python3
+libssl-dev
+ca-certificates
 tcl
+zlib1g-dev
+curl
+xvfb
+xauth

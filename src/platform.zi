@@ -1,0 +1,130 @@
+// Application data locations and persistence on each supported host.
+#import "std/c_string"
+#import "std/byte_text_linux"
+#import "std/text_buffer"
+#if !#defined(PLATFORM_WEB) && !#defined(ANDROID_BUILD) {
+    #import "std/file_linux"
+}
+#import "text_append"
+
+#scope_file
+libc :: #system_library "libc";
+EnvironmentRaw :: (name: *u8) -> *u8 #foreign libc "getenv";
+
+#if #defined(PLATFORM_WEB) {
+    emscripten :: #system_library "emscripten";
+    BrowserScript :: (script: *u8) #foreign emscripten "emscripten_run_script";
+    BrowserScriptInt :: (script: *u8) -> s32 #foreign emscripten "emscripten_run_script_int";
+}
+#if #defined(ANDROID_BUILD) {
+    platform_api :: #system_library "platform_api";
+    AndroidDataDirectory :: () -> *u8 #foreign platform_api "uku_data_directory";
+    AndroidKeyboard :: (visible: s32) #foreign platform_api "uku_keyboard";
+}
+
+#scope_export
+
+data_path: [1024]u8;
+
+EnvironmentText :: (name: string) -> string {
+    key: [64]u8
+    if !CopyCString(name, key[:]) {
+        return ""
+    }
+    value := EnvironmentRaw(*key[0])
+    if value == null {
+        return ""
+    }
+    return TextFromCString(value)
+}
+
+#if !#defined(PLATFORM_WEB) && !#defined(ANDROID_BUILD) {
+EnsurePrivatePath :: (path: string) -> bool {
+    if path.count == 0 || path[0] != cast(u8)47 {
+        return false
+    }
+    index: s64 = 1
+    while index <= path.count {
+        if index == path.count || path[index] == cast(u8)47 {
+            part := path[0:index]
+            if !DirectoryExists(part) && !CreatePrivateDirectory(part) {
+                return false
+            }
+        }
+        index += 1
+    }
+    return true
+}
+
+}
+
+DataPath :: () -> string {
+    data_path[0] = cast(u8)0
+    #if #defined(PLATFORM_WEB) {
+        unused CopyCString("/data/uku.sqlite3", data_path[:])
+    } else {
+        directory: [960]u8
+        #if #defined(ANDROID_BUILD) {
+            raw := AndroidDataDirectory()
+            if raw == null {
+                return ""
+            }
+            unused CopyCString(TextFromCString(raw), directory[:])
+        } else {
+            // An explicit directory also isolates automated tests from real data.
+            location := EnvironmentText("UKUVOTA_DATA_DIR")
+            if location.count > 0 {
+                unused CopyCString(location, directory[:])
+            } else {
+                base := EnvironmentText("XDG_DATA_HOME")
+                length: s64 = 0
+                if base.count > 0 {
+                    length = TextAppend(directory[:], 0, base)
+                } else {
+                    base = EnvironmentText("HOME")
+                    if base.count == 0 {
+                        return ""
+                    }
+                    length = TextAppend(directory[:], 0, base)
+                    length = TextAppend(directory[:], length, "/.local/share")
+                }
+                unused TextAppend(directory[:], length, "/ukuvota")
+            }
+        }
+        #if !#defined(ANDROID_BUILD) {
+            if !EnsurePrivatePath(TextUntilNul(directory[:])) {
+                return ""
+            }
+        }
+        length := TextAppend(data_path[:], 0, TextUntilNul(directory[:]))
+        if TextAppend(data_path[:], length, "/uku.sqlite3") < 0 {
+            return ""
+        }
+    }
+    return TextUntilNul(data_path[:])
+}
+
+PersistChanges :: () {
+    #if #defined(PLATFORM_WEB) {
+        script: [64]u8
+        if CopyCString("Module.saveUkuData();", script[:]) {
+            BrowserScript(*script[0])
+        }
+    }
+}
+
+PersistenceFailed :: () -> bool {
+    #if #defined(PLATFORM_WEB) {
+        script: [64]u8
+        if CopyCString("Module.ukuSaveFailed ? 1 : 0", script[:]) {
+            return BrowserScriptInt(*script[0]) != 0
+        }
+    }
+    return false
+}
+
+ShowKeyboard :: (visible: bool) {
+    #if #defined(ANDROID_BUILD) {
+        AndroidKeyboard(ifx visible then 1 else 0)
+    }
+}

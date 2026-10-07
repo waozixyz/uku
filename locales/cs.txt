@@ -1,59 +1,23 @@
-[app_title]
-Ukuvota
----
 [home_title]
 Přehled
----
-[home_subtitle]
-Společná rozhodnutí bez skrytého odporu
----
-[home_summary]
-Ukuvota pomáhá skupinám dělat společná rozhodnutí pomocí bodového hlasování. Účastníci mohou každou možnost podpořit nebo odmítnout, takže výsledek zvýhodní volby, které lidé mohou přijmout a uskutečnit.
 ---
 [start_process_button]
 Vytvořit proces
 ---
-[join_process_label]
-Připojit se k procesu
----
-[join_process_placeholder]
-Vložte ID procesu nebo odkaz
----
-[join_process_button]
-Otevřít proces
----
-[join_process_error]
-Tento proces se nepodařilo otevřít. Zkontrolujte ID, odkaz nebo server.
----
 [dashboard_empty]
 Zatím žádné aktivní procesy.
----
-[dashboard_recent_label]
-Aktivní procesy
----
-[dashboard_filter_mine]
-Moje
----
-[dashboard_filter_public]
-Veřejné
----
-[dashboard_public_label]
-Veřejné procesy
----
-[dashboard_public_empty]
-Nebyly nalezeny žádné veřejné procesy.
 ---
 [manual_title]
 Návod
 ---
 [manual_body]
-Ukuvota pomáhá skupinám vybírat možnosti, které lidé mohou podpořit a přijmout.
+Rozhodnutí se ukládají na tomto zařízení. Online sdílení zatím není připojeno. Vytvořte proces s jasnou otázkou a sbírejte návrhy.
 
-Vytvořte proces s jasnou otázkou a sdílejte odkaz s účastníky.
+Nový proces obsahuje Zachovat současný stav a Opakovat proces. Hlasujte od -3 (silný odpor) do +3 (silná podpora); pomlčka znamená zdržení se hlasu. Záporné hodnoty mají váhu.
 
-Během fáze návrhů lidé přidávají možnosti. Ukuvota vždy obsahuje Status quo a Opakovat proces, aby nic nedělat nebo hledat znovu byly výslovné volby.
+Uložte hlas před volbou Další účastník. Každá osoba má vlastní místní identitu. Klepnutím na uloženou osobu upravíte její hlas. Změna jména nevybere jiného hlasujícího.
 
-Během hlasování každý účet boduje každý návrh. Záporné body jsou vážené, aby byl odpor viditelný a nezmizel za nesouvisející podporou.
+Výsledky ukazují shody a kvórum. Ve výchozím stavu se počítají všechny hlasy; políčka umožňují zkoumat podmnožinu.
 ---
 [create_title]
 Nastavení rozhodnutí
@@ -127,14 +91,8 @@ Minuty
 [create_process_button]
 Vytvořit proces
 ---
-[setup_ready]
-Návrh procesu je připraven.
----
 [collect_title]
 Sbírat návrhy
----
-[collect_intro]
-Proces byl uložen místně. Sdílejte tuto adresu s účastníky na tomto zařízení, dokud se používá pouze místní úložiště.
 ---
 [proposal_phase_label]
 Fáze návrhů
@@ -147,12 +105,6 @@ Výsledky připraveny
 ---
 [time_remaining_label]
 zbývá
----
-[local_address_label]
-Místní adresa
----
-[default_proposals_label]
-Výchozí návrhy
 ---
 [status_quo_title]
 Status quo
@@ -172,9 +124,6 @@ Proces se nepodařilo uložit místně.
 [back_button]
 Zpět
 ---
-[brand_short]
-Ukuvota
----
 [Currently In Progress]
 Právě probíhá
 ---
@@ -187,29 +136,8 @@ Dokončené procesy
 [Completed processes will appear here.]
 Dokončené procesy se zobrazí zde.
 ---
-[Search or paste link]
-Hledat nebo vložit odkaz
----
-[Done Decisions]
-Hotová rozhodnutí
----
-[Finished Processes]
-Ukončené procesy
----
-[No finished processes yet.]
-Zatím žádné ukončené procesy.
----
-[Finished]
-Ukončeno
----
 [Results]
 Výsledky
----
-[Copy results as text]
-Kopírovat výsledky jako text
----
-[Results copied.]
-Výsledky zkopírovány.
 ---
 [total]
 celkem
@@ -241,16 +169,8 @@ Zatím nebyly odeslány žádné hlasy.
 [Tap a participant to include or exclude them from the results.]
 Klepnutím účastníka zahrnete nebo vyřadíte z výsledků.
 ---
-[ (you)]
- (vy)
----
-[anonymous]
-anonymní---
 [Language]
 Jazyk
----
-[Theme]
-Motiv
 ---
 [System]
 Systém
@@ -258,26 +178,11 @@ Systém
 [Mode]
 Režim
 ---
-[Follow device]
-Podle zařízení
----
 [Light]
 Světlý
 ---
 [Dark]
 Tmavý
----
-[Refresh]
-Obnovit
----
-[Get started]
-Začít
----
-[Logged in]
-Přihlášení
----
-[Owner only]
-Pouze vlastník
 ---
 [Settings]
 Nastavení
@@ -309,9 +214,6 @@ Status quo a Opakovat proces jsou vždy mezi možnostmi.
 [The option people can accept wins.]
 Vyhrává možnost, kterou lidé dokážou přijmout.
 ---
-[Start one and share the link with your group.]
-Založte ho a sdílejte odkaz se svou skupinou.
----
 [0 means no minimum - the result counts with any number of ballots.]
 0 znamená bez minima – výsledek platí při jakémkoli počtu hlasů.
 ---
@@ -342,9 +244,6 @@ Nebyly nalezeny žádné návrhy.
 [Optional details]
 Volitelné podrobnosti
 ---
-[Private]
-Soukromý
----
 [Process phases]
 Fáze procesu
 ---
@@ -357,17 +256,8 @@ Pouze hlasování
 [Proposal title]
 Název návrhu
 ---
-[Proposal visibility]
-Viditelnost návrhů
----
 [Proposals]
 Návrhy
----
-[Public]
-Veřejný
----
-[Unlisted]
-Neuvedený
 ---
 [Quorum (minimum ballots)]
 Kvórum (minimální počet hlasů)
@@ -390,15 +280,6 @@ Nastavení procesu
 [Title]
 Název
 ---
-[Visibility]
-Viditelnost
----
-[Who can add proposals]
-Kdo může přidávat návrhy
----
-[Who can vote]
-Kdo může hlasovat
----
 [ (proposal)]
  (návrh)
 ---
@@ -420,9 +301,6 @@ Hlas se nepodařilo odeslat.
 [Every option meets resistance - least resisted prevails: %s]
 Každá možnost naráží na odpor – vítězí ta s nejmenším odporem: %s
 ---
-[No account needed - your name keeps votes apart.]
-Účet není potřeba – vaše jméno odliší hlasy.
----
 [No quorum yet - %d of %d ballots cast]
 Kvórum zatím není – odevzdáno %d z %d hlasů
 ---
@@ -431,9 +309,6 @@ Námitky převažují nad podporou – %s vede bez souhlasu
 ---
 [Objections outweigh support - no consent yet]
 Námitky převažují nad podporou – zatím bez souhlasu
----
-[Proposal submitted.]
-Návrh odeslán.
 ---
 [Quorum]
 Kvórum
@@ -456,9 +331,6 @@ Typ
 [Update vote]
 Aktualizovat hlas
 ---
-[Vote submitted.]
-Hlas odeslán.
----
 [Weight]
 Váha
 ---
@@ -470,4 +342,25 @@ Vaše jméno nebo trvalá přezdívka
 ---
 [weighted resistance]
 vážený odpor
+---
+[identity_hint]
+Klíč vašeho zařízení chrání váš hlas. Jméno je pouze popisek. Uchovejte zálohu, abyste neztratili přístup.
+---
+[result_tie]
+Shoda: není jediný vítěz. Prodiskutujte shodné možnosti nebo proces zopakujte.
+---
+[saved_locally]
+Uloženo v tomto zařízení.
+---
+[score_hint]
+-3 znamená silný odpor, 0 neutrální postoj a +3 silnou podporu. Nechte možnost nevybranou, chcete-li se zdržet.
+---
+[persistence_error]
+Data prohlížeče se nepodařilo uložit. Nechte stránku otevřenou a exportujte zálohu.
+---
+[local_mode_hint]
+Rozhodnutí jsou uložena v tomto zařízení. Online sdílení zatím není připojeno.
+---
+[next_participant]
+Další účastník
 ---
