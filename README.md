@@ -76,6 +76,8 @@ use a disposable profile and private display, recognize rendered controls,
 and verify proposals, distinct voters, ballot editing, ties, quorum, mobile
 touch input, reload persistence and downloaded SQLite backups. Both the web
 distribution and the website's app path run through the same tests.
+To verify a deployed website with disposable browser data, run
+`UKU_WEB_URL=https://uku.waozi.xyz node tests/web_test.mjs --site`.
 
 Android needs JDK 17 or newer, Android SDK 36, NDK 28.2.13676358 and CMake 3.22.1:
 
