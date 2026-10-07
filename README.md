@@ -61,12 +61,21 @@ The browser build needs Emscripten (tested with 6.0.6), Tcl and CMake:
 make web                  # HTML, JavaScript, Wasm and both distribution ZIPs
 make serve                # http://127.0.0.1:8080
 make site                 # static site and embedded app in build/site
+make web-test             # complete browser flow in both packaged versions
 ```
 
 `EMCC` and `EMCMAKE` can select Emscripten tools; the default is
 `~/emsdk/upstream/emscripten`. Browser data lives in IndexedDB under the app's
 origin. Use Download backup before clearing browser data. If saving fails,
-keep the page open and download the backup.
+keep the page open and download the backup, then use Retry saving. Browser
+text fields use native editing, including selection, paste, IME and touch
+keyboards. System appearance follows the browser's color preference.
+
+The browser tests need Node 22, Chromium, Xvfb, xauth, Tesseract OCR and Pillow. They
+use a disposable profile and private display, recognize rendered controls,
+and verify proposals, distinct voters, ballot editing, ties, quorum, mobile
+touch input, reload persistence and downloaded SQLite backups. Both the web
+distribution and the website's app path run through the same tests.
 
 Android needs JDK 17 or newer, Android SDK 36, NDK 28.2.13676358 and CMake 3.22.1:
 

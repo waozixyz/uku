@@ -7,6 +7,7 @@ SystemThemeLinux :: #import "kryon/SystemThemeLinux";
 #import "kryon/system_theme"
 #import "text_append"
 #import "std/text_buffer"
+#import "platform"
 
 theme_palette: SystemPalette;
 // ThemePolicy: 0 follows the desktop, 1 is light, 2 is dark.
@@ -44,7 +45,13 @@ ThemeUpdate :: () {
         }
         theme_frames = 0
     }
-    #if #defined(PLATFORM_WEB) || #defined(ANDROID_BUILD) {
+    #if #defined(PLATFORM_WEB) {
+        theme_palette = SystemPaletteFallback(BrowserPrefersDark())
+        unused SystemStyle.StyleInstallSystem(theme_palette)
+        theme_installed = true
+        return
+    }
+    #if #defined(ANDROID_BUILD) {
         theme_palette = SystemPaletteFallback(false)
         unused SystemStyle.StyleInstallSystem(theme_palette)
         theme_installed = true
@@ -72,8 +79,4 @@ ThemeSurface :: () -> Color {
 
 ThemeBorder :: () -> Color {
     return ColorFromPacked(CssMix(theme_palette.background, theme_palette.text, 0.16))
-}
-
-ThemeAccent :: () -> Color {
-    return ColorFromPacked(theme_palette.selected)
 }

@@ -91,9 +91,6 @@
 [create_process_button]
 Создать процесс
 ---
-[collect_title]
-Собрать предложения
----
 [proposal_phase_label]
 Фаза предложений
 ---
@@ -363,4 +360,10 @@ Status quo и «Повторить процесс» всегда есть сре
 ---
 [next_participant]
 Следующий участник
+---
+[backup_button]
+Скачать резервную копию
+---
+[retry_save_button]
+Повторить сохранение
 ---

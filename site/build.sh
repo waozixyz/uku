@@ -94,7 +94,7 @@ write_web_app_csp_html() {
 	src=$1
 	dst=$2
 	cache_version=$(date +%s)
-	csp="default-src 'self' data: blob:; connect-src 'self' https: wss:; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; worker-src 'self' 'unsafe-eval' 'unsafe-inline' data: blob:; img-src 'self' data: blob:; media-src 'self' data: blob:; object-src 'none'"
+	csp="default-src 'self' data: blob:; connect-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; object-src 'none'"
 	meta="<meta http-equiv=\"Content-Security-Policy\" content=\"$csp\">"
 
     python3 - "$src" "$dst" "$meta" "$cache_version" <<'PYTHON'

@@ -91,9 +91,6 @@ Menit
 [create_process_button]
 Buat Proses
 ---
-[collect_title]
-Kumpulkan Proposal
----
 [proposal_phase_label]
 Fase proposal
 ---
@@ -363,4 +360,10 @@ Keputusan disimpan di perangkat ini. Berbagi daring belum terhubung.
 ---
 [next_participant]
 Peserta berikutnya
+---
+[backup_button]
+Unduh cadangan
+---
+[retry_save_button]
+Coba simpan lagi
 ---

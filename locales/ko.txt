@@ -91,9 +91,6 @@
 [create_process_button]
 프로세스 만들기
 ---
-[collect_title]
-제안 모으기
----
 [proposal_phase_label]
 제안 단계
 ---
@@ -363,4 +360,10 @@ Status quo가 유지됩니다
 ---
 [next_participant]
 다음 참여자
+---
+[backup_button]
+백업 다운로드
+---
+[retry_save_button]
+저장 다시 시도
 ---

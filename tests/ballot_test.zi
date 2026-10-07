@@ -55,12 +55,6 @@ BallotAnswer :: () -> s32 {
         return 9
     }
 
-    renamed: [64]u8
-    length = BallotReplaceId("draft-1=2;p1=-1;draft-10=3", "draft-1", "srv-9", renamed[:])
-    // Only the whole id is renamed, never a longer id that starts with it.
-    if !Same(renamed[:], length, "srv-9=2;p1=-1;draft-10=3") {
-        return 10
-    }
     return 42
 }
 

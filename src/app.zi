@@ -13,6 +13,9 @@ using UI :: #import "kryon/Widgets";
 #import "ui_kit"
 #import "kryon/ScrollDevice"
 #import "std/date_time_linux"
+#if #defined(PLATFORM_WEB) {
+    #import "browser_input"
+}
 
 initialized: bool;
 storage_ready: bool;
@@ -59,6 +62,9 @@ Frame :: (session: Session, viewport: Rectangle) -> s32 {
         viewport.height -= height
     }
     now := UnixNow()
+    #if #defined(PLATFORM_WEB) {
+        BrowserInputsBegin(viewport)
+    }
     if screen == ScreenId.ScreenHome {
         HomeView(session, viewport, now)
     } else if screen == ScreenId.ScreenCreate {
@@ -69,6 +75,9 @@ Frame :: (session: Session, viewport: Rectangle) -> s32 {
         SettingsView(session, viewport)
     } else {
         ManualView(session, viewport)
+    }
+    #if #defined(PLATFORM_WEB) {
+        BrowserInputsEnd()
     }
     return 0
 }

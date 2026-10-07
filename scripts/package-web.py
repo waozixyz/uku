@@ -5,7 +5,8 @@ import zipfile
 
 root = Path(__file__).resolve().parents[1]
 web = root / 'build/dist/web'
-if not all((web / name).is_file() for name in ('index.html', 'index.js', 'index.wasm')):
+required = ('index.html', 'index.js', 'index.wasm', 'uku-logo.svg', 'browser-input.js')
+if not all((web / name).is_file() for name in required):
     raise SystemExit('Build the web profile first: make web')
 for name in ('uku-web.zip', 'uku-itch-html5.zip'):
     with zipfile.ZipFile(root / 'build/dist' / name, 'w', zipfile.ZIP_DEFLATED) as archive:

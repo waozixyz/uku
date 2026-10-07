@@ -91,9 +91,6 @@
 [create_process_button]
 プロセスを作成
 ---
-[collect_title]
-提案を集める
----
 [proposal_phase_label]
 提案フェーズ
 ---
@@ -363,4 +360,10 @@ Status quo が維持されます
 ---
 [next_participant]
 次の参加者
+---
+[backup_button]
+バックアップをダウンロード
+---
+[retry_save_button]
+保存を再試行
 ---

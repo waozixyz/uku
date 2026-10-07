@@ -91,9 +91,6 @@ Minuti
 [create_process_button]
 Crea processo
 ---
-[collect_title]
-Raccogli proposte
----
 [proposal_phase_label]
 Fase proposte
 ---
@@ -363,4 +360,10 @@ Le decisioni sono salvate su questo dispositivo. La condivisione online non è a
 ---
 [next_participant]
 Partecipante successivo
+---
+[backup_button]
+Scarica backup
+---
+[retry_save_button]
+Riprova a salvare
 ---

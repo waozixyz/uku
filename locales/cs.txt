@@ -91,9 +91,6 @@ Minuty
 [create_process_button]
 Vytvořit proces
 ---
-[collect_title]
-Sbírat návrhy
----
 [proposal_phase_label]
 Fáze návrhů
 ---
@@ -363,4 +360,10 @@ Rozhodnutí jsou uložena v tomto zařízení. Online sdílení zatím není př
 ---
 [next_participant]
 Další účastník
+---
+[backup_button]
+Stáhnout zálohu
+---
+[retry_save_button]
+Zkusit uložit znovu
 ---

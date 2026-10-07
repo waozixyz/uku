@@ -91,9 +91,6 @@ Minutes
 [create_process_button]
 Create Process
 ---
-[collect_title]
-Collect Proposals
----
 [proposal_phase_label]
 Proposal phase
 ---
@@ -207,4 +204,10 @@ Decisions are stored on this device. Online sharing is not connected yet.
 ---
 [next_participant]
 Next participant
+---
+[backup_button]
+Download backup
+---
+[retry_save_button]
+Retry saving
 ---

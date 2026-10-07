@@ -91,9 +91,6 @@ Minutes
 [create_process_button]
 Créer le processus
 ---
-[collect_title]
-Collecter les propositions
----
 [proposal_phase_label]
 Phase de propositions
 ---
@@ -366,4 +363,10 @@ Les décisions sont conservées sur cet appareil. Le partage en ligne ne fonctio
 ---
 [next_participant]
 Participant suivant
+---
+[backup_button]
+Télécharger la sauvegarde
+---
+[retry_save_button]
+Réessayer l’enregistrement
 ---

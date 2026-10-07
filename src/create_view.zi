@@ -264,14 +264,20 @@ ProposalsStep :: (session: Session, x: float32, y: float32, width: float32) -> f
     while index < draft.proposal_count {
         proposal := draft.proposals[index]
         has_description := proposal.description[0] != cast(u8)0
-        height: float32 = 52.0
+        inner := width - 140.0
+        title_height := UiTextHeight(TextUntilNul(proposal.title[:]), inner, 16)
+        description_height: float32 = 0.0
         if has_description {
-            height = 76.0
+            description_height = UiTextHeight(TextUntilNul(proposal.description[:]), inner, 13) + 8.0
+        }
+        height := 28.0 + title_height + description_height
+        if height < 52.0 {
+            height = 52.0
         }
         UiPanel(session, cast(u64)(2600 + index), Rectangle.{x, y, width, height})
-        UiText(session, TextUntilNul(proposal.title[:]), Rectangle.{x + 14.0, y + 14.0, width - 140.0, 22.0}, 16)
+        unused UiParagraph(session, TextUntilNul(proposal.title[:]), x + 14.0, y + 14.0, inner, 16)
         if has_description {
-            UiText(session, TextUntilNul(proposal.description[:]), Rectangle.{x + 14.0, y + 42.0, width - 140.0, 18.0}, 13)
+            unused UiParagraph(session, TextUntilNul(proposal.description[:]), x + 14.0, y + 22.0 + title_height, inner, 13)
         }
         if UiButton(session, 2700 + index, Tr("Delete"), Rectangle.{x + width - 110.0, y + 8.0, 100.0, 36.0}, false) {
             RemoveDraftProposal(index)
@@ -350,10 +356,6 @@ SaveDraft :: (now: s64) -> bool {
     row.voting_minutes = DurationMinutes(draft.voting_days, draft.voting_hours, draft.voting_minutes)
     row.negative_weight = draft.negative_weight
     row.quorum_votes = draft.quorum_votes
-    SetText(row.visibility[:], "private")
-    SetText(row.proposal_visibility[:], "participants")
-    SetText(row.proposal_access[:], "participants")
-    SetText(row.voting_access[:], "participants")
     row.created_at = now
     ProcessClear()
     if draft.voting_only {
@@ -384,8 +386,7 @@ ReviewLine :: (session: Session, label: string, value: string, x: float32, y: fl
     length := TextAppend(line[:], 0, label)
     length = TextAppend(line[:], length, ": ")
     length = TextAppend(line[:], length, value)
-    UiText(session, TextUntilNul(line[:]), Rectangle.{x, y, width, 20.0}, 15)
-    return 30.0
+    return UiParagraph(session, TextUntilNul(line[:]), x, y, width, 15) + 10.0
 }
 
 ReviewStep :: (session: Session, x: float32, y: float32, width: float32, now: s64) -> float32 {

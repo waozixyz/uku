@@ -10,8 +10,10 @@
 #import "text_append"
 #import "platform"
 
-// Local decisions, ballots, account keys and preferences. Schema upgrades
+// Local decisions, ballots, participant keys and preferences. Schema upgrades
 // preserve data; unsupported schemas are refused without modifying them.
+// Historical columns remain for stored-data preservation only. The active
+// app uses local participant identities and stable proposal keys.
 
 STORAGE_SCHEMA :: "create table if not exists processes (id text primary key, type text not null, phase text not null, topic text not null, description text not null, proposal_minutes integer not null, voting_minutes integer not null, negative_weight integer not null, quorum_votes integer not null default 0, visibility text not null default 'public', proposal_visibility text not null default 'public', proposal_access text not null default 'public', voting_access text not null default 'public', local_address text not null, created_at integer not null, synced integer not null default 0); create table if not exists options (id text primary key, process_id text not null, label text not null, description text not null, position integer not null, foreign key(process_id) references processes(id)); create table if not exists proposals (id integer primary key autoincrement, process_id text not null, author_user_id text not null default '', remote_id text not null default '', display_name text not null default '', title text not null, description text not null, created_at integer not null, synced integer not null default 0, foreign key(process_id) references processes(id)); create table if not exists votes (process_id text not null, voter_user_id text not null, display_name text not null, reason text not null, scores text not null, updated_at integer not null, synced integer not null default 0, primary key(process_id, voter_user_id), foreign key(process_id) references processes(id)); create table if not exists results (process_id text primary key, result_json text not null, computed_at integer not null, foreign key(process_id) references processes(id)); create table if not exists account (id integer primary key check(id = 1), public_id text not null, public_key text not null, private_key text not null); create table if not exists settings (key text primary key, value text not null); create table if not exists participants (process_id text not null, public_id text not null, public_key text not null, private_key text not null, primary key(process_id, public_id));"
 
@@ -22,10 +24,6 @@ StorageColumn :: struct {
 }
 
 database: *void;
-
-StorageOpened :: () -> bool {
-    return database != null
-}
 
 StorageClose :: () {
     if database != null {
@@ -120,6 +118,8 @@ StorageOpen :: (path: string) -> bool {
         return false
     }
     ready := SqliteExecText(database, STORAGE_SCHEMA) == SQLITE_OK && StorageAddMissingColumns()
+    // Preserve identifiers written by earlier versions in the current key column.
+    ready = ready && SqliteExecText(database, "update proposals set proposal_key=remote_id where proposal_key='' and remote_id<>''") == SQLITE_OK
     ready = ready && SqliteExecText(database, "commit") == SQLITE_OK
     if !ready {
         unused SqliteExecText(database, "rollback")
@@ -214,7 +214,6 @@ MAX_PROCESSES :: 128
 // A process as the dashboard lists it.
 ProcessRow :: struct {
     id: [40]u8
-    local_address: [512]u8
     owner: [65]u8
     topic: [180]u8
     description: [420]u8
@@ -223,10 +222,6 @@ ProcessRow :: struct {
     voting_minutes: s32
     negative_weight: s32
     quorum_votes: s32
-    visibility: [16]u8
-    proposal_visibility: [16]u8
-    proposal_access: [16]u8
-    voting_access: [16]u8
     created_at: s64
 }
 
@@ -250,7 +245,7 @@ StorageLoadProcesses :: () -> s32 {
         return 0
     }
     statement: *void = null
-    if SqlitePrepareText(database, "select id, type, topic, description, proposal_minutes, voting_minutes, negative_weight, visibility, local_address, created_at, quorum_votes, owner_user_id, proposal_visibility, proposal_access, voting_access from processes order by created_at desc limit ?", -1, *statement, null) != SQLITE_OK {
+    if SqlitePrepareText(database, "select id, type, topic, description, proposal_minutes, voting_minutes, negative_weight, created_at, quorum_votes, owner_user_id from processes order by created_at desc limit ?", -1, *statement, null) != SQLITE_OK {
         return 0
     }
     unused SqliteBindInt(statement, 1, MAX_PROCESSES)
@@ -268,14 +263,9 @@ StorageLoadProcesses :: () -> s32 {
         if ProcessUsesNegativeWeight(row.type) {
             row.negative_weight = NegativeWeightNormalize(row.negative_weight)
         }
-        StorageColumnText(statement, 7, "public", row.visibility[:])
-        StorageColumnText(statement, 8, "", row.local_address[:])
-        row.created_at = SqliteColumnInt64(statement, 9)
-        row.quorum_votes = SqliteColumnInt(statement, 10)
-        StorageColumnText(statement, 11, "", row.owner[:])
-        StorageColumnText(statement, 12, "public", row.proposal_visibility[:])
-        StorageColumnText(statement, 13, "public", row.proposal_access[:])
-        StorageColumnText(statement, 14, "public", row.voting_access[:])
+        row.created_at = SqliteColumnInt64(statement, 7)
+        row.quorum_votes = SqliteColumnInt(statement, 8)
+        StorageColumnText(statement, 9, "", row.owner[:])
         process_rows[process_row_count] = row
         process_row_count += 1
     }
@@ -284,9 +274,9 @@ StorageLoadProcesses :: () -> s32 {
 }
 
 // Inserts a proposal and returns its local rowid, or -1.
-StorageInsertProposal :: (process_id: string, author: string, display_name: string, title: string, description: string, created_at: s64, synced: bool) -> s64 {
+StorageInsertProposal :: (process_id: string, author: string, display_name: string, title: string, description: string, created_at: s64) -> s64 {
     statement: *void = null
-    if SqlitePrepareText(database, "insert into proposals(process_id, author_user_id, display_name, title, description, created_at, synced) values(?, ?, ?, ?, ?, ?, ?)", -1, *statement, null) != SQLITE_OK {
+    if SqlitePrepareText(database, "insert into proposals(process_id, author_user_id, display_name, title, description, created_at) values(?, ?, ?, ?, ?, ?)", -1, *statement, null) != SQLITE_OK {
         return -1
     }
     unused SqliteBindTextString(statement, 1, process_id, -1)
@@ -295,7 +285,6 @@ StorageInsertProposal :: (process_id: string, author: string, display_name: stri
     unused SqliteBindTextString(statement, 4, title, -1)
     unused SqliteBindTextString(statement, 5, description, -1)
     unused SqliteBindInt64(statement, 6, created_at)
-    unused SqliteBindInt(statement, 7, ifx synced then 1 else 0)
     inserted := SqliteStep(statement) == SQLITE_DONE
     unused SqliteFinalize(statement)
     if !inserted {
@@ -337,7 +326,7 @@ StorageInsertOption :: (process_id: string, option: Option, position: s32) -> bo
 }
 
 StorageInsertStanding :: (process_id: string, owner: string, key: string, title: string, description: string, now: s64) -> bool {
-    rowid := StorageInsertProposal(process_id, owner, "", title, description, now, true)
+    rowid := StorageInsertProposal(process_id, owner, "", title, description, now)
     if rowid < 0 {
         return false
     }
@@ -352,7 +341,7 @@ StorageInsertStanding :: (process_id: string, owner: string, key: string, title:
     return saved
 }
 
-// The standing proposals of a new consent process that has none of its own.
+// Standing proposals included in every new consent decision.
 StandingProposals :: struct {
     status_quo_title: string
     status_quo_description: string
@@ -362,7 +351,7 @@ StandingProposals :: struct {
 
 StorageInsertProcessRow :: (row: ProcessRow) -> bool {
     statement: *void = null
-    if SqlitePrepareText(database, "insert into processes(id, type, phase, topic, description, proposal_minutes, voting_minutes, negative_weight, quorum_votes, visibility, proposal_visibility, proposal_access, voting_access, local_address, created_at, synced, owner_user_id) values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)", -1, *statement, null) != SQLITE_OK {
+    if SqlitePrepareText(database, "insert into processes(id, type, phase, topic, description, proposal_minutes, voting_minutes, negative_weight, quorum_votes, visibility, proposal_visibility, proposal_access, voting_access, local_address, created_at, synced, owner_user_id) values(?, ?, ?, ?, ?, ?, ?, ?, ?, 'private', 'participants', 'participants', 'participants', '', ?, 0, ?)", -1, *statement, null) != SQLITE_OK {
         return false
     }
     unused SqliteBindTextString(statement, 1, TextUntilNul(row.id[:]), -1)
@@ -374,13 +363,8 @@ StorageInsertProcessRow :: (row: ProcessRow) -> bool {
     unused SqliteBindInt(statement, 7, row.voting_minutes)
     unused SqliteBindInt(statement, 8, row.negative_weight)
     unused SqliteBindInt(statement, 9, row.quorum_votes)
-    unused SqliteBindTextString(statement, 10, TextUntilNul(row.visibility[:]), -1)
-    unused SqliteBindTextString(statement, 11, TextUntilNul(row.proposal_visibility[:]), -1)
-    unused SqliteBindTextString(statement, 12, TextUntilNul(row.proposal_access[:]), -1)
-    unused SqliteBindTextString(statement, 13, TextUntilNul(row.voting_access[:]), -1)
-    unused SqliteBindTextString(statement, 14, TextUntilNul(row.local_address[:]), -1)
-    unused SqliteBindInt64(statement, 15, row.created_at)
-    unused SqliteBindTextString(statement, 16, TextUntilNul(row.owner[:]), -1)
+    unused SqliteBindInt64(statement, 10, row.created_at)
+    unused SqliteBindTextString(statement, 11, TextUntilNul(row.owner[:]), -1)
     inserted := SqliteStep(statement) == SQLITE_DONE
     unused SqliteFinalize(statement)
     return inserted
@@ -388,7 +372,7 @@ StorageInsertProcessRow :: (row: ProcessRow) -> bool {
 
 // Saves a newly created process in one transaction: the process, then its
 // options (ranked) or proposals (consent), all as the owner's. A consent
-// process without proposals starts with the two standing ones.
+// process also includes the two standing proposals.
 StorageSaveNewProcess :: (row: ProcessRow, owner_name: string, standing: StandingProposals) -> bool {
     if database == null || SqliteExecText(database, "begin immediate") != SQLITE_OK {
         return false
@@ -408,7 +392,7 @@ StorageSaveNewProcess :: (row: ProcessRow, owner_name: string, standing: Standin
             index: s32 = 0
             while saved && index < process.proposal_count {
                 proposal := process.proposals[index]
-                saved = StorageInsertProposal(process_id, owner, owner_name, TextUntilNul(proposal.title[:]), TextUntilNul(proposal.description[:]), row.created_at, true) >= 0
+                saved = StorageInsertProposal(process_id, owner, owner_name, TextUntilNul(proposal.title[:]), TextUntilNul(proposal.description[:]), row.created_at) >= 0
                 index += 1
             }
         }
@@ -435,14 +419,9 @@ StorageSaveNewProcess :: (row: ProcessRow, owner_name: string, standing: Standin
 ProcessSettingsFromRow :: (row: ProcessRow) -> ProcessSettings {
     settings: ProcessSettings
     settings.id = row.id
-    settings.owner = row.owner
     settings.type = row.type
     settings.topic = row.topic
     settings.description = row.description
-    settings.visibility = row.visibility
-    settings.proposal_visibility = row.proposal_visibility
-    settings.proposal_access = row.proposal_access
-    settings.voting_access = row.voting_access
     settings.proposal_minutes = row.proposal_minutes
     settings.voting_minutes = row.voting_minutes
     settings.negative_weight = row.negative_weight
@@ -483,7 +462,7 @@ StorageLoadOptions :: (process_id: string) {
 // Preserve stored proposal keys; otherwise use a stable local row identifier.
 StorageLoadProposals :: (process_id: string) {
     statement: *void = null
-    if SqlitePrepareText(database, "select id, author_user_id, coalesce(nullif(proposal_key,''), remote_id), title, description, display_name from proposals where process_id=? order by created_at, id", -1, *statement, null) != SQLITE_OK {
+    if SqlitePrepareText(database, "select id, author_user_id, proposal_key, title, description, display_name from proposals where process_id=? order by created_at, id", -1, *statement, null) != SQLITE_OK {
         return
     }
     unused SqliteBindTextString(statement, 1, process_id, -1)
@@ -492,10 +471,7 @@ StorageLoadProposals :: (process_id: string) {
         StorageColumnText(statement, 2, "", proposal.id[:])
         if proposal.id[0] == cast(u8)0 {
             local: [24]u8
-            number: [24]u8
-            length := TextAppend(local[:], 0, "local-")
-            unused TextAppend(local[:], length, FormatInteger(SqliteColumnInt64(statement, 0), number[:]))
-            unused CopyCString(TextUntilNul(local[:]), proposal.id[:])
+            unused CopyCString(StorageLocalProposalId(SqliteColumnInt64(statement, 0), local[:]), proposal.id[:])
         }
         StorageColumnText(statement, 1, "", proposal.author[:])
         StorageColumnText(statement, 3, "", proposal.title[:])
@@ -569,7 +545,7 @@ StorageSaveLocalProposal :: (process_id: string, author: string, display_name: s
     if database == null || !StorageHasText(title) {
         return -1
     }
-    return StorageInsertProposal(process_id, author, display_name, title, description, now, false)
+    return StorageInsertProposal(process_id, author, display_name, title, description, now)
 }
 
 // Saves this participant's ballot, replacing only their own earlier ballot.
@@ -578,7 +554,7 @@ StorageSaveLocalVote :: (process_id: string, voter: string, display_name: string
         return false
     }
     statement: *void = null
-    if SqlitePrepareText(database, "insert into votes(process_id, voter_user_id, display_name, reason, scores, updated_at, synced) values(?, ?, ?, ?, ?, ?, 0) on conflict(process_id, voter_user_id) do update set display_name=excluded.display_name, reason=excluded.reason, scores=excluded.scores, updated_at=excluded.updated_at, synced=0", -1, *statement, null) != SQLITE_OK {
+    if SqlitePrepareText(database, "insert into votes(process_id, voter_user_id, display_name, reason, scores, updated_at) values(?, ?, ?, ?, ?, ?) on conflict(process_id, voter_user_id) do update set display_name=excluded.display_name, reason=excluded.reason, scores=excluded.scores, updated_at=excluded.updated_at", -1, *statement, null) != SQLITE_OK {
         return false
     }
     unused SqliteBindTextString(statement, 1, process_id, -1)

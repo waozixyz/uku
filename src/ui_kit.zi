@@ -6,6 +6,9 @@ using UI :: #import "kryon/Widgets";
 #import "std/text_buffer"
 #import "std/number_text"
 #import "std/c_string"
+#if #defined(PLATFORM_WEB) {
+    #import "browser_input"
+}
 
 FIELD_LIMIT :: 32
 
@@ -163,6 +166,17 @@ UiField :: (session: Session, index: s32, label: string, placeholder: string, bu
     edit: TextFieldEdit
     replacement_storage: [1024]u8
     committed: bool
+    #if #defined(PLATFORM_WEB) {
+        native := BrowserFieldRead(index, label, placeholder, buffer, bounds)
+        state.cursor = native.cursor
+        state.anchor = native.anchor
+        if native.focused {
+            focused_field = index
+        } else if focused_field == index {
+            focused_field = -1
+        }
+        committed = native.committed
+    }
     {
         props: TextFieldProps
         props.key = cast(u64)(1000 + index)
@@ -177,8 +191,10 @@ UiField :: (session: Session, index: s32, label: string, placeholder: string, bu
         props.focused = focused_field == index
         props.max_bytes = cast(s32)buffer.count - 1
         props.max_codepoints = props.max_bytes
-        if props.focused {
-            props.input = TextFieldInputFor(frame_key, frame_modifiers, TextView(typed_storage[0:frame_typed_count]))
+        #if !#defined(PLATFORM_WEB) {
+            if props.focused {
+                props.input = TextFieldInputFor(frame_key, frame_modifiers, TextView(typed_storage[0:frame_typed_count]))
+            }
         }
         result := TextField(session, props)
         state.cursor = result.cursor
@@ -199,7 +215,9 @@ UiField :: (session: Session, index: s32, label: string, placeholder: string, bu
         if !CopyCString(result.edit.replacement, replacement_storage[:]) {
             return false
         }
-        committed = result.committed
+        #if !#defined(PLATFORM_WEB) {
+            committed = result.committed
+        }
     }
     edit.replacement = TextUntilNul(replacement_storage[:])
     unused UiApplyEdit(buffer, edit)

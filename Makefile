@@ -59,4 +59,6 @@ appimage: build
 	sh scripts/package-linux.sh appimage
 
 web-test: web
+	sh site/build.sh
 	node tests/web_test.mjs
+	node tests/web_test.mjs --site

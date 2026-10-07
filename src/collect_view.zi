@@ -32,6 +32,8 @@ new_proposal_description: [420]u8;
 collect_status: [160]u8;
 collect_scroll: s32;
 collect_content_height: s32 = 900;
+collect_phase: Phase;
+collect_phase_known: bool;
 
 ClearBallot :: () {
     index: s32 = 0
@@ -58,6 +60,7 @@ CollectOpened :: () {
         voter_name = .{}
         collect_status[0] = cast(u8)0
         collect_scroll = 0
+        collect_phase_known = false
     }
 }
 
@@ -367,11 +370,6 @@ VerdictText :: (verdict: VerdictResult, quorum: s32, output: []u8) -> string {
 ResultRow :: (session: Session, rank: s32, leading: bool, proposal_index: s32, tally: ProposalTally, weight: s32, x: float32, y: float32, width: float32) -> float32 {
     proposal := process.proposals[proposal_index]
     resisted := tally.vote_count > 0 && tally.negative_total < 0 && -tally.negative_total >= tally.positive_total
-    height: float32 = 76.0
-    if resisted {
-        height = 96.0
-    }
-    UiPanel(session, cast(u64)(7600 + rank), Rectangle.{x, y, width, height})
     title: [256]u8
     digits: [24]u8
     length := TextAppend(title[:], 0, FormatInteger(cast(s64)rank, digits[:]))
@@ -383,7 +381,6 @@ ResultRow :: (session: Session, rank: s32, leading: bool, proposal_index: s32, t
     if NegativeWeightIsInfinite(weight) && tally.negative_total <= -cast(s64)NEGATIVE_WEIGHT_INFINITY {
         length = TextAppend(title[:], length, Tr(" - vetoed"))
     }
-    UiText(session, TextUntilNul(title[:]), Rectangle.{x + 14.0, y + 12.0, width - 90.0, 22.0}, 16)
     meta: [256]u8
     average: [24]u8
     length = TextAppend(meta[:], 0, Tr("total"))
@@ -405,9 +402,23 @@ ResultRow :: (session: Session, rank: s32, leading: bool, proposal_index: s32, t
     length = TextAppend(meta[:], length, Tr("avg"))
     length = TextAppend(meta[:], length, " ")
     length = TextAppend(meta[:], length, FormatAverage(tally.total, tally.vote_count, average[:]))
-    UiText(session, TextUntilNul(meta[:]), Rectangle.{x + 14.0, y + 42.0, width - 90.0, 18.0}, 13)
+    inner := width - 90.0
+    title_height := UiTextHeight(TextUntilNul(title[:]), inner, 16)
+    meta_height := UiTextHeight(TextUntilNul(meta[:]), inner, 13)
+    warning_height: float32 = 0.0
     if resisted {
-        UiText(session, Tr("resistance at least equals support"), Rectangle.{x + 14.0, y + 64.0, width - 90.0, 18.0}, 13)
+        warning_height = UiTextHeight(Tr("resistance at least equals support"), inner, 13) + 8.0
+    }
+    height := 12.0 + title_height + 8.0 + meta_height + warning_height + 12.0
+    if height < 76.0 {
+        height = 76.0
+    }
+    UiPanel(session, cast(u64)(7600 + rank), Rectangle.{x, y, width, height})
+    text_y := y + 12.0
+    text_y += UiParagraph(session, TextUntilNul(title[:]), x + 14.0, text_y, inner, 16) + 8.0
+    text_y += UiParagraph(session, TextUntilNul(meta[:]), x + 14.0, text_y, inner, 13)
+    if resisted {
+        unused UiParagraph(session, Tr("resistance at least equals support"), x + 14.0, text_y + 8.0, inner, 13)
     }
     // The average score, rounded, in a badge at the end of the row.
     badge: [16]u8
@@ -535,7 +546,8 @@ ProposalList :: (session: Session, x: float32, y: float32, width: float32) -> fl
         author := TextUntilNul(proposal.display_name[:])
         description := TextUntilNul(proposal.description[:])
         inner := width - 28.0
-        height: float32 = 44.0
+        title_height := UiTextHeight(TextUntilNul(proposal.title[:]), inner, 16)
+        height := title_height + 22.0
         if author.count > 0 {
             height += 22.0
         }
@@ -546,8 +558,7 @@ ProposalList :: (session: Session, x: float32, y: float32, width: float32) -> fl
         }
         UiPanel(session, cast(u64)(8000 + index), Rectangle.{x, y, width, height})
         line_y := y + 12.0
-        UiText(session, TextUntilNul(proposal.title[:]), Rectangle.{x + 14.0, line_y, inner, 22.0}, 16)
-        line_y += 26.0
+        line_y += UiParagraph(session, TextUntilNul(proposal.title[:]), x + 14.0, line_y, inner, 16) + 8.0
         if author.count > 0 {
             UiText(session, author, Rectangle.{x + 14.0, line_y, inner, 18.0}, 13)
             line_y += 22.0
@@ -562,18 +573,26 @@ ProposalList :: (session: Session, x: float32, y: float32, width: float32) -> fl
 }
 
 CollectView :: (session: Session, viewport: Rectangle, now: s64) {
-    if UiSubPageBar(session, viewport, Tr("collect_title")) {
-        screen = ScreenId.ScreenHome
-        unused StorageLoadProcesses()
-        loaded_row = -1
-        return
-    }
     if open_row < 0 || open_row >= process_row_count {
         screen = ScreenId.ScreenHome
         return
     }
     CollectOpened()
     row := process_rows[open_row]
+    phase := ProcessPhaseAt(row.created_at, row.proposal_minutes, row.voting_minutes, now).phase
+    if !collect_phase_known || phase != collect_phase {
+        collect_phase = phase
+        collect_phase_known = true
+        collect_scroll = 0
+        focused_field = -1
+        collect_status = .{}
+    }
+    if UiSubPageBar(session, viewport, PhaseLabel(phase)) {
+        screen = ScreenId.ScreenHome
+        unused StorageLoadProcesses()
+        loaded_row = -1
+        return
+    }
     props: ScrollProps
     props.key = cast(u64)7000
     props.bounds = Rectangle.{viewport.x, viewport.y + SUB_PAGE_BAR_HEIGHT, viewport.width, viewport.height - SUB_PAGE_BAR_HEIGHT}
@@ -591,7 +610,6 @@ CollectView :: (session: Session, viewport: Rectangle, now: s64) {
     top := scroll.content.y + 20.0
     y := top
     y += Header(session, row, now, x, y, width)
-    phase := ProcessPhaseAt(row.created_at, row.proposal_minutes, row.voting_minutes, now).phase
     if phase == Phase.PhaseProposal {
         y += ProposalSection(session, row, now, x, y, width)
     } else if phase == Phase.PhaseVoting {

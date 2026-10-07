@@ -1,11 +1,9 @@
-#import "std/json_scan"
 #import "ballot"
 #import "tally"
 #import "std/text_buffer"
 
-// A decision process as the Ukuvota server returns it: its settings, the
-// proposals (consent and collection processes) or options (ranked
-// processes), and each participant's scores.
+// A stored decision, its proposals and each participant's scores.
+// Existing ranked decisions retain their saved options.
 
 MAX_PROPOSALS :: 64
 MAX_OPTIONS :: 5
@@ -19,21 +17,12 @@ ProcessType :: enum {
 
 ProcessSettings :: struct {
     id: [40]u8
-    owner: [65]u8
     type: ProcessType
     topic: [180]u8
     description: [420]u8
-    visibility: [16]u8
-    proposal_visibility: [16]u8
-    proposal_access: [16]u8
-    voting_access: [16]u8
-    outcome: [120]u8
-    review_at: [64]u8
-    created_at: [64]u8
     proposal_minutes: s32
     voting_minutes: s32
     negative_weight: s32
-    quorum_percent: s32
     quorum_votes: s32
 }
 
@@ -122,33 +111,6 @@ SetText :: (output: []u8, value: string) {
     output[length] = cast(u8)0
 }
 
-// Reads the string member `name` of the object at `object_at` into output.
-// Returns false, with output empty, when it is missing or not a string.
-ReadTextField :: (json: string, object_at: s32, name: string, output: []u8) -> bool {
-    if output.count == 0 {
-        return false
-    }
-    output[0] = cast(u8)0
-    at := FieldAt(json, object_at, name)
-    if at < 0 {
-        return false
-    }
-    return ReadStringText(json, at, output) > 0
-}
-
-// Reads the whole-number member `name`, or returns fallback.
-ReadNumberField :: (json: string, object_at: s32, name: string, fallback: s32) -> s32 {
-    at := FieldAt(json, object_at, name)
-    if at < 0 {
-        return fallback
-    }
-    number := ReadNumber(json, at)
-    if !number.valid {
-        return fallback
-    }
-    return cast(s32)number.value
-}
-
 ProcessClear :: () {
     process = ProcessDetail.{}
 }
@@ -220,169 +182,6 @@ ProcessOptionFind :: (id: string) -> s32 {
         index += 1
     }
     return -1
-}
-
-ParseSettings :: (json: string) {
-    settings: ProcessSettings
-    unused ReadTextField(json, 0, "id", settings.id[:])
-    unused ReadTextField(json, 0, "owner_user_id_hash", settings.owner[:])
-    type_key: [40]u8
-    if ReadTextField(json, 0, "type", type_key[:]) {
-        settings.type = ProcessTypeFromKey(TextUntilNul(type_key[:]))
-    }
-    unused ReadTextField(json, 0, "title", settings.topic[:])
-    unused ReadTextField(json, 0, "description", settings.description[:])
-    unused ReadTextField(json, 0, "outcome", settings.outcome[:])
-    unused ReadTextField(json, 0, "review_at", settings.review_at[:])
-    unused ReadTextField(json, 0, "created_at", settings.created_at[:])
-    // Every permission defaults to public.
-    if !ReadTextField(json, 0, "visibility", settings.visibility[:]) {
-        SetText(settings.visibility[:], "public")
-    }
-    if !ReadTextField(json, 0, "proposal_visibility", settings.proposal_visibility[:]) {
-        SetText(settings.proposal_visibility[:], "public")
-    }
-    if !ReadTextField(json, 0, "proposal_access", settings.proposal_access[:]) {
-        SetText(settings.proposal_access[:], "public")
-    }
-    if !ReadTextField(json, 0, "voting_access", settings.voting_access[:]) {
-        SetText(settings.voting_access[:], "public")
-    }
-    settings.proposal_minutes = ReadNumberField(json, 0, "proposal_minutes", 0)
-    settings.voting_minutes = ReadNumberField(json, 0, "voting_minutes", 0)
-    settings.quorum_percent = ReadNumberField(json, 0, "quorum_percent", 0)
-    settings.quorum_votes = ReadNumberField(json, 0, "quorum_votes", 0)
-    settings.negative_weight = ReadNumberField(json, 0, "negative_weight", 0)
-    if ProcessUsesNegativeWeight(settings.type) {
-        settings.negative_weight = NegativeWeightNormalize(settings.negative_weight)
-    }
-    process.settings = settings
-}
-
-ParseProposals :: (json: string) {
-    array := FieldAt(json, 0, "proposals")
-    count := ArrayCount(json, array)
-    element: s32 = 0
-    while element < count && process.proposal_count < MAX_PROPOSALS {
-        at := ElementAt(json, array, element)
-        proposal: Proposal
-        if ReadTextField(json, at, "id", proposal.id[:]) &&
-            ReadTextField(json, at, "title", proposal.title[:]) {
-            unused ReadTextField(json, at, "description", proposal.description[:])
-            unused ReadTextField(json, at, "author_user_id_hash", proposal.author[:])
-            if !ReadTextField(json, at, "display_name", proposal.display_name[:]) {
-                unused ReadTextField(json, at, "author_display_name", proposal.display_name[:])
-            }
-            process.proposals[process.proposal_count] = proposal
-            process.proposal_count += 1
-        }
-        element += 1
-    }
-}
-
-ParseOptions :: (json: string) {
-    array := FieldAt(json, 0, "options")
-    count := ArrayCount(json, array)
-    element: s32 = 0
-    while element < count && process.option_count < MAX_OPTIONS {
-        at := ElementAt(json, array, element)
-        option: Option
-        if ReadTextField(json, at, "id", option.id[:]) &&
-            ReadTextField(json, at, "label", option.label[:]) {
-            unused ReadTextField(json, at, "description", option.description[:])
-            process.options[process.option_count] = option
-            process.option_count += 1
-        }
-        element += 1
-    }
-}
-
-// Reads the "scores" object of the vote at `vote_at` into the participant's
-// row, by proposal (or option) id. Unknown ids are ignored.
-ParseVoteScores :: (json: string, vote_at: s32, participant: s32) {
-    scores_at := FieldAt(json, vote_at, "scores")
-    cursor := Space(json, scores_at)
-    if cursor < 0 || cursor >= cast(s32)json.count || json[cursor] != cast(u8)123 {
-        return
-    }
-    cursor = Space(json, cursor + 1)
-    options := ProcessHasOptions(process.settings.type)
-    id: [40]u8
-    while cursor < cast(s32)json.count && json[cursor] != cast(u8)125 {
-        key := ReadString(json, cursor)
-        if !key.valid {
-            return
-        }
-        unused ReadStringText(json, cursor, id[:])
-        cursor = Space(json, key.after)
-        if cursor >= cast(s32)json.count || json[cursor] != cast(u8)58 {
-            return
-        }
-        cursor = Space(json, cursor + 1)
-        number := ReadNumber(json, cursor)
-        if number.valid && ScoreIsValid(cast(s32)number.value) {
-            score := cast(s8)cast(s32)number.value
-            if options {
-                index := ProcessOptionFind(TextUntilNul(id[:]))
-                if index >= 0 {
-                    process.option_scores[participant][index] = score
-                }
-            } else {
-                index := ProcessProposalFind(TextUntilNul(id[:]))
-                if index >= 0 {
-                    process.proposal_scores[participant][index] = score
-                }
-            }
-        }
-        cursor = ValueEnd(json, cursor, 0)
-        if cursor < 0 {
-            return
-        }
-        cursor = Space(json, cursor)
-        if cursor < cast(s32)json.count && json[cursor] == cast(u8)44 {
-            cursor = Space(json, cursor + 1)
-        }
-    }
-}
-
-ParseVotes :: (json: string) {
-    array := FieldAt(json, 0, "votes")
-    count := ArrayCount(json, array)
-    element: s32 = 0
-    while element < count {
-        at := ElementAt(json, array, element)
-        voter: [65]u8
-        display_name: [80]u8
-        unused ReadTextField(json, at, "voter_user_id_hash", voter[:])
-        unused ReadTextField(json, at, "display_name", display_name[:])
-        participant := ProcessParticipantAdd(TextUntilNul(voter[:]), TextUntilNul(display_name[:]), true)
-        if participant >= 0 {
-            unused ReadTextField(json, at, "updated_at", process.participants[participant].updated_at[:])
-            ParseVoteScores(json, at, participant)
-        }
-        element += 1
-    }
-}
-
-// Replaces the current process with the one in `json`. Options come before
-// proposals and proposals before votes, since votes refer to them by id.
-// Proposal authors take part even before they vote.
-ParseProcessDetail :: (json: string) -> bool {
-    ProcessClear()
-    if FieldAt(json, 0, "id") < 0 {
-        return false
-    }
-    ParseSettings(json)
-    ParseOptions(json)
-    ParseProposals(json)
-    ParseVotes(json)
-    index: s32 = 0
-    while index < process.proposal_count {
-        unused ProcessParticipantAdd(TextUntilNul(process.proposals[index].author[:]),
-            TextUntilNul(process.proposals[index].display_name[:]), false)
-        index += 1
-    }
-    return true
 }
 
 ProcessBallotCounts :: (index: s32) -> bool {

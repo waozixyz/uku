@@ -36,4 +36,5 @@ mkdir -p build/web/c
     -sENVIRONMENT=web --shell-file src/web_shell.html \
     -o build/dist/web/index.html
 cp web-assets/uku-logo.svg build/dist/web/
+cp web-assets/browser-input.js build/dist/web/
 python3 scripts/package-web.py

@@ -91,9 +91,6 @@ Minutos
 [create_process_button]
 Crear proceso
 ---
-[collect_title]
-Recoger propuestas
----
 [proposal_phase_label]
 Fase de propuestas
 ---
@@ -366,4 +363,10 @@ Las decisiones se guardan en este dispositivo. Compartir en línea aún no está
 ---
 [next_participant]
 Siguiente participante
+---
+[backup_button]
+Descargar copia de seguridad
+---
+[retry_save_button]
+Reintentar guardar
 ---

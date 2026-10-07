@@ -91,9 +91,6 @@
 [create_process_button]
 创建流程
 ---
-[collect_title]
-收集提案
----
 [proposal_phase_label]
 提案阶段
 ---
@@ -363,4 +360,10 @@ Status quo 和“重复流程”始终是可选项。
 ---
 [next_participant]
 下一位参与者
+---
+[backup_button]
+下载备份
+---
+[retry_save_button]
+重试保存
 ---

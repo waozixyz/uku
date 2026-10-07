@@ -9,3 +9,5 @@ zlib1g-dev
 curl
 xvfb
 xauth
+tesseract-ocr
+python3-pil

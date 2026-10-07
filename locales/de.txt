@@ -91,9 +91,6 @@ Minuten
 [create_process_button]
 Prozess erstellen
 ---
-[collect_title]
-Vorschläge sammeln
----
 [proposal_phase_label]
 Vorschlagsphase
 ---
@@ -366,4 +363,10 @@ Entscheidungen werden auf diesem Gerät gespeichert. Online-Teilen ist noch nich
 ---
 [next_participant]
 Nächste teilnehmende Person
+---
+[backup_button]
+Sicherung herunterladen
+---
+[retry_save_button]
+Erneut speichern
 ---

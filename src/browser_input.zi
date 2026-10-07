@@ -1,0 +1,57 @@
+// App host glue using Ziran's public browser API. Kryon still draws fields;
+// the DOM supplies native text editing and reports byte-based selections.
+#import "std/web"
+#import "std/text_buffer"
+#import "locale"
+using UI :: #import "kryon/Widgets";
+
+BrowserFieldState :: struct {
+    cursor: s32
+    anchor: s32
+    focused: bool
+    committed: bool
+}
+
+BrowserInputsBegin :: (viewport: Rectangle) {
+    scope := WebScope()
+    args: [4]WebValue
+    args[0] = WebNumber(cast(float64)viewport.y + 56.0)
+    args[1] = WebNumber(cast(float64)viewport.height - 56.0)
+    args[2] = WebText(Tr("backup_button"))
+    args[3] = WebText(Tr("retry_save_button"))
+    unused WebCall(WebModule, WebName("beginFields"), *args[0], 4)
+    WebEnd(scope)
+}
+
+BrowserInputsEnd :: () {
+    scope := WebScope()
+    unused WebCall0(WebModule, WebName("endFields"))
+    WebEnd(scope)
+}
+
+BrowserFieldRead :: (id: s32, label: string, placeholder: string, buffer: []u8, bounds: Rectangle) -> BrowserFieldState {
+    scope := WebScope()
+    args: [9]WebValue
+    args[0] = WebNumber(cast(float64)id)
+    args[1] = WebText(label)
+    args[2] = WebText(placeholder)
+    args[3] = WebText(TextUntilNul(buffer))
+    args[4] = WebNumber(cast(float64)buffer.count - 1.0)
+    args[5] = WebNumber(cast(float64)bounds.x)
+    args[6] = WebNumber(cast(float64)bounds.y)
+    args[7] = WebNumber(cast(float64)bounds.width)
+    args[8] = WebNumber(cast(float64)bounds.height)
+    result := WebAsObject(WebCall(WebModule, WebName("inputField"), *args[0], 9))
+    state: BrowserFieldState
+    if result != 0 {
+        text := WebGetObject(result, WebName("value"))
+        // End the model's borrow before copying the browser edit into it.
+        unused WebCopyString(text, buffer)
+        state.cursor = cast(s32)WebGetNumber(result, WebName("cursor"))
+        state.anchor = cast(s32)WebGetNumber(result, WebName("anchor"))
+        state.focused = WebAsBool(WebGet(result, WebName("focused")))
+        state.committed = WebAsBool(WebGet(result, WebName("committed")))
+    }
+    WebEnd(scope)
+    return state
+}

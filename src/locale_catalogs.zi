@@ -35,7 +35,6 @@ LocaleFill_en :: () {
     LocaleAdd("hours_label", "Hours")
     LocaleAdd("minutes_label", "Minutes")
     LocaleAdd("create_process_button", "Create Process")
-    LocaleAdd("collect_title", "Collect Proposals")
     LocaleAdd("proposal_phase_label", "Proposal phase")
     LocaleAdd("voting_phase_label", "Voting phase")
     LocaleAdd("results_phase_label", "Results ready")
@@ -74,6 +73,8 @@ LocaleFill_en :: () {
     LocaleAdd("persistence_error", "Could not save browser data. Keep this page open and export a backup.")
     LocaleAdd("local_mode_hint", "Decisions are stored on this device. Online sharing is not connected yet.")
     LocaleAdd("next_participant", "Next participant")
+    LocaleAdd("backup_button", "Download backup")
+    LocaleAdd("retry_save_button", "Retry saving")
 }
 
 LocaleFill_es :: () {
@@ -106,7 +107,6 @@ LocaleFill_es :: () {
     LocaleAdd("hours_label", "Horas")
     LocaleAdd("minutes_label", "Minutos")
     LocaleAdd("create_process_button", "Crear proceso")
-    LocaleAdd("collect_title", "Recoger propuestas")
     LocaleAdd("proposal_phase_label", "Fase de propuestas")
     LocaleAdd("voting_phase_label", "Fase de votación")
     LocaleAdd("results_phase_label", "Resultados listos")
@@ -198,6 +198,8 @@ LocaleFill_es :: () {
     LocaleAdd("persistence_error", "No se pudieron guardar los datos del navegador. Mantén esta página abierta y exporta una copia de seguridad.")
     LocaleAdd("local_mode_hint", "Las decisiones se guardan en este dispositivo. Compartir en línea aún no está conectado.")
     LocaleAdd("next_participant", "Siguiente participante")
+    LocaleAdd("backup_button", "Descargar copia de seguridad")
+    LocaleAdd("retry_save_button", "Reintentar guardar")
 }
 
 LocaleFill_cs :: () {
@@ -230,7 +232,6 @@ LocaleFill_cs :: () {
     LocaleAdd("hours_label", "Hodiny")
     LocaleAdd("minutes_label", "Minuty")
     LocaleAdd("create_process_button", "Vytvořit proces")
-    LocaleAdd("collect_title", "Sbírat návrhy")
     LocaleAdd("proposal_phase_label", "Fáze návrhů")
     LocaleAdd("voting_phase_label", "Fáze hlasování")
     LocaleAdd("results_phase_label", "Výsledky připraveny")
@@ -321,6 +322,8 @@ LocaleFill_cs :: () {
     LocaleAdd("persistence_error", "Data prohlížeče se nepodařilo uložit. Nechte stránku otevřenou a exportujte zálohu.")
     LocaleAdd("local_mode_hint", "Rozhodnutí jsou uložena v tomto zařízení. Online sdílení zatím není připojeno.")
     LocaleAdd("next_participant", "Další účastník")
+    LocaleAdd("backup_button", "Stáhnout zálohu")
+    LocaleAdd("retry_save_button", "Zkusit uložit znovu")
 }
 
 LocaleFill_de :: () {
@@ -353,7 +356,6 @@ LocaleFill_de :: () {
     LocaleAdd("hours_label", "Stunden")
     LocaleAdd("minutes_label", "Minuten")
     LocaleAdd("create_process_button", "Prozess erstellen")
-    LocaleAdd("collect_title", "Vorschläge sammeln")
     LocaleAdd("proposal_phase_label", "Vorschlagsphase")
     LocaleAdd("voting_phase_label", "Abstimmungsphase")
     LocaleAdd("results_phase_label", "Ergebnisse bereit")
@@ -445,6 +447,8 @@ LocaleFill_de :: () {
     LocaleAdd("persistence_error", "Browserdaten konnten nicht gespeichert werden. Lass diese Seite geöffnet und exportiere eine Sicherung.")
     LocaleAdd("local_mode_hint", "Entscheidungen werden auf diesem Gerät gespeichert. Online-Teilen ist noch nicht verbunden.")
     LocaleAdd("next_participant", "Nächste teilnehmende Person")
+    LocaleAdd("backup_button", "Sicherung herunterladen")
+    LocaleAdd("retry_save_button", "Erneut speichern")
 }
 
 LocaleFill_fr :: () {
@@ -477,7 +481,6 @@ LocaleFill_fr :: () {
     LocaleAdd("hours_label", "Heures")
     LocaleAdd("minutes_label", "Minutes")
     LocaleAdd("create_process_button", "Créer le processus")
-    LocaleAdd("collect_title", "Collecter les propositions")
     LocaleAdd("proposal_phase_label", "Phase de propositions")
     LocaleAdd("voting_phase_label", "Phase de vote")
     LocaleAdd("results_phase_label", "Résultats prêts")
@@ -569,6 +572,8 @@ LocaleFill_fr :: () {
     LocaleAdd("persistence_error", "Impossible de sauvegarder les données du navigateur. Gardez cette page ouverte et exportez une sauvegarde.")
     LocaleAdd("local_mode_hint", "Les décisions sont conservées sur cet appareil. Le partage en ligne ne fonctionne pas encore.")
     LocaleAdd("next_participant", "Participant suivant")
+    LocaleAdd("backup_button", "Télécharger la sauvegarde")
+    LocaleAdd("retry_save_button", "Réessayer l’enregistrement")
 }
 
 LocaleFill_id :: () {
@@ -601,7 +606,6 @@ LocaleFill_id :: () {
     LocaleAdd("hours_label", "Jam")
     LocaleAdd("minutes_label", "Menit")
     LocaleAdd("create_process_button", "Buat Proses")
-    LocaleAdd("collect_title", "Kumpulkan Proposal")
     LocaleAdd("proposal_phase_label", "Fase proposal")
     LocaleAdd("voting_phase_label", "Fase pemungutan suara")
     LocaleAdd("results_phase_label", "Hasil siap")
@@ -692,6 +696,8 @@ LocaleFill_id :: () {
     LocaleAdd("persistence_error", "Data peramban tidak dapat disimpan. Biarkan halaman ini terbuka dan ekspor cadangan.")
     LocaleAdd("local_mode_hint", "Keputusan disimpan di perangkat ini. Berbagi daring belum terhubung.")
     LocaleAdd("next_participant", "Peserta berikutnya")
+    LocaleAdd("backup_button", "Unduh cadangan")
+    LocaleAdd("retry_save_button", "Coba simpan lagi")
 }
 
 LocaleFill_it :: () {
@@ -724,7 +730,6 @@ LocaleFill_it :: () {
     LocaleAdd("hours_label", "Ore")
     LocaleAdd("minutes_label", "Minuti")
     LocaleAdd("create_process_button", "Crea processo")
-    LocaleAdd("collect_title", "Raccogli proposte")
     LocaleAdd("proposal_phase_label", "Fase proposte")
     LocaleAdd("voting_phase_label", "Fase voto")
     LocaleAdd("results_phase_label", "Risultati pronti")
@@ -815,6 +820,8 @@ LocaleFill_it :: () {
     LocaleAdd("persistence_error", "Impossibile salvare i dati del browser. Tieni aperta questa pagina ed esporta una copia di sicurezza.")
     LocaleAdd("local_mode_hint", "Le decisioni sono salvate su questo dispositivo. La condivisione online non è ancora collegata.")
     LocaleAdd("next_participant", "Partecipante successivo")
+    LocaleAdd("backup_button", "Scarica backup")
+    LocaleAdd("retry_save_button", "Riprova a salvare")
 }
 
 LocaleFill_pt :: () {
@@ -847,7 +854,6 @@ LocaleFill_pt :: () {
     LocaleAdd("hours_label", "Horas")
     LocaleAdd("minutes_label", "Minutos")
     LocaleAdd("create_process_button", "Criar processo")
-    LocaleAdd("collect_title", "Coletar propostas")
     LocaleAdd("proposal_phase_label", "Fase de propostas")
     LocaleAdd("voting_phase_label", "Fase de votação")
     LocaleAdd("results_phase_label", "Resultados prontos")
@@ -938,6 +944,8 @@ LocaleFill_pt :: () {
     LocaleAdd("persistence_error", "Não foi possível salvar os dados do navegador. Mantenha esta página aberta e exporte uma cópia de segurança.")
     LocaleAdd("local_mode_hint", "As decisões ficam neste dispositivo. O compartilhamento on-line ainda não está conectado.")
     LocaleAdd("next_participant", "Próximo participante")
+    LocaleAdd("backup_button", "Baixar cópia de segurança")
+    LocaleAdd("retry_save_button", "Tentar salvar novamente")
 }
 
 LocaleFill_ru :: () {
@@ -970,7 +978,6 @@ LocaleFill_ru :: () {
     LocaleAdd("hours_label", "Часы")
     LocaleAdd("minutes_label", "Минуты")
     LocaleAdd("create_process_button", "Создать процесс")
-    LocaleAdd("collect_title", "Собрать предложения")
     LocaleAdd("proposal_phase_label", "Фаза предложений")
     LocaleAdd("voting_phase_label", "Фаза голосования")
     LocaleAdd("results_phase_label", "Результаты готовы")
@@ -1061,6 +1068,8 @@ LocaleFill_ru :: () {
     LocaleAdd("persistence_error", "Не удалось сохранить данные браузера. Оставьте страницу открытой и экспортируйте резервную копию.")
     LocaleAdd("local_mode_hint", "Решения хранятся на этом устройстве. Обмен через интернет пока не подключён.")
     LocaleAdd("next_participant", "Следующий участник")
+    LocaleAdd("backup_button", "Скачать резервную копию")
+    LocaleAdd("retry_save_button", "Повторить сохранение")
 }
 
 LocaleFill_ja :: () {
@@ -1093,7 +1102,6 @@ LocaleFill_ja :: () {
     LocaleAdd("hours_label", "時間")
     LocaleAdd("minutes_label", "分")
     LocaleAdd("create_process_button", "プロセスを作成")
-    LocaleAdd("collect_title", "提案を集める")
     LocaleAdd("proposal_phase_label", "提案フェーズ")
     LocaleAdd("voting_phase_label", "投票フェーズ")
     LocaleAdd("results_phase_label", "結果の準備完了")
@@ -1184,6 +1192,8 @@ LocaleFill_ja :: () {
     LocaleAdd("persistence_error", "ブラウザーのデータを保存できませんでした。このページを開いたままバックアップを書き出してください。")
     LocaleAdd("local_mode_hint", "決定はこの端末に保存されます。オンライン共有はまだ接続されていません。")
     LocaleAdd("next_participant", "次の参加者")
+    LocaleAdd("backup_button", "バックアップをダウンロード")
+    LocaleAdd("retry_save_button", "保存を再試行")
 }
 
 LocaleFill_ko :: () {
@@ -1216,7 +1226,6 @@ LocaleFill_ko :: () {
     LocaleAdd("hours_label", "시간")
     LocaleAdd("minutes_label", "분")
     LocaleAdd("create_process_button", "프로세스 만들기")
-    LocaleAdd("collect_title", "제안 모으기")
     LocaleAdd("proposal_phase_label", "제안 단계")
     LocaleAdd("voting_phase_label", "투표 단계")
     LocaleAdd("results_phase_label", "결과 준비됨")
@@ -1307,6 +1316,8 @@ LocaleFill_ko :: () {
     LocaleAdd("persistence_error", "브라우저 데이터를 저장하지 못했습니다. 이 페이지를 열어 두고 백업을 내보내세요.")
     LocaleAdd("local_mode_hint", "결정은 이 기기에 저장됩니다. 온라인 공유는 아직 연결되지 않았습니다.")
     LocaleAdd("next_participant", "다음 참여자")
+    LocaleAdd("backup_button", "백업 다운로드")
+    LocaleAdd("retry_save_button", "저장 다시 시도")
 }
 
 LocaleFill_zh :: () {
@@ -1339,7 +1350,6 @@ LocaleFill_zh :: () {
     LocaleAdd("hours_label", "小时")
     LocaleAdd("minutes_label", "分钟")
     LocaleAdd("create_process_button", "创建流程")
-    LocaleAdd("collect_title", "收集提案")
     LocaleAdd("proposal_phase_label", "提案阶段")
     LocaleAdd("voting_phase_label", "投票阶段")
     LocaleAdd("results_phase_label", "结果已准备好")
@@ -1430,6 +1440,8 @@ LocaleFill_zh :: () {
     LocaleAdd("persistence_error", "无法保存浏览器数据。请保持此页面打开并导出备份。")
     LocaleAdd("local_mode_hint", "决策保存在此设备上。在线分享尚未连接。")
     LocaleAdd("next_participant", "下一位参与者")
+    LocaleAdd("backup_button", "下载备份")
+    LocaleAdd("retry_save_button", "重试保存")
 }
 
 // Fills locale_filling for a language code; false for an unknown code.

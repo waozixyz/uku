@@ -12,9 +12,7 @@ libc :: #system_library "libc";
 EnvironmentRaw :: (name: *u8) -> *u8 #foreign libc "getenv";
 
 #if #defined(PLATFORM_WEB) {
-    emscripten :: #system_library "emscripten";
-    BrowserScript :: (script: *u8) #foreign emscripten "emscripten_run_script";
-    BrowserScriptInt :: (script: *u8) -> s32 #foreign emscripten "emscripten_run_script_int";
+    #import "std/web"
 }
 #if #defined(ANDROID_BUILD) {
     platform_api :: #system_library "platform_api";
@@ -106,21 +104,30 @@ DataPath :: () -> string {
 
 PersistChanges :: () {
     #if #defined(PLATFORM_WEB) {
-        script: [64]u8
-        if CopyCString("Module.saveUkuData();", script[:]) {
-            BrowserScript(*script[0])
-        }
+        scope := WebScope()
+        unused WebCall0(WebModule, WebName("saveUkuData"))
+        WebEnd(scope)
     }
 }
 
 PersistenceFailed :: () -> bool {
     #if #defined(PLATFORM_WEB) {
-        script: [64]u8
-        if CopyCString("Module.ukuSaveFailed ? 1 : 0", script[:]) {
-            return BrowserScriptInt(*script[0]) != 0
-        }
+        scope := WebScope()
+        failed := WebAsBool(WebGet(WebModule, WebName("ukuSaveFailed")))
+        WebEnd(scope)
+        return failed
     }
     return false
+}
+
+#if #defined(PLATFORM_WEB) {
+BrowserPrefersDark :: () -> bool {
+    scope := WebScope()
+    query := WebAsObject(WebCall1(WebGlobal, WebName("matchMedia"), WebText("(prefers-color-scheme: dark)")))
+    dark := WebAsBool(WebGet(query, WebName("matches")))
+    WebEnd(scope)
+    return dark
+}
 }
 
 ShowKeyboard :: (visible: bool) {

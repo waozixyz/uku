@@ -79,7 +79,7 @@ def main():
                 click(650, 392)  # Rules: weight, quorum and local storage notice
                 click(650, 395)  # Timing: proposal and voting phases
                 subprocess.run(['import', '-window', window, str(ROOT / 'build/smoke/review.png')], check=True)
-                click(650, 375)  # Review: create the decision
+                click(650, 350)  # Review: create the decision
                 def created():
                     with sqlite3.connect(database) as connection:
                         return connection.execute("select count(*) from processes where topic='Choose dinner'").fetchone()[0] == 1

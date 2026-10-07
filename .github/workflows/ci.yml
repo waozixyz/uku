@@ -97,10 +97,13 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Test browser persistence
+      - name: Test complete browser workflows and website
         env:
           CHROMIUM: google-chrome
-        run: node tests/web_test.mjs
+        run: |
+          sh site/build.sh
+          node tests/web_test.mjs
+          node tests/web_test.mjs --site
 
   build-android-debug:
     name: Build Android Debug
