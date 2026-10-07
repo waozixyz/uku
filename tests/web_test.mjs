@@ -668,5 +668,5 @@ try {
     else browser.once('exit', resolve);
   });
   await new Promise((resolve) => server.close(resolve));
-  await rm(scratch, { recursive: true, force: true });
+  await rm(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 }
