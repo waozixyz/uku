@@ -141,11 +141,19 @@ try {
   await command('Page.enable');
   await command('Network.enable');
   const networkFailures = [];
+  const requestUrls = new Map();
   const oldMessage = socket.onmessage;
   socket.onmessage = (event) => {
     const message = JSON.parse(event.data);
+    if (message.method === 'Network.requestWillBeSent')
+      requestUrls.set(message.params.requestId, message.params.request.url);
     if (message.method === 'Network.loadingFailed' && !message.params.canceled)
-      networkFailures.push(message.params.errorText);
+      networkFailures.push({
+        url: requestUrls.get(message.params.requestId),
+        error: message.params.errorText,
+        blockedReason: message.params.blockedReason,
+        type: message.params.type,
+      });
     if (message.method === 'Network.responseReceived' && message.params.response.status >= 400)
       networkFailures.push(message.params.response.url);
     oldMessage(event);

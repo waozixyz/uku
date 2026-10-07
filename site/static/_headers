@@ -4,6 +4,16 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: geolocation=(), microphone=(), camera=()
 
+# Serve HTML unchanged, without scripts injected by the hosting proxy.
+/
+  Cache-Control: public, max-age=0, must-revalidate, no-transform
+
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate, no-transform
+
+/build/web/
+  Cache-Control: public, max-age=0, must-revalidate, no-transform
+
 /build/web/*
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Embedder-Policy: require-corp
