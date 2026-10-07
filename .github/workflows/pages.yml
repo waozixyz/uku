@@ -22,7 +22,6 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-        with:
 
       - name: Install Packages
         timeout-minutes: 15
