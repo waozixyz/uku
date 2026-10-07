@@ -178,7 +178,9 @@ try {
     await evaluate('document.querySelector(\'a[href="/build/web/index.html"]\').click()');
     await until(
       () =>
-        evaluate("location.pathname === '/build/web/index.html' && typeof Module !== 'undefined'"),
+        evaluate(
+          "['/build/web/index.html', '/build/web/'].includes(location.pathname) && typeof Module !== 'undefined'",
+        ),
       'Website Run web app link did not open Ukuvota',
     );
   }

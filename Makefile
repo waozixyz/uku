@@ -6,16 +6,18 @@ SQLITE_PKG := $(shell pkg-config --exists sqlite3 2>/dev/null && echo yes)
 SQLITE_LDLIBS := $(if $(SQLITE_PKG),$(shell pkg-config --libs sqlite3),-L$(HOME)/.local/sqlite3/lib -Wl,-rpath,$(HOME)/.local/sqlite3/lib -lsqlite3)
 SQLITE_LIBRARY_PATH := $(if $(SQLITE_PKG),,$(HOME)/.local/sqlite3/lib)
 
-.PHONY: build run check test core-test smoke web serve site itch android install clean clean-text-api-check deb appimage web-test
-build:
+.PHONY: native-deps build run check test core-test smoke web serve site itch android install clean clean-text-api-check deb appimage web-test
+native-deps:
 	sh scripts/native_deps.sh "$(ZIRAN)"
+
+build: native-deps
 	LIBRARY_PATH="$(SQLITE_LIBRARY_PATH)$${LIBRARY_PATH:+:$$LIBRARY_PATH}" \
 		LD_RUN_PATH="$(SQLITE_LIBRARY_PATH)" $(ZIRAN) build --profile desktop
 
 run: build
 	./build/uku-desktop
 
-check:
+check: native-deps
 	python3 scripts/generate_locales.py --check
 	$(ZIRAN) check
 	python3 scripts/check-source.py
